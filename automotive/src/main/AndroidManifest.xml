@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:appCategory="audio"
+        android:icon="@mipmap/ic_quran_auto"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_quran_auto_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Quran" />
+
+    <uses-feature
+        android:name="android.hardware.type.automotive"
+        android:required="true" />
+
+</manifest>

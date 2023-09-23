@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".RecitersList">
+
+    <EditText
+        android:id="@+id/reciter_search"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:drawableStart="@drawable/baseline_search_24"
+        android:drawableTint="@color/black"
+        android:hint="بحث عن القارئ"
+        android:maxLines="1"
+        android:textAlignment="viewEnd"
+        app:layout_constraintBottom_toTopOf="@id/reciters_list"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0"
+        android:importantForAutofill="no"
+        android:inputType="textFilter" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/reciters_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/reciter_search"
+        tools:itemCount="13"
+        tools:listitem="@layout/reciter_item" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
