@@ -3,6 +3,7 @@ package com.hifnawy.quran.shared.api
 import android.util.Log
 import com.google.gson.Gson
 import com.hifnawy.quran.shared.model.Chapter
+import com.hifnawy.quran.shared.model.ChapterAudioFile
 import com.hifnawy.quran.shared.model.Reciter
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -52,6 +53,33 @@ class APIRequester {
             }
 
             return chapters.toList()
+        }
+
+        suspend fun getChapter(reciterID: Int, chapterID: Int): ChapterAudioFile? {
+            var chapterAudioFile: ChapterAudioFile? = null
+
+            sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID/$chapterID") { responseBody ->
+                val chapterJsonObject = JSONObject(responseBody).getJSONObject("audio_file").toString()
+
+                Log.d(this@Companion.javaClass.canonicalName, chapterJsonObject)
+
+                chapterAudioFile = Gson().fromJson(chapterJsonObject, ChapterAudioFile::class.java)
+            }
+            return chapterAudioFile
+        }
+
+        suspend fun getReciterChaptersAudioFiles(reciterID: Int): List<ChapterAudioFile> {
+            var reciterChaptersAudioFiles: Array<ChapterAudioFile> = emptyArray()
+
+            sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID") { responseBody ->
+                val chapterJsonObject = JSONObject(responseBody).getJSONArray("audio_files").toString()
+
+                Log.d(this@Companion.javaClass.canonicalName, chapterJsonObject)
+
+                reciterChaptersAudioFiles =
+                    Gson().fromJson(chapterJsonObject, Array<ChapterAudioFile>::class.java)
+            }
+            return reciterChaptersAudioFiles.toList()
         }
     }
 }

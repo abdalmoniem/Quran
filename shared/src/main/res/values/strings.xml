@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Quran</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="quran">القرآن الكريم</string>
+    <string name="reciters">القراء</string>
+    <string name="reciter_search">بحث عن قارئ</string>
+    <string name="chapter_search">بحث عن سورة</string>
+    <string name="reciter_name">اسم القارئ</string>
+    <string name="recitation_style">نوع التلاوة</string>
+    <string name="chapters">السور</string>
+    <string name="chapter_name">اسم السورة</string>
+    <string name="revelation_place">مكان الوحى</string>
+    <string name="revelation_order">ترتيب الوحى: %1$s</string>
+    <string name="verse_count">عدد الآيات: %1$s</string>
+    <string name="quran_recitation_notification_name">Quran Recitation</string>
+    <string name="quran_recitation_notification_description">quran recitation description</string>
+</resources>

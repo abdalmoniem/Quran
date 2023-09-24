@@ -1,0 +1,246 @@
+package com.hifnawy.quran.shared
+
+import android.annotation.TargetApi
+import android.media.AudioManager
+import android.media.MediaPlayer
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.preference.PreferenceManager
+import android.support.v4.media.MediaBrowserCompat
+import android.support.v4.media.MediaDescriptionCompat
+import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
+import android.util.Log
+import androidx.media.MediaBrowserServiceCompat
+import com.google.android.exoplayer2.C
+import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.audio.AudioAttributes
+import org.jetbrains.annotations.Nullable
+
+
+/**
+ * Created by FelipeRRM on 8/13/2016.
+ */
+@TargetApi(Build.VERSION_CODES.LOLLIPOP)
+class AutoMediaBrowserService : MediaBrowserServiceCompat() {
+    var mediaPlayer: MediaPlayer? = null
+    var mSession: MediaSessionCompat? = null
+
+    private val audioAttributes = AudioAttributes.Builder()
+        .setContentType(C.CONTENT_TYPE_SPEECH)
+        .setUsage(C.USAGE_MEDIA)
+        .build()
+
+    private val exoPlayer: ExoPlayer by lazy {
+        ExoPlayer.Builder(this).build().apply {
+            setAudioAttributes(this@AutoMediaBrowserService.audioAttributes, true)
+            setHandleAudioBecomingNoisy(true)
+        }
+    }
+    override fun onCreate() {
+        super.onCreate()
+        mSession = MediaSessionCompat(this, "session tag")
+        sessionToken = mSession!!.sessionToken
+
+        // Set a callback object to handle play control requests, which
+        // implements MediaSession.Callback
+        mSession!!.setCallback(object : MediaSessionCompat.Callback() {
+            override fun onPlay() {
+                super.onPlay()
+                playMedia(
+                    PreferenceManager.getDefaultSharedPreferences(applicationContext).getInt(
+                        CURRENT_MEDIA_POSITION, 0
+                    ), null
+                )
+            }
+
+            //This is called when the pause button is pressed, or when onPlayFromMediaId is called in
+            //order to pause any currently playing media
+            override fun onPause() {
+                super.onPause()
+                setMediaPlaybackState(PAUSE)
+                pauseMedia()
+            }
+
+            override fun onStop() {
+                super.onStop()
+                setMediaPlaybackState(STOPPED)
+                if (mediaPlayer != null) {
+                    pauseMedia()
+                    mediaPlayer!!.release()
+                    PreferenceManager.getDefaultSharedPreferences(this@AutoMediaBrowserService).edit()
+                        .putInt(
+                            CURRENT_MEDIA_POSITION,
+                            0
+                        ).commit()
+                }
+            }
+
+            override fun onPlayFromMediaId(mediaId: String, extras: Bundle) {
+                super.onPlayFromMediaId(mediaId, extras)
+                mSession!!.setMetadata(
+                    MediaMetadataCompat.Builder()
+                        .putText(MediaMetadataCompat.METADATA_KEY_TITLE, "primeira musica")
+                        .putText(MediaMetadataCompat.METADATA_KEY_ARTIST, "Joãozinho das Rezas")
+                        .putText(MediaMetadataCompat.METADATA_KEY_GENRE, "Gospel")
+                        // .putText(
+                        //     MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI,
+                        //     "http://70.38.6.72/~vivafe/web/wp-content/uploads/2016/08/01.jpg"
+                        // )
+                        .build()
+                )
+                playMedia(0, mediaId)
+            }
+
+            override fun onPlayFromSearch(query: String, extras: Bundle) {
+                super.onPlayFromSearch(query, extras)
+            }
+        })
+        mSession!!.isActive = true
+    }
+
+    private fun setMediaPlaybackState(state: Int) {
+        var playbackState: PlaybackStateCompat? = null
+        when (state) {
+            PLAY -> playbackState = PlaybackStateCompat.Builder()
+                .setActions(PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
+                .setState(PlaybackStateCompat.STATE_PLAYING, 0, 1f)
+                .build()
+
+            PAUSE -> playbackState = PlaybackStateCompat.Builder()
+                .setActions(PlaybackStateCompat.ACTION_PLAY_PAUSE)
+                .setState(PlaybackStateCompat.STATE_PAUSED, 0, 1f)
+                .build()
+
+            BUFFERING -> playbackState = PlaybackStateCompat.Builder()
+                .setActions(PlaybackStateCompat.ACTION_STOP)
+                .setState(PlaybackStateCompat.STATE_BUFFERING, 0, 1f)
+                .build()
+
+            CONNECTING -> playbackState = PlaybackStateCompat.Builder()
+                .setActions(PlaybackStateCompat.ACTION_STOP)
+                .setState(PlaybackStateCompat.STATE_CONNECTING, 0, 1f)
+                .build()
+
+            STOPPED -> playbackState = PlaybackStateCompat.Builder()
+                .setActions(PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID)
+                .setState(PlaybackStateCompat.STATE_STOPPED, 0, 1f)
+                .build()
+        }
+        mSession!!.setPlaybackState(playbackState)
+    }
+
+    private fun playMedia(position: Int, id: String?) {
+        setMediaPlaybackState(BUFFERING)
+        if (mediaPlayer != null) try {
+            mediaPlayer!!.reset()
+        } catch (e: Exception) {
+            mediaPlayer = MediaPlayer()
+            e.printStackTrace()
+        } else mediaPlayer = MediaPlayer()
+        try {
+            mediaPlayer!!.setAudioStreamType(AudioManager.STREAM_MUSIC)
+            mediaPlayer!!.setDataSource("https://download.quranicaudio.com/qdc/abdul_baset/murattal/2.mp3")
+            mediaPlayer!!.prepareAsync()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        mediaPlayer!!.setOnPreparedListener { mediaPlayer ->
+            mediaPlayer.start()
+            if (position > 0) mediaPlayer.seekTo(position)
+            setMediaPlaybackState(PLAY)
+        }
+        mediaPlayer!!.setOnInfoListener { mediaPlayer, state, extra ->
+            when (state) {
+                MediaPlayer.MEDIA_INFO_BUFFERING_START -> {
+                    Log.d("MediaPlayer", "StartBuffer")
+                    setMediaPlaybackState(BUFFERING)
+                }
+
+                MediaPlayer.MEDIA_INFO_BUFFERING_END -> {
+                    Log.d("MediaPlayer", "EndBuffer")
+                    setMediaPlaybackState(PLAY)
+                }
+            }
+            true
+        }
+        mediaPlayer!!.setOnErrorListener { mediaPlayer, state, extra ->
+            Log.e("MediaPlayer Error", state.toString())
+            false
+        }
+    }
+
+    private fun pauseMedia() {
+        if (mediaPlayer != null) {
+            mediaPlayer!!.pause()
+            PreferenceManager.getDefaultSharedPreferences(this).edit().putInt(
+                CURRENT_MEDIA_POSITION,
+                mediaPlayer!!.currentPosition
+            ).commit()
+        }
+    }
+
+    override fun onGetRoot(s: String, i: Int, bundle: Bundle?): BrowserRoot {
+        return BrowserRoot(MY_MEDIA_ROOT_ID, null)
+    }
+
+    override fun onLoadChildren(parentId: String, result: Result<List<MediaBrowserCompat.MediaItem>>) {
+        val mediaItems: MutableList<MediaBrowserCompat.MediaItem> = ArrayList()
+        // Check if this is the root menu:
+        if (parentId == MY_MEDIA_ROOT_ID) {
+            mediaItems.add(
+                MediaBrowserCompat.MediaItem(
+                    MediaDescriptionCompat.Builder().setMediaId("iddopastor").setTitle("Pastor").build(),
+                    MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
+                )
+            )
+        } else if (parentId == "iddopastor") {
+            mediaItems.add(
+                MediaBrowserCompat.MediaItem(
+                    MediaDescriptionCompat.Builder().setMediaId("iddopastor2").setTitle("Pastor 2")
+                        .build(),
+                    MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
+                )
+            )
+
+            // examine the passed parentMediaId to see which submenu we're at,
+            // and put the children of that menu in the mediaItems list
+        } else if (parentId == "iddopastor2") {
+            mediaItems.add(
+                MediaBrowserCompat.MediaItem(
+                    MediaDescriptionCompat.Builder().setMediaId("genealogia")
+                        .setTitle("Tomé filho de José")
+                        .setMediaUri(Uri.parse("https://download.quranicaudio.com/qdc/abdul_baset/murattal/2.mp3"))
+                        // .setIconUri(Uri.parse("http://70.38.6.72/~vivafe/web/wp-content/uploads/2016/08/01.jpg"))
+                        .build(), MediaBrowserCompat.MediaItem.FLAG_PLAYABLE
+                )
+            )
+        }
+        result.sendResult(mediaItems)
+    }
+
+    override fun onDestroy() {
+        mSession!!.release()
+        if (mediaPlayer != null) {
+            pauseMedia()
+            mediaPlayer!!.release()
+            PreferenceManager.getDefaultSharedPreferences(this).edit().putInt(
+                CURRENT_MEDIA_POSITION,
+                0
+            ).commit()
+        }
+        super.onDestroy()
+    }
+
+    companion object {
+        private const val CURRENT_MEDIA_POSITION = "media_position_key"
+        private const val PLAY = 1
+        private const val PAUSE = 2
+        private const val BUFFERING = 3
+        private const val CONNECTING = 4
+        private const val STOPPED = 5
+        private const val MY_MEDIA_ROOT_ID = "meuiddaraiz"
+    }
+}

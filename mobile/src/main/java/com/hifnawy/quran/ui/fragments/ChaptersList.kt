@@ -10,7 +10,7 @@ import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.navigation.NavController
 import androidx.navigation.fragment.findNavController
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.GridLayoutManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
@@ -74,7 +74,8 @@ class ChaptersList : Fragment() {
                 }
 
                 withContext(Dispatchers.Main) {
-                    chaptersList.layoutManager = LinearLayoutManager(root.context)
+                    chaptersList.layoutManager =
+                        GridLayoutManager(root.context, 3, GridLayoutManager.VERTICAL, false)
                     chaptersList.adapter = chaptersListAdapter
 
                     chapterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
