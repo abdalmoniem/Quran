@@ -16,8 +16,7 @@ class RecitersListAdapter(
     private val context: Context,
     private var reciters: ArrayList<Reciter>,
     private val itemClickListener: ReciterClickListener? = null
-) :
-    RecyclerView.Adapter<RecitersListAdapter.ReciterViewHolder>() {
+) : RecyclerView.Adapter<RecitersListAdapter.ReciterViewHolder>() {
 
     private lateinit var recyclerView: RecyclerView
     private var mLastViewHolderPosition = -1

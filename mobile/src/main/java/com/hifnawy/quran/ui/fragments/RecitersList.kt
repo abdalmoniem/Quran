@@ -1,13 +1,17 @@
-package com.hifnawy.quran
+package com.hifnawy.quran.ui.fragments
 
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
+import androidx.navigation.NavController
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.RecitersListAdapter
 import com.hifnawy.quran.databinding.FragmentRecitersListBinding
 import com.hifnawy.quran.shared.api.APIRequester
@@ -23,6 +27,7 @@ import kotlinx.coroutines.withContext
  */
 class RecitersList : Fragment() {
     private lateinit var binding: FragmentRecitersListBinding
+    private lateinit var navController: NavController
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -32,6 +37,23 @@ class RecitersList : Fragment() {
 
         // Inflate the layout for this fragment
         binding = FragmentRecitersListBinding.inflate(inflater, container, false)
+        navController = findNavController()
+
+        (activity as AppCompatActivity).supportActionBar?.apply {
+            // // methods to display the icon in the ActionBar
+            // setDisplayUseLogoEnabled(true)
+            // setDisplayShowHomeEnabled(true)
+            // setDisplayShowTitleEnabled(true)
+
+            // adding icon in the ActionBar
+            // setIcon(R.mipmap.ic_quran_mobile_round)
+
+            // providing title for the ActionBar
+            title = "   ${getString(R.string.quran)}"
+
+            // providing subtitle for the ActionBar
+            subtitle = "   ${getString(R.string.reciters)}"
+        }
 
         with(binding) {
             CoroutineScope(Dispatchers.IO).launch {
@@ -45,45 +67,19 @@ class RecitersList : Fragment() {
                         this@RecitersList.javaClass.canonicalName,
                         "clicked on $position: ${reciter.translated_name?.name} ${itemView.recitationStyle.text}"
                     )
-                    // Snackbar.make(
-                    //     this@RecitersList.requireView(),
-                    //     "clicked on $position: ${reciter.translated_name?.name} ${itemView.recitationStyle.text}",
-                    //     Snackbar.LENGTH_INDEFINITE
-                    // ).show()
-                    // Toast.makeText(
-                    //     this@RecitersList.context,
-                    //     "clicked on $position: ${reciter.reciter_name} ${itemView.recitationStyle.text}",
-                    //     Toast.LENGTH_LONG
-                    // ).show()
+
+                    navController.navigate(
+                        directions = RecitersListDirections.actionToChaptersList(
+                            reciter = reciter
+                        )
+                    )
                 }
 
                 withContext(Dispatchers.Main) {
                     recitersList.layoutManager = LinearLayoutManager(root.context)
                     recitersList.adapter = recitersListAdapter
 
-                    /*
-                    reciterSearch.addTextChangedListener { text ->
-                        if (text.toString().isEmpty()) {
-                            recitersListAdapter.setReciters(reciters)
-                        } else {
-                            val searchResults = reciters.filter { reciter ->
-                                return@filter if (reciter.translated_name != null) {
-                                    reciter.translated_name!!.name.contains(text.toString())
-                                } else {
-                                    reciter.reciter_name.contains(text.toString())
-                                }
-                            }
-
-                            if (searchResults.isNotEmpty()) {
-                                recitersListAdapter.setReciters(searchResults)
-                            } else {
-                                recitersListAdapter.clear()
-                            }
-                        }
-                    }
-                    */
-
-                    reciterSearch.addTextChangedListener({ charSequence, _, _, _ ->
+                    reciterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
                         if (charSequence.toString().isEmpty()) {
                             recitersListAdapter.setReciters(reciters)
                         } else {

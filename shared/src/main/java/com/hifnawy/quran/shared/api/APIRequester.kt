@@ -2,6 +2,7 @@ package com.hifnawy.quran.shared.api
 
 import android.util.Log
 import com.google.gson.Gson
+import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -10,17 +11,25 @@ import org.json.JSONObject
 import ru.gildor.coroutines.okhttp.await
 
 class APIRequester {
-    companion object {
-        suspend fun getRecitersList(): List<Reciter> {
-            var reciters: Array<Reciter> = emptyArray()
+    fun interface ResponseHandler {
+        fun handleResponse(responseBodyJson: String)
+    }
 
+    companion object {
+        suspend fun sendRESTRequest(url: String, handleResponse: ResponseHandler) {
             val client: OkHttpClient = OkHttpClient().newBuilder().build()
             val request: Request =
-                Request.Builder().url("https://api.quran.com/api/v4/resources/recitations?language=ar")
+                Request.Builder().url(url)
                     .method("GET", null).addHeader("Accept", "application/json").build()
             val response: Response = client.newCall(request).await()
 
-            response.body()?.string()?.let { responseBody ->
+            response.body()?.string()?.let(handleResponse::handleResponse)
+        }
+
+        suspend fun getRecitersList(): List<Reciter> {
+            var reciters: Array<Reciter> = emptyArray()
+
+            sendRESTRequest("https://api.quran.com/api/v4/resources/recitations?language=ar") { responseBody ->
                 val recitersJsonArray = JSONObject(responseBody).getJSONArray("recitations").toString()
 
                 Log.d(this@Companion::class.java.canonicalName, recitersJsonArray)
@@ -29,6 +38,20 @@ class APIRequester {
             }
 
             return reciters.toList()
+        }
+
+        suspend fun getChaptersList(): List<Chapter> {
+            var chapters: Array<Chapter> = emptyArray()
+
+            sendRESTRequest("https://api.quran.com/api/v4/chapters?language=ar") { responseBody ->
+                val chaptersJsonArray = JSONObject(responseBody).getJSONArray("chapters").toString()
+
+                Log.d(this@Companion::class.java.canonicalName, chaptersJsonArray)
+
+                chapters = Gson().fromJson(chaptersJsonArray, Array<Chapter>::class.java)
+            }
+
+            return chapters.toList()
         }
     }
 }

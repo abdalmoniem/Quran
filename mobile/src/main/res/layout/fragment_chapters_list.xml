@@ -7,29 +7,29 @@
     tools:context=".ui.fragments.RecitersList">
 
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/reciters_list"
+        android:id="@+id/chapters_list"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/reciter_search"
+        app:layout_constraintTop_toBottomOf="@id/chapter_search"
         tools:itemCount="13"
-        tools:listitem="@layout/reciter_item" />
+        tools:listitem="@layout/chapter_item" />
 
     <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/reciter_search"
+        android:id="@+id/chapter_search"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:drawableStart="@drawable/baseline_search_24"
         android:drawableTint="@color/material_dynamic_tertiary50"
-        android:hint="@string/reciter_search"
+        android:hint="@string/chapter_search"
         android:importantForAutofill="no"
         android:inputType="textFilter"
         android:maxLines="1"
         android:textAlignment="viewEnd"
         android:textSize="25sp"
-        app:layout_constraintBottom_toTopOf="@id/reciters_list"
+        app:layout_constraintBottom_toTopOf="@id/chapters_list"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
