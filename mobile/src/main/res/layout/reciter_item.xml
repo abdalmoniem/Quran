@@ -6,15 +6,16 @@
     android:layout_margin="5dp">
 
     <com.google.android.material.card.MaterialCardView
+        android:id="@+id/card_holder"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:elevation="10dp"
+        app:cardCornerRadius="15dp"
+        app:cardElevation="10dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:cardCornerRadius="15dp"
-        app:strokeWidth="0dp"
-        android:elevation="10dp"
-        app:cardElevation="10dp">
+        app:strokeWidth="0dp">
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
@@ -25,7 +26,7 @@
                 android:id="@+id/reciter_name"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:text="اسم القارئ"
+                android:text="@string/reciter_name"
                 android:textSize="23sp"
                 android:textStyle="bold"
                 app:layout_constraintEnd_toEndOf="parent"
@@ -36,7 +37,7 @@
                 android:id="@+id/recitation_style"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:text="توع التلاوة"
+                android:text="@string/recitation_style"
                 android:textSize="20sp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"

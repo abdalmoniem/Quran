@@ -2,4 +2,9 @@
     <string name="app_name">Quran</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="quran">القرآن الكريم</string>
+    <string name="reciters">القراء</string>
+    <string name="reciter_search">بحث عن القارئ</string>
+    <string name="reciter_name">اسم القارئ</string>
+    <string name="recitation_style">نوع التلاوة</string>
 </resources>

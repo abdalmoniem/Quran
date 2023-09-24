@@ -12,16 +12,25 @@ import com.hifnawy.quran.databinding.ReciterItemBinding
 import com.hifnawy.quran.shared.model.Reciter
 
 
-class RecitersListAdapter(private val context: Context, private var reciters: ArrayList<Reciter>) :
+class RecitersListAdapter(
+    private val context: Context,
+    private var reciters: ArrayList<Reciter>,
+    private val itemClickListener: ReciterClickListener? = null
+) :
     RecyclerView.Adapter<RecitersListAdapter.ReciterViewHolder>() {
 
     private lateinit var recyclerView: RecyclerView
     private var mLastViewHolderPosition = -1
 
+    fun interface ReciterClickListener {
+        fun reciterItemClickListener(position: Int, reciter: Reciter, itemView: ReciterViewHolder)
+    }
+
     inner class ReciterViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val binding = ReciterItemBinding.bind(itemView)
         val reciterName = binding.reciterName
         val recitationStyle = binding.recitationStyle
+        val cardHolder = binding.cardHolder
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ReciterViewHolder {
@@ -41,6 +50,10 @@ class RecitersListAdapter(private val context: Context, private var reciters: Ar
             reciterName.text =
                 if (reciter.translated_name != null) reciter.translated_name!!.name else reciter.reciter_name
             recitationStyle.text = if (reciter.style != null) reciter.style!!.style else "تلاوة"
+
+            cardHolder.setOnClickListener {
+                itemClickListener?.reciterItemClickListener(position, reciter, holder)
+            }
         }
 
         setAnimation(holder.itemView, position)

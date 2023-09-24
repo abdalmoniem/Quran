@@ -6,10 +6,10 @@ data class Reciter(
     val style: RecitationStyle?,
     val translated_name: TranslatedName?
 ) {
+    @Suppress("unused", "SpellCheckingInspection")
     enum class RecitationStyle(val style: String?) {
-
         Murattal("مرتل"), Mujawwad("مجود"), Muallim("معلم")
     }
 
-    class TranslatedName(val name: String, val language_name: String)
+    class TranslatedName(val name: String, @Suppress("unused") val language_name: String)
 }

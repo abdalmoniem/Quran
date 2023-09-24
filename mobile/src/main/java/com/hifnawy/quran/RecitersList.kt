@@ -1,6 +1,7 @@
 package com.hifnawy.quran
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -36,13 +37,53 @@ class RecitersList : Fragment() {
             CoroutineScope(Dispatchers.IO).launch {
                 reciters = APIRequester.getRecitersList()
 
-                recitersListAdapter = RecitersListAdapter(root.context, ArrayList(reciters))
+                recitersListAdapter = RecitersListAdapter(
+                    root.context,
+                    ArrayList(reciters)
+                ) { position, reciter, itemView ->
+                    Log.d(
+                        this@RecitersList.javaClass.canonicalName,
+                        "clicked on $position: ${reciter.translated_name?.name} ${itemView.recitationStyle.text}"
+                    )
+                    // Snackbar.make(
+                    //     this@RecitersList.requireView(),
+                    //     "clicked on $position: ${reciter.translated_name?.name} ${itemView.recitationStyle.text}",
+                    //     Snackbar.LENGTH_INDEFINITE
+                    // ).show()
+                    // Toast.makeText(
+                    //     this@RecitersList.context,
+                    //     "clicked on $position: ${reciter.reciter_name} ${itemView.recitationStyle.text}",
+                    //     Toast.LENGTH_LONG
+                    // ).show()
+                }
 
                 withContext(Dispatchers.Main) {
                     recitersList.layoutManager = LinearLayoutManager(root.context)
                     recitersList.adapter = recitersListAdapter
 
-                    reciterSearch.addTextChangedListener({ charSequence, start, before, count ->
+                    /*
+                    reciterSearch.addTextChangedListener { text ->
+                        if (text.toString().isEmpty()) {
+                            recitersListAdapter.setReciters(reciters)
+                        } else {
+                            val searchResults = reciters.filter { reciter ->
+                                return@filter if (reciter.translated_name != null) {
+                                    reciter.translated_name!!.name.contains(text.toString())
+                                } else {
+                                    reciter.reciter_name.contains(text.toString())
+                                }
+                            }
+
+                            if (searchResults.isNotEmpty()) {
+                                recitersListAdapter.setReciters(searchResults)
+                            } else {
+                                recitersListAdapter.clear()
+                            }
+                        }
+                    }
+                    */
+
+                    reciterSearch.addTextChangedListener({ charSequence, _, _, _ ->
                         if (charSequence.toString().isEmpty()) {
                             recitersListAdapter.setReciters(reciters)
                         } else {
