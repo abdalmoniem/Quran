@@ -30,6 +30,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Collections
 
 /**
  * This class provides a MediaBrowser through a service. It exposes the media library to a browsing
@@ -232,6 +233,14 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 val chapterAudioFile =
                     chaptersAudioFiles.single { chapterAudioFile -> chapterAudioFile.chapter_id == currentChapterId }
 
+                Log.d(
+                    "ExoPlayer_Audio_Player",
+                    "reciter_id: ${reciter.id}\n" +
+                            "chapter_id: ${chapter.id}\n" +
+                            "file_size: ${chapterAudioFile.file_size}\n" /*+
+                            "Duration in ms: ${(chapterAudioFile.file_size * 8L / 192_000L * 1_000L).toLong()}"*/
+                )
+
                 if (exoPlayer.isPlaying) {
                     exoPlayer.stop()
                 }
@@ -247,6 +256,10 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                                     if (reciter.style != null) " (${reciter.style.style})" else ""
                         )
                         .putText(MediaMetadataCompat.METADATA_KEY_GENRE, "Quran")
+                        // .putLong(
+                        //     MediaMetadataCompat.METADATA_KEY_DURATION,
+                        //     (chapterAudioFile.file_size * 8L / 192_000L * 1_000L).toLong()
+                        // )
                         // .putText(
                         //     MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI,
                         //     "http://70.38.6.72/~vivafe/web/wp-content/uploads/2016/08/01.jpg"
@@ -256,9 +269,24 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
                 setMediaPlaybackState(PLAY)
 
-                val mediaItem =
-                    com.google.android.exoplayer2.MediaItem.fromUri(chapterAudioFile.audio_url.toUri())
-                exoPlayer.setMediaItem(mediaItem)
+                Collections.rotate(
+                    chaptersAudioFiles,
+                    (chaptersAudioFiles.indexOf(chapterAudioFile)) * -1
+                )
+
+                val mediaItems: ArrayList<com.google.android.exoplayer2.MediaItem> = ArrayList()
+
+                chaptersAudioFiles.forEach {
+                    Log.d("ExoPlayer_Audio_Player", "chapterId: ${it.chapter_id}")
+                    mediaItems.add(
+                        com.google.android.exoplayer2.MediaItem.fromUri(
+                            it.audio_url.toUri()
+                        )
+                    )
+                }
+                // val mediaItem =
+                //     com.google.android.exoplayer2.MediaItem.fromUri(chapterAudioFile.audio_url.toUri())
+                exoPlayer.setMediaItems(mediaItems.toList())
                 exoPlayer.prepare()
                 exoPlayer.playWhenReady = true
                 exoPlayer.play()
@@ -448,7 +476,12 @@ class QuranMediaService : MediaBrowserServiceCompat() {
         var playbackState: PlaybackStateCompat? = null
         when (state) {
             PLAY -> playbackState = PlaybackStateCompat.Builder()
-                .setActions(PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
+                .setActions(
+                    PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                            PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
+                            PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
+                            PlaybackStateCompat.ACTION_SEEK_TO
+                )
                 .setState(PlaybackStateCompat.STATE_PLAYING, 0, 1f)
                 .build()
 
