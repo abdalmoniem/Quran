@@ -684,16 +684,22 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     }
 
     private fun downloadFile(url: URL, reciter: Reciter, chapter: Chapter): File {
-        val outputFileName =
-            "${this@QuranMediaService.filesDir.absolutePath}/${reciter.reciter_name}_${chapter.name_simple}.mp3"
-        val file = File(outputFileName)
+        val reciterDirectory = "${this@QuranMediaService.filesDir.absolutePath}/${reciter.reciter_name}"
+        val chapterFileName =
+            "$reciterDirectory/${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3"
+        val reciterDirectoryFile = File(reciterDirectory)
+        val chapterFile = File(chapterFileName)
 
-        if (!file.exists()) {
-            // download the file if it doesn't exist
-            url.openStream().use { Files.copy(it, Paths.get(outputFileName)) }
+        if (!reciterDirectoryFile.exists()) {
+            reciterDirectoryFile.mkdir()
         }
 
-        return file
+        if (!chapterFile.exists()) {
+            // download the file if it doesn't exist
+            url.openStream().use { Files.copy(it, Paths.get(chapterFileName)) }
+        }
+
+        return chapterFile
 
     }
 
