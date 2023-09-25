@@ -21,5 +21,5 @@ data class Chapter(
         madinah("مدنية")
     }
 
-    class TranslatedName(val name: String, @Suppress("unused") val language_name: String)
+    class TranslatedName(val name: String, @Suppress("unused") val language_name: String) : Serializable
 }

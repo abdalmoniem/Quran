@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
@@ -16,7 +17,6 @@ import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
 import com.hifnawy.quran.shared.api.APIRequester
 import com.hifnawy.quran.shared.model.Chapter
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,7 +55,7 @@ class ChaptersList : Fragment() {
         }
 
         with(binding) {
-            CoroutineScope(Dispatchers.IO).launch {
+            lifecycleScope.launch(context = Dispatchers.IO) {
                 chapters = APIRequester.getChaptersList()
 
                 chaptersListAdapter = ChaptersListAdapter(
@@ -66,11 +66,8 @@ class ChaptersList : Fragment() {
                         "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
                     )
 
-                    // navController.navigate(
-                    //     directions = RecitersListDirections.actionToChaptersList(
-                    //         reciter = reciter
-                    //     )
-                    // )
+                    val reciter = ChaptersListArgs.fromBundle(requireArguments()).reciter
+                    navController.navigate(ChaptersListDirections.actionToChapterPlay(reciter, chapter))
                 }
 
                 withContext(Dispatchers.Main) {

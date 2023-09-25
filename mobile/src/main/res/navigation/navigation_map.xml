@@ -25,9 +25,34 @@
             android:id="@+id/action_to_reciters_list"
             app:destination="@id/reciters_list" />
 
+        <action
+            android:id="@+id/action_to_chapter_play"
+            app:destination="@id/chapter_play" />
+
         <argument
             android:name="reciter"
             app:argType="com.hifnawy.quran.shared.model.Reciter"
+            app:nullable="false" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/chapter_play"
+        android:name="com.hifnawy.quran.ui.fragments.QuranMediaPlayback"
+        android:label="@string/chapter_name"
+        tools:layout="@layout/fragment_quran_media_playback">
+
+        <action
+            android:id="@+id/action_to_chapters_list"
+            app:destination="@id/chapters_list" />
+
+        <argument
+            android:name="reciter"
+            app:argType="com.hifnawy.quran.shared.model.Reciter"
+            app:nullable="false" />
+
+        <argument
+            android:name="chapter"
+            app:argType="com.hifnawy.quran.shared.model.Chapter"
             app:nullable="false" />
     </fragment>
 </navigation>

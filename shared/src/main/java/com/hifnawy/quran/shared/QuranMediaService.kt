@@ -1,10 +1,15 @@
 package com.hifnawy.quran.shared
 
 import android.annotation.SuppressLint
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaDescriptionCompat
@@ -12,6 +17,7 @@ import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
 import androidx.media.MediaBrowserServiceCompat
 import androidx.media.utils.MediaConstants
@@ -19,6 +25,7 @@ import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.audio.AudioAttributes
+import com.hifnawy.quran.shared.api.APIRequester.Companion.getChapter
 import com.hifnawy.quran.shared.api.APIRequester.Companion.getChaptersList
 import com.hifnawy.quran.shared.api.APIRequester.Companion.getReciterChaptersAudioFiles
 import com.hifnawy.quran.shared.api.APIRequester.Companion.getRecitersList
@@ -238,6 +245,8 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     override fun onCreate() {
         super.onCreate()
 
+        Log.d(javaClass.canonicalName, "${javaClass.canonicalName} started!!!")
+
         mediaSession = MediaSessionCompat(this, "QuranMediaService")
 
         sessionToken = mediaSession.sessionToken
@@ -268,8 +277,43 @@ class QuranMediaService : MediaBrowserServiceCompat() {
         })
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent != null) {
+            val bundle = intent.extras
+
+            if (bundle != null) {
+                val reciter = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getSerializableExtra("RECITER_ID", Reciter::class.java)
+                } else {
+                    bundle.getSerializable("RECITER_ID") as Reciter
+                }
+
+                val chapter = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getSerializableExtra("CHAPTER_ID", Chapter::class.java)
+                } else {
+                    bundle.getSerializable("CHAPTER_ID") as Chapter
+                }
+
+                if ((reciter != null) && (chapter != null)) {
+                    currentReciterId = reciter.id
+                    currentChapterId = chapter.id
+
+                    sharedPrefs.edit().putInt("LAST_RECITER_ID", currentReciterId).apply()
+                    sharedPrefs.edit().putInt("LAST_CHAPTER_ID", currentChapterId).apply()
+
+                    CoroutineScope(Dispatchers.IO).launch {
+                        setMediaPlaybackState(BUFFERING)
+                        playMedia()
+                    }
+                }
+            }
+        }
+        return START_STICKY
+    }
+
     override fun onDestroy() {
         mediaSession.release()
+        exoPlayer.release()
     }
 
     override fun onGetRoot(
@@ -443,11 +487,11 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
             val reciter = reciters.single { reciter -> reciter.id == currentReciterId }
             val chapter = chapters.single { chapter -> chapter.id == currentChapterId }
-            val chapterAudioFile =
-                chaptersAudioFiles.single { chapterAudioFile -> chapterAudioFile.chapter_id == currentChapterId }
+            val chapterAudioFile = getChapter(currentReciterId, currentChapterId)
+            // chaptersAudioFiles.single { chapterAudioFile -> chapterAudioFile.chapter_id == currentChapterId }
 
 
-            val file: File = downloadFile(URL(chapterAudioFile.audio_url))
+            val file: File = downloadFile(URL(chapterAudioFile?.audio_url))
 
             val mmr = MediaMetadataRetriever().apply {
                 setDataSource(this@QuranMediaService, file.toUri())
@@ -460,7 +504,7 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 "ExoPlayer_Audio_Player",
                 "reciter_id: ${reciter.id}\n" +
                         "chapter_id: ${chapter.id}\n" +
-                        "file_size: ${chapterAudioFile.file_size}\n" +
+                        "file_size: ${chapterAudioFile?.file_size}\n" +
                         "file: ${file}\n" +
                         "Duration in ms: $durationMs"
             )
@@ -524,6 +568,47 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                         )
                         .build()
                 )
+
+                val notification = NotificationCompat.Builder(
+                    this@QuranMediaService,
+                    getString(R.string.quran_recitation_notification_name)
+                )
+                    // Show controls on lock screen even when user hides sensitive content.
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setSmallIcon(R.drawable.quran_icon_monochrome_64)
+                    .setSilent(true)
+                    // Apply the media style template
+                    .setStyle(
+                        androidx.media.app.NotificationCompat.MediaStyle()
+                            // .setShowActionsInCompactView(1 /* #1: pause button \*/)
+                            .setMediaSession(mediaSession.sessionToken)
+                    )
+                    .setContentTitle(chapter.name_arabic)
+                    .setContentText(if (reciter.translated_name != null) reciter.translated_name.name else reciter.reciter_name)
+                    .setLargeIcon(
+                        BitmapFactory.decodeResource(
+                            this@QuranMediaService.resources,
+                            drawableId
+                        )
+                    )
+                    .build()
+
+                val name = getString(R.string.quran_recitation_notification_name)
+                val descriptionText = chapter.name_arabic
+                val importance = NotificationManager.IMPORTANCE_HIGH
+                val channel = NotificationChannel(
+                    getString(R.string.quran_recitation_notification_name),
+                    name,
+                    importance
+                ).apply {
+                    description = descriptionText
+                }
+
+                // Register the channel with the system
+                val notificationManager: NotificationManager =
+                    getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                notificationManager.createNotificationChannel(channel)
+                notificationManager.notify(chapter.id, notification)
 
                 exoPlayer.play()
             }

@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -56,7 +57,7 @@ class RecitersList : Fragment() {
         }
 
         with(binding) {
-            CoroutineScope(Dispatchers.IO).launch {
+            lifecycleScope.launch(context = Dispatchers.IO) {
                 reciters = APIRequester.getRecitersList()
 
                 recitersListAdapter = RecitersListAdapter(

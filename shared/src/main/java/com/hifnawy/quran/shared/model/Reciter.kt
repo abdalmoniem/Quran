@@ -2,6 +2,7 @@ package com.hifnawy.quran.shared.model
 
 import java.io.Serializable
 
+@Suppress("PropertyName")
 data class Reciter(
     val id: Int,
     val reciter_name: String,
@@ -13,5 +14,5 @@ data class Reciter(
         Murattal("مرتل"), Mujawwad("مجود"), Muallim("معلم")
     }
 
-    class TranslatedName(val name: String, @Suppress("unused") val language_name: String)
+    class TranslatedName(val name: String, @Suppress("unused") val language_name: String) : Serializable
 }

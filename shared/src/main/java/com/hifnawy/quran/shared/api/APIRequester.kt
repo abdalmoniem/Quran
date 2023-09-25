@@ -61,7 +61,7 @@ class APIRequester {
             sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID/$chapterID") { responseBody ->
                 val chapterJsonObject = JSONObject(responseBody).getJSONObject("audio_file").toString()
 
-                Log.d(this@Companion.javaClass.canonicalName, chapterJsonObject)
+                Log.d(this@Companion::class.java.canonicalName, chapterJsonObject)
 
                 chapterAudioFile = Gson().fromJson(chapterJsonObject, ChapterAudioFile::class.java)
             }
@@ -74,7 +74,7 @@ class APIRequester {
             sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID") { responseBody ->
                 val chapterJsonObject = JSONObject(responseBody).getJSONArray("audio_files").toString()
 
-                Log.d(this@Companion.javaClass.canonicalName, chapterJsonObject)
+                Log.d(this@Companion::class.java.canonicalName, chapterJsonObject)
 
                 reciterChaptersAudioFiles =
                     Gson().fromJson(chapterJsonObject, Array<ChapterAudioFile>::class.java)
