@@ -1,3 +1,3 @@
 <resources>
-    <string name="app_name">Quran</string>
+    <string name="app_name">@string/quran</string>
 </resources>
