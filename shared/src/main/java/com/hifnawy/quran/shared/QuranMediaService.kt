@@ -1,7 +1,6 @@
 package com.hifnawy.quran.shared
 
 import android.annotation.SuppressLint
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
@@ -136,6 +135,10 @@ class QuranMediaService : MediaBrowserServiceCompat() {
             setAudioAttributes(this@QuranMediaService.audioAttributes, true)
             setHandleAudioBecomingNoisy(true)
         }
+    }
+
+    private val notificationManager: NotificationManager by lazy {
+        getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
 
     private val callback = object : MediaSessionCompat.Callback() {
@@ -301,10 +304,8 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                     sharedPrefs.edit().putInt("LAST_RECITER_ID", currentReciterId).apply()
                     sharedPrefs.edit().putInt("LAST_CHAPTER_ID", currentChapterId).apply()
 
-                    CoroutineScope(Dispatchers.IO).launch {
-                        setMediaPlaybackState(BUFFERING)
-                        playMedia()
-                    }
+                    setMediaPlaybackState(BUFFERING)
+                    playMedia()
                 }
             }
         }
@@ -312,8 +313,26 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     }
 
     override fun onDestroy() {
-        mediaSession.release()
-        exoPlayer.release()
+        Log.w(
+            "ExoPlayer_Audio_Player",
+            "${::QuranMediaService.javaClass.name} service is being destroyed!"
+        )
+
+        if (!exoPlayer.isPlaying) {
+            Log.w(
+                "ExoPlayer_Audio_Player",
+                "${::QuranMediaService.javaClass.name} service is being destroyed! releasing ${::exoPlayer.name}..."
+            )
+            exoPlayer.release()
+        }
+
+        if (!mediaSession.isActive) {
+            Log.w(
+                "ExoPlayer_Audio_Player",
+                "${::QuranMediaService.javaClass.name} service is being destroyed! releasing ${::mediaSession.name}..."
+            )
+            mediaSession.release()
+        }
     }
 
     override fun onGetRoot(
@@ -474,7 +493,6 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     @SuppressLint("DiscouragedApi")
     private fun playMedia() {
         // setMediaPlaybackState(BUFFERING)
-
         sharedPrefs.edit().putInt("LAST_RECITER_ID", currentReciterId).apply()
         sharedPrefs.edit().putInt("LAST_CHAPTER_ID", currentChapterId).apply()
 
@@ -491,7 +509,7 @@ class QuranMediaService : MediaBrowserServiceCompat() {
             // chaptersAudioFiles.single { chapterAudioFile -> chapterAudioFile.chapter_id == currentChapterId }
 
 
-            val file: File = downloadFile(URL(chapterAudioFile?.audio_url))
+            val file: File = downloadFile(URL(chapterAudioFile?.audio_url), reciter, chapter)
 
             val mmr = MediaMetadataRetriever().apply {
                 setDataSource(this@QuranMediaService, file.toUri())
@@ -593,22 +611,20 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                     )
                     .build()
 
-                val name = getString(R.string.quran_recitation_notification_name)
-                val descriptionText = chapter.name_arabic
-                val importance = NotificationManager.IMPORTANCE_HIGH
-                val channel = NotificationChannel(
-                    getString(R.string.quran_recitation_notification_name),
-                    name,
-                    importance
-                ).apply {
-                    description = descriptionText
-                }
+                // val name = getString(R.string.quran_recitation_notification_name)
+                // val descriptionText = chapter.name_arabic
+                // val importance = NotificationManager.IMPORTANCE_HIGH
+                // val channel = NotificationChannel(
+                //     getString(R.string.quran_recitation_notification_name),
+                //     name,
+                //     importance
+                // ).apply {
+                //     description = descriptionText
+                // }
 
                 // Register the channel with the system
-                val notificationManager: NotificationManager =
-                    getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                notificationManager.createNotificationChannel(channel)
-                notificationManager.notify(chapter.id, notification)
+                // notificationManager.createNotificationChannel(channel)
+                notificationManager.notify(R.integer.quran_chapter_notification_channel_id, notification)
 
                 exoPlayer.play()
             }
@@ -667,18 +683,18 @@ class QuranMediaService : MediaBrowserServiceCompat() {
         mediaSession.setPlaybackState(playbackState)
     }
 
-    private fun downloadFile(url: URL): File {
-        val outputFileName = "${this@QuranMediaService.filesDir.absolutePath}/file.mp3"
+    private fun downloadFile(url: URL, reciter: Reciter, chapter: Chapter): File {
+        val outputFileName =
+            "${this@QuranMediaService.filesDir.absolutePath}/${reciter.reciter_name}_${chapter.name_simple}.mp3"
         val file = File(outputFileName)
 
-        if (file.exists()) {
-            file.delete()
+        if (!file.exists()) {
+            // download the file if it doesn't exist
+            url.openStream().use { Files.copy(it, Paths.get(outputFileName)) }
         }
-        // file.createNewFile()
-
-        url.openStream().use { Files.copy(it, Paths.get(outputFileName)) }
 
         return file
+
     }
 
     /*
@@ -708,5 +724,6 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     }
     */
 }
+
 
 private const val MEDIA_ROOT_ID = "ROOT"
