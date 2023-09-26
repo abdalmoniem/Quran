@@ -6,9 +6,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.fragment.app.Fragment
 import com.hifnawy.quran.databinding.FragmentQuranMediaPlaybackBinding
 import com.hifnawy.quran.shared.QuranMediaService
+import com.hifnawy.quran.ui.activities.MainActivity
 
 /**
  * A simple [Fragment] subclass.
@@ -36,16 +38,25 @@ class QuranMediaPlayback : Fragment() {
         binding.chapterName.text = chapter.name_arabic
         binding.reciterName.text =
             if (reciter.translated_name != null) reciter.translated_name!!.name else reciter.reciter_name
-        binding.chapterImage.setImageDrawable(resources.getDrawable(drawableId))
-        requireActivity().startService(
-            Intent(
-                context,
-                QuranMediaService::class.java
-            ).apply {
-                putExtra("RECITER_ID", bundle.reciter)
-                putExtra("CHAPTER_ID", bundle.chapter)
-            }
+        binding.chapterImage.setImageDrawable(
+            AppCompatResources.getDrawable(requireContext(), drawableId)
         )
+        (activity as MainActivity).startForegroundService(Intent(
+            context,
+            QuranMediaService::class.java
+        ).apply {
+            putExtra("RECITER_ID", bundle.reciter)
+            putExtra("CHAPTER_ID", bundle.chapter)
+        })
+        // (activity as MainActivity).startService(
+        //     Intent(
+        //         context,
+        //         QuranMediaService::class.java
+        //     ).apply {
+        //         putExtra("RECITER_ID", bundle.reciter)
+        //         putExtra("CHAPTER_ID", bundle.chapter)
+        //     }
+        // )
 
         return binding.root
     }

@@ -11,6 +11,7 @@
     <string name="revelation_place">مكان الوحى</string>
     <string name="revelation_order">ترتيب الوحى: %1$s</string>
     <string name="verse_count">عدد الآيات: %1$s</string>
+    <string name="loading_chapter">جارٍ تحميل سورة %1$s…</string>
     <string name="quran_recitation_notification_name">Quran Recitation</string>
     <string name="quran_recitation_notification_description">quran recitation description</string>
 </resources>
