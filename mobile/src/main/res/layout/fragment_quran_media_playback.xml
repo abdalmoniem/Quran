@@ -2,8 +2,12 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/chapter_001"
+    android:backgroundTint="#aaffffff"
+    android:backgroundTintMode="multiply"
     tools:context=".ui.fragments.QuranMediaPlayback">
 
     <TextView
@@ -12,22 +16,22 @@
         android:layout_height="wrap_content"
         android:text="@string/reciter_name"
         android:textSize="25sp"
-        app:layout_constraintTop_toBottomOf="@id/chapter_name"
         app:layout_constraintBottom_toTopOf="@id/chapter_duration"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/chapter_name" />
 
     <TextView
         android:id="@+id/chapter_duration"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="00:12 / 00:47"
-        app:layout_constraintTop_toBottomOf="@id/reciter_name"
+        android:text="00:00:00"
         android:textSize="30sp"
         android:textStyle="bold"
         app:layout_constraintBottom_toTopOf="@id/chapter_seek"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/reciter_name" />
 
     <TextView
         android:id="@+id/chapter_name"
@@ -47,7 +51,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="150dp"
         app:cardCornerRadius="50dp"
-        app:cardElevation="100dp"
+        app:cardElevation="200dp"
         app:layout_constraintBottom_toTopOf="@id/chapter_name"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -66,18 +70,17 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:cardCornerRadius="30dp"
-        app:cardElevation="30dp"
+        app:cardElevation="50dp"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/chapter_seek"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:strokeWidth="0dp">
 
         <ImageButton
             android:id="@+id/chapter_play"
             android:layout_width="100dp"
             android:layout_height="100dp"
-            android:background="#00000000"
             android:scaleX="3"
             android:scaleY="3"
             android:src="@drawable/media_pause" />
@@ -89,7 +92,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:cardCornerRadius="15dp"
-        app:cardElevation="30dp"
+        app:cardElevation="50dp"
         app:layout_constraintBottom_toBottomOf="@id/chapter_play_card"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/chapter_play_card"
@@ -100,7 +103,6 @@
             android:id="@+id/chapter_next"
             android:layout_width="50dp"
             android:layout_height="50dp"
-            android:background="#00000000"
             android:scaleX="2"
             android:scaleY="2"
             android:src="@drawable/media_skip_next" />
@@ -111,7 +113,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:cardCornerRadius="15dp"
-        app:cardElevation="30dp"
+        app:cardElevation="50dp"
         app:layout_constraintBottom_toBottomOf="@id/chapter_play_card"
         app:layout_constraintEnd_toStartOf="@id/chapter_play_card"
         app:layout_constraintStart_toStartOf="parent"
@@ -122,7 +124,6 @@
             android:id="@+id/chapter_previous"
             android:layout_width="50dp"
             android:layout_height="50dp"
-            android:background="#00000000"
             android:scaleX="2"
             android:scaleY="2"
             android:src="@drawable/media_skip_previous" />
@@ -132,14 +133,15 @@
         android:id="@+id/chapter_seek"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:value="23"
-        android:valueFrom="0"
-        android:valueTo="100"
-        app:layout_constraintTop_toBottomOf="@id/chapter_seek"
+        android:elevation="100dp"
+        app:labelBehavior="gone"
         app:layout_constraintBottom_toTopOf="@id/chapter_play_card"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:thumbRadius="17dp"
-        app:trackHeight="30dp" />
+        app:layout_constraintTop_toBottomOf="@id/chapter_duration"
+        app:thumbElevation="10dp"
+        app:thumbRadius="5dp"
+        app:tickVisible="false"
+        app:trackHeight="20dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

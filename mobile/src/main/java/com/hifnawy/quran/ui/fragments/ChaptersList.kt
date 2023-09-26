@@ -17,6 +17,7 @@ import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
 import com.hifnawy.quran.shared.api.APIRequester
 import com.hifnawy.quran.shared.model.Chapter
+import com.hifnawy.quran.ui.activities.MainActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,7 +39,7 @@ class ChaptersList : Fragment() {
         binding = FragmentChaptersListBinding.inflate(inflater, container, false)
         navController = findNavController()
 
-        (activity as AppCompatActivity).supportActionBar?.apply {
+        (activity as MainActivity).supportActionBar?.apply {
             // // methods to display the icon in the ActionBar
             // setDisplayUseLogoEnabled(true)
             // setDisplayShowHomeEnabled(true)

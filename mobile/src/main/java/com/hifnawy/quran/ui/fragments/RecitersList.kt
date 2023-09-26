@@ -17,6 +17,7 @@ import com.hifnawy.quran.adapters.RecitersListAdapter
 import com.hifnawy.quran.databinding.FragmentRecitersListBinding
 import com.hifnawy.quran.shared.api.APIRequester
 import com.hifnawy.quran.shared.model.Reciter
+import com.hifnawy.quran.ui.activities.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -40,7 +41,7 @@ class RecitersList : Fragment() {
         binding = FragmentRecitersListBinding.inflate(inflater, container, false)
         navController = findNavController()
 
-        (activity as AppCompatActivity).supportActionBar?.apply {
+        (activity as MainActivity).supportActionBar?.apply {
             // // methods to display the icon in the ActionBar
             // setDisplayUseLogoEnabled(true)
             // setDisplayShowHomeEnabled(true)

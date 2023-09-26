@@ -11,6 +11,8 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaDescriptionCompat
 import android.support.v4.media.MediaMetadataCompat
@@ -108,6 +110,8 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
     private lateinit var mediaSession: MediaSessionCompat
 
+    private lateinit var exoPlayerPositionListener: Handler
+
     private var currentReciterId: Int = -1
 
     private var currentChapterId: Int = -1
@@ -142,6 +146,8 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
     override fun onCreate() {
         super.onCreate()
+
+        exoPlayerPositionListener = Handler(Looper.getMainLooper())
 
         Log.d(javaClass.canonicalName, "${javaClass.canonicalName} started!!!")
 
@@ -270,7 +276,21 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 when (state) {
                     Player.STATE_IDLE -> {}
                     Player.STATE_BUFFERING -> {}
-                    Player.STATE_READY -> setMediaPlaybackState(PLAYING)
+                    Player.STATE_READY -> {
+                        setMediaPlaybackState(PLAYING)
+
+                        exoPlayerPositionListener.removeCallbacksAndMessages(null)
+                        exoPlayerPositionListener.postDelayed(object : Runnable {
+                            override fun run() {
+                                sendBroadcast(Intent("your_action_name").apply {
+                                    putExtra("duration", exoPlayer.duration)
+                                    putExtra("currentPosition", exoPlayer.currentPosition)
+                                })
+
+                                exoPlayerPositionListener.postDelayed(this, 1000)
+                            }
+                        }, 1000)
+                    }
                     Player.STATE_ENDED -> {
                         // exoPlayer.stop()
                         setMediaPlaybackState(BUFFERING)
@@ -334,6 +354,10 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                                 drawableId
                             )
                         ).build()
+
+                    if (exoPlayer.isPlaying) {
+                        exoPlayer.stop()
+                    }
 
                     startForeground(R.integer.quran_chapter_notification_channel_id, notification)
                     setMediaPlaybackState(BUFFERING)
