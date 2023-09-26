@@ -35,10 +35,6 @@ class ChaptersList : Fragment() {
         var chapters: List<Chapter>
         var chaptersListAdapter: ChaptersListAdapter
 
-        // Inflate the layout for this fragment
-        binding = FragmentChaptersListBinding.inflate(inflater, container, false)
-        navController = findNavController()
-
         (activity as MainActivity).supportActionBar?.apply {
             // // methods to display the icon in the ActionBar
             // setDisplayUseLogoEnabled(true)
@@ -48,12 +44,19 @@ class ChaptersList : Fragment() {
             // adding icon in the ActionBar
             // setIcon(R.mipmap.ic_quran_mobile_round)
 
+            // disable back button
+            setDisplayHomeAsUpEnabled(false)
+
             // providing title for the ActionBar
             title = "   ${getString(R.string.quran)}"
 
             // providing subtitle for the ActionBar
             subtitle = "   ${getString(R.string.chapters)}"
         }
+
+        // Inflate the layout for this fragment
+        binding = FragmentChaptersListBinding.inflate(inflater, container, false)
+        navController = findNavController()
 
         with(binding) {
             lifecycleScope.launch(context = Dispatchers.IO) {

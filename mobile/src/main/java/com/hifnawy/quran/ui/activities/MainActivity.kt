@@ -1,8 +1,9 @@
 package com.hifnawy.quran.ui.activities
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.AppCompatTextView
+import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -26,6 +27,9 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(binding.root)
 
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+
         setSupportActionBar(binding.appToolbar)
 
         navController = findNavController(R.id.fragment_container)
@@ -33,13 +37,16 @@ class MainActivity : AppCompatActivity() {
         setupActionBarWithNavController(navController, appBarConfiguration)
 
         supportActionBar?.apply {
-            // // methods to display the icon in the ActionBar
+            // methods to display the icon in the ActionBar
             // setDisplayUseLogoEnabled(true)
             // setDisplayShowHomeEnabled(true)
             // setDisplayShowTitleEnabled(true)
 
+            // disable back button
+            setDisplayHomeAsUpEnabled(false)
+
             // adding icon in the ActionBar
-            // setIcon(R.mipmap.ic_quran_mobile_round)
+            setIcon(R.mipmap.ic_quran_mobile_round)
 
             // providing title for the ActionBar
             title = "   ${getString(R.string.quran)}"

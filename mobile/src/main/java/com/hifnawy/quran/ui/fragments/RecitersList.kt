@@ -37,10 +37,6 @@ class RecitersList : Fragment() {
         var reciters: List<Reciter>
         var recitersListAdapter: RecitersListAdapter
 
-        // Inflate the layout for this fragment
-        binding = FragmentRecitersListBinding.inflate(inflater, container, false)
-        navController = findNavController()
-
         (activity as MainActivity).supportActionBar?.apply {
             // // methods to display the icon in the ActionBar
             // setDisplayUseLogoEnabled(true)
@@ -50,12 +46,19 @@ class RecitersList : Fragment() {
             // adding icon in the ActionBar
             // setIcon(R.mipmap.ic_quran_mobile_round)
 
+            // disable back button
+            setDisplayHomeAsUpEnabled(false)
+
             // providing title for the ActionBar
             title = "   ${getString(R.string.quran)}"
 
             // providing subtitle for the ActionBar
             subtitle = "   ${getString(R.string.reciters)}"
         }
+
+        // Inflate the layout for this fragment
+        binding = FragmentRecitersListBinding.inflate(inflater, container, false)
+        navController = findNavController()
 
         with(binding) {
             lifecycleScope.launch(context = Dispatchers.IO) {
