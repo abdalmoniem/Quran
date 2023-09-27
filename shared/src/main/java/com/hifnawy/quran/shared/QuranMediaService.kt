@@ -211,13 +211,15 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
         exoPlayerPositionListener = Handler(Looper.getMainLooper())
 
-        Log.d(javaClass.canonicalName, "${javaClass.canonicalName} started!!!")
+        Log.d(::QuranMediaService.javaClass.name, "${::QuranMediaService.javaClass.name} service started!!!")
 
         mediaSession = MediaSessionCompat(this, "QuranMediaService")
 
         sessionToken = mediaSession.sessionToken
 
         sharedPrefs = getSharedPreferences("${packageName}_preferences", Context.MODE_PRIVATE)
+
+        currentChapterPosition = sharedPrefs.getLong("LAST_CHAPTER_POSITION", -1L)
 
         with(mediaSession) {
             setCallback(object : MediaSessionCompat.Callback() {
@@ -814,8 +816,6 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     }
 
     private fun setMediaPlaybackState(state: Int) {
-        currentChapterPosition = sharedPrefs.getLong("LAST_CHAPTER_POSITION", -1L)
-
         var playbackState: PlaybackStateCompat? = null
         when (state) {
             PLAYING -> playbackState = PlaybackStateCompat.Builder()
@@ -830,11 +830,7 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                             PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
                             PlaybackStateCompat.ACTION_SEEK_TO
                 )
-                .setState(
-                    PlaybackStateCompat.STATE_PLAYING,
-                    if (currentChapterPosition != -1L) currentChapterPosition else 0,
-                    1f
-                )
+                .setState(PlaybackStateCompat.STATE_PLAYING, exoPlayer.currentPosition, 1f)
                 .build()
 
             PAUSE -> playbackState = PlaybackStateCompat.Builder()
