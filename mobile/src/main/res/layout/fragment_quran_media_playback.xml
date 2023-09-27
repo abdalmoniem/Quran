@@ -15,6 +15,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/reciter_name"
+        android:textColor="@color/white"
         android:textSize="25sp"
         app:layout_constraintBottom_toTopOf="@id/chapter_duration"
         app:layout_constraintEnd_toEndOf="parent"
@@ -25,7 +26,9 @@
         android:id="@+id/chapter_duration"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="50dp"
         android:text="00:00:00"
+        android:textColor="@color/white"
         android:textSize="30sp"
         android:textStyle="bold"
         app:layout_constraintBottom_toTopOf="@id/chapter_seek"
@@ -38,18 +41,78 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/chapter_name"
-        android:textSize="35sp"
+        android:textColor="@color/white"
+        android:textSize="55sp"
         android:textStyle="bold"
         app:layout_constraintBottom_toTopOf="@id/reciter_name"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/chapter_image_card" />
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/chapter_play"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:layout_marginBottom="100dp"
+        android:elevation="250dp"
+        android:padding="0dp"
+        app:cornerRadius="20dp"
+        app:elevation="250dp"
+        app:icon="@drawable/media_pause"
+        app:iconGravity="textStart"
+        app:iconPadding="0dp"
+        app:iconSize="50dp"
+        app:iconTint="@color/white"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/chapter_seek" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/chapter_previous"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:elevation="250dp"
+        android:padding="0dp"
+        app:cornerRadius="20dp"
+        app:elevation="250dp"
+        app:icon="@drawable/media_skip_next"
+        app:iconGravity="textStart"
+        app:iconPadding="0dp"
+        app:iconSize="50dp"
+        app:iconTint="@color/white"
+        app:layout_constraintBottom_toBottomOf="@id/chapter_play"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/chapter_play"
+        app:layout_constraintTop_toTopOf="@id/chapter_play" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/chapter_next"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:elevation="250dp"
+        android:padding="0dp"
+        app:cornerRadius="20dp"
+        app:elevation="250dp"
+        app:icon="@drawable/media_skip_previous"
+        app:iconGravity="textStart"
+        app:iconPadding="0dp"
+        app:iconSize="50dp"
+        app:iconTint="@color/white"
+        app:layout_constraintBottom_toBottomOf="@id/chapter_play"
+        app:layout_constraintEnd_toStartOf="@id/chapter_play"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/chapter_play" />
+
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/chapter_image_card"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginBottom="50dp"
+        android:layout_marginEnd="50dp"
+        android:layout_marginStart="50dp"
         android:layout_marginTop="150dp"
+        app:cardBackgroundColor="#dd5f56"
         app:cardCornerRadius="50dp"
         app:cardElevation="200dp"
         app:layout_constraintBottom_toTopOf="@id/chapter_name"
@@ -60,73 +123,10 @@
 
         <ImageView
             android:id="@+id/chapter_image"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
             android:src="@drawable/chapter_001" />
-    </com.google.android.material.card.MaterialCardView>
-
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/chapter_play_card"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:cardCornerRadius="30dp"
-        app:cardElevation="50dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/chapter_seek"
-        app:strokeWidth="0dp">
-
-        <ImageButton
-            android:id="@+id/chapter_play"
-            android:layout_width="100dp"
-            android:layout_height="100dp"
-            android:scaleX="3"
-            android:scaleY="3"
-            android:src="@drawable/media_pause" />
-    </com.google.android.material.card.MaterialCardView>
-
-
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/chapter_next_card"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:cardCornerRadius="15dp"
-        app:cardElevation="50dp"
-        app:layout_constraintBottom_toBottomOf="@id/chapter_play_card"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/chapter_play_card"
-        app:layout_constraintTop_toTopOf="@id/chapter_play_card"
-        app:strokeWidth="0dp">
-
-        <ImageButton
-            android:id="@+id/chapter_next"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:scaleX="2"
-            android:scaleY="2"
-            android:src="@drawable/media_skip_next" />
-    </com.google.android.material.card.MaterialCardView>
-
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/chapter_previous_card"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:cardCornerRadius="15dp"
-        app:cardElevation="50dp"
-        app:layout_constraintBottom_toBottomOf="@id/chapter_play_card"
-        app:layout_constraintEnd_toStartOf="@id/chapter_play_card"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/chapter_play_card"
-        app:strokeWidth="0dp">
-
-        <ImageButton
-            android:id="@+id/chapter_previous"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:scaleX="2"
-            android:scaleY="2"
-            android:src="@drawable/media_skip_previous" />
     </com.google.android.material.card.MaterialCardView>
 
     <com.google.android.material.slider.Slider
@@ -135,7 +135,7 @@
         android:layout_height="wrap_content"
         android:elevation="100dp"
         app:labelBehavior="gone"
-        app:layout_constraintBottom_toTopOf="@id/chapter_play_card"
+        app:layout_constraintBottom_toTopOf="@id/chapter_play"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/chapter_duration"

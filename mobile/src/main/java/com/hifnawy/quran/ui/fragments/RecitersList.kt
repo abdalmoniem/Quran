@@ -5,7 +5,6 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -18,7 +17,6 @@ import com.hifnawy.quran.databinding.FragmentRecitersListBinding
 import com.hifnawy.quran.shared.api.APIRequester
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.ui.activities.MainActivity
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
