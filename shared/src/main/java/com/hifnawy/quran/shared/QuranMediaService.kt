@@ -39,6 +39,7 @@ import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.ChapterAudioFile
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
+import com.hifnawy.quran.shared.tools.Utilities.Companion.putSerializableExtra
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -132,8 +133,6 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
     private var mediaState = MediaState.RECITER_BROWSE
 
-    // private var isForegroundService = false
-
     private lateinit var sharedPrefs: SharedPreferences
 
     private val audioAttributes =
@@ -172,8 +171,8 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                         currentReciterId = reciter.id
                         currentChapterId = chapter.id
 
-                        sharedPrefs.edit().putInt("LAST_RECITER_ID", currentReciterId).apply()
-                        sharedPrefs.edit().putInt("LAST_CHAPTER_ID", currentChapterId).apply()
+                        sharedPrefs.edit().putSerializableExtra("LAST_RECITER", reciter).apply()
+                        sharedPrefs.edit().putSerializableExtra("LAST_CHAPTER", chapter).apply()
 
                         if (exoPlayer.isPlaying) {
                             exoPlayer.stop()
@@ -253,12 +252,12 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 override fun onPlay() {
                     Log.d("ExoPlayer_Audio_Player", "Playing...")
 
-                    val reciterId = sharedPrefs.getInt("LAST_RECITER_ID", -1)
-                    val chapterId = sharedPrefs.getInt("LAST_CHAPTER_ID", -1)
+                    val reciter = sharedPrefs.getSerializableExtra<Reciter>("LAST_RECITER")
+                    val chapter = sharedPrefs.getSerializableExtra<Chapter>("LAST_CHAPTER")
 
-                    if ((chapterId != -1) and (reciterId != -1)) {
-                        currentReciterId = reciterId
-                        currentChapterId = chapterId
+                    if ((chapter != null) and (reciter != null)) {
+                        currentReciterId = reciter!!.id
+                        currentChapterId = chapter!!.id
 
                         if (exoPlayer.mediaItemCount == 0) {
                             setMediaPlaybackState(BUFFERING)
@@ -393,10 +392,10 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
     @SuppressLint("DiscouragedApi")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent != null) {
-            val reciter = intent.getSerializableExtra<Reciter>("RECITER_ID")
-
-            val chapter = intent.getSerializableExtra<Chapter>("CHAPTER_ID")
+        intent?.run {
+            val reciter = getSerializableExtra<Reciter>("RECITER")
+            val chapter = getSerializableExtra<Chapter>("CHAPTER")
+            val chapterPosition = getLongExtra("CHAPTER_POSITION", -1L)
 
             if (((reciter != null) && (chapter != null)) && ((reciter.id != currentReciterId) || (chapter.id != currentChapterId))) {
                 exoPlayerPositionListener.removeCallbacksAndMessages(null)
@@ -404,8 +403,12 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 currentReciterId = reciter.id
                 currentChapterId = chapter.id
 
-                sharedPrefs.edit().putInt("LAST_RECITER_ID", currentReciterId).apply()
-                sharedPrefs.edit().putInt("LAST_CHAPTER_ID", currentChapterId).apply()
+                sharedPrefs.edit().putSerializableExtra("LAST_RECITER", reciter).apply()
+                sharedPrefs.edit().putSerializableExtra("LAST_CHAPTER", chapter).apply()
+
+                if (chapterPosition != -1L) {
+                    sharedPrefs.edit().putLong("LAST_CHAPTER_POSITION", chapterPosition).apply()
+                }
 
                 val chapterImageDrawableId = resources.getIdentifier(
                     "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", packageName
@@ -434,6 +437,7 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                     exoPlayer.stop()
                 }
 
+                currentChapterPosition = chapterPosition
                 startForeground(R.integer.quran_chapter_notification_channel_id, notification)
                 setMediaPlaybackState(BUFFERING)
                 playMedia()
@@ -618,9 +622,6 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
     @SuppressLint("DiscouragedApi")
     private fun playMedia() {
-        sharedPrefs.edit().putInt("LAST_RECITER_ID", currentReciterId).apply()
-        sharedPrefs.edit().putInt("LAST_CHAPTER_ID", currentChapterId).apply()
-
         CoroutineScope(Dispatchers.IO).launch {
             if (reciters.isEmpty() or chapters.isEmpty() or chaptersAudioFiles.isEmpty()) {
                 reciters = getRecitersList()
@@ -632,6 +633,9 @@ class QuranMediaService : MediaBrowserServiceCompat() {
             val chapter = chapters.single { chapter -> chapter.id == currentChapterId }
             val chapterAudioFile = getChapter(currentReciterId, currentChapterId)
             // chaptersAudioFiles.single { chapterAudioFile -> chapterAudioFile.chapter_id == currentChapterId }
+
+            sharedPrefs.edit().putSerializableExtra("LAST_RECITER", reciter).apply()
+            sharedPrefs.edit().putSerializableExtra("LAST_CHAPTER", chapter).apply()
 
             val drawableId = resources.getIdentifier(
                 "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", packageName

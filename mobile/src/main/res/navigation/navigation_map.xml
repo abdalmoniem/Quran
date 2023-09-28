@@ -58,5 +58,8 @@
 
     <action
         android:id="@+id/action_to_chapter_play_from_notification"
-        app:destination="@id/chapter_play" />
+        app:destination="@id/chapter_play"
+        app:launchSingleTop="false"
+        app:popUpTo="@+id/chapter_play"
+        app:popUpToInclusive="true"/>
 </navigation>

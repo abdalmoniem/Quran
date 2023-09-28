@@ -1,5 +1,8 @@
 package com.hifnawy.quran.ui.activities
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -14,6 +17,7 @@ import com.hifnawy.quran.databinding.ActivityMainBinding
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializable
+import com.hifnawy.quran.ui.widgets.NowPlaying
 
 
 class MainActivity : AppCompatActivity() {
@@ -52,14 +56,16 @@ class MainActivity : AppCompatActivity() {
             // providing subtitle for the ActionBar
             subtitle = "   ${getString(R.string.reciters)}"
         }
+    }
 
+    override fun onResume() {
         val bundle = intent.extras
 
         if (bundle != null) {
             with(bundle) {
-                val destinationFragment = bundle.getInt("DESTINATION", -1)
-                val reciter = bundle.getSerializable<Reciter>("RECITER")
-                val chapter = bundle.getSerializable<Chapter>("CHAPTER")
+                val destinationFragment = getInt("DESTINATION", -1)
+                val reciter = getSerializable<Reciter>("RECITER")
+                val chapter = getSerializable<Chapter>("CHAPTER")
                 if ((destinationFragment != -1) and (reciter != null) and (chapter != null)) {
                     navController.navigate(
                         R.id.action_to_chapter_play_from_notification,
@@ -71,6 +77,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
+        super.onResume()
     }
 
     override fun onSupportNavigateUp(): Boolean {

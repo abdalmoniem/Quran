@@ -107,8 +107,8 @@ class QuranMediaPlayback : Fragment() {
             (activity as MainActivity).startForegroundService(Intent(
                 context, QuranMediaService::class.java
             ).apply {
-                putExtra("RECITER_ID", bundle.reciter)
-                putExtra("CHAPTER_ID", bundle.chapter)
+                putExtra("RECITER", bundle.reciter)
+                putExtra("CHAPTER", bundle.chapter)
             })
         } else {
             (activity as MainActivity).sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
@@ -194,9 +194,9 @@ class QuranMediaPlayback : Fragment() {
             if (QuranMediaService.isRunning) {
                 chapterPlay.icon =
                     if (QuranMediaService.isMediaPlaying) AppCompatResources.getDrawable(
-                        requireContext(), com.hifnawy.quran.shared.R.drawable.media_pause
+                        requireContext(), com.hifnawy.quran.shared.R.drawable.media_pause_black
                     ) else AppCompatResources.getDrawable(
-                        requireContext(), com.hifnawy.quran.shared.R.drawable.media_play
+                        requireContext(), com.hifnawy.quran.shared.R.drawable.media_play_black
                     )
             }
             chapterPlay.setBackgroundColor(dominantColor)

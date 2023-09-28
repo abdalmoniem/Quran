@@ -1,8 +1,10 @@
 package com.hifnawy.quran.shared.tools
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Build
 import android.os.Bundle
+import com.google.gson.Gson
 import java.io.Serializable
 
 class Utilities {
@@ -26,5 +28,14 @@ class Utilities {
 
                 else -> @Suppress("DEPRECATION") getSerializableExtra(key) as? GenericType
             }
+
+        inline fun <reified GenericType : Serializable> SharedPreferences.getSerializableExtra(key: String): GenericType? =
+            Gson().fromJson(getString(key, null), GenericType::class.java)
+
+        fun SharedPreferences.Editor.putSerializableExtra(
+            key: String,
+            value: Serializable
+        ): SharedPreferences.Editor =
+            putString(key, Gson().toJson(value))
     }
 }
