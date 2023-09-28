@@ -13,4 +13,5 @@
     <string name="revelation_place">مكان الوحى</string>
     <string name="revelation_order">ترتيب الوحى: %1$s</string>
     <string name="verse_count">عدد الآيات: %1$s</string>
+    <string name="app_widget_description">This is an app widget description</string>
 </resources>
