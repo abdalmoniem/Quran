@@ -36,17 +36,6 @@ class RecitersList : Fragment() {
         var recitersListAdapter: RecitersListAdapter
 
         (activity as MainActivity).supportActionBar?.apply {
-            // // methods to display the icon in the ActionBar
-            // setDisplayUseLogoEnabled(true)
-            // setDisplayShowHomeEnabled(true)
-            // setDisplayShowTitleEnabled(true)
-
-            // adding icon in the ActionBar
-            // setIcon(R.mipmap.ic_quran_mobile_round)
-
-            // disable back button
-            setDisplayHomeAsUpEnabled(false)
-
             // providing title for the ActionBar
             title = "   ${getString(R.string.quran)}"
 

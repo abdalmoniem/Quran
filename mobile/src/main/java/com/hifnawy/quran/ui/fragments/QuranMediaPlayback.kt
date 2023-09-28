@@ -8,7 +8,6 @@ import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -21,8 +20,8 @@ import com.hifnawy.quran.databinding.FragmentQuranMediaPlaybackBinding
 import com.hifnawy.quran.shared.QuranMediaService
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
+import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
 import com.hifnawy.quran.ui.activities.MainActivity
-import java.io.Serializable
 import java.time.Duration
 import com.hoko.blur.HokoBlur as Blur
 
@@ -32,13 +31,12 @@ import com.hoko.blur.HokoBlur as Blur
  */
 class QuranMediaPlayback : Fragment() {
     private lateinit var binding: FragmentQuranMediaPlaybackBinding
-    private var playing = true
 
     private val broadcastReceiver = object : BroadcastReceiver() {
         @SuppressLint("SetTextI18n")
         override fun onReceive(context: Context, intent: Intent) {
-            val durationMs = intent.getLongExtra("duration", -1L)
-            val currentPosition = intent.getLongExtra("currentPosition", -1L)
+            val durationMs = intent.getLongExtra("DURATION", -1L)
+            val currentPosition = intent.getLongExtra("CURRENT_POSITION", -1L)
 
             val reciter = intent.getSerializableExtra<Reciter>("RECITER")
             val chapter = intent.getSerializableExtra<Chapter>("CHAPTER")
@@ -47,24 +45,22 @@ class QuranMediaPlayback : Fragment() {
                 updateUI(reciter!!, chapter!!)
             }
 
-            if ((durationMs != -1L) and (currentPosition != -1L))
-                with(binding) {
-                    chapterDuration.text =
-                        "${getDuration(currentPosition, true)} / ${getDuration(durationMs, true)}"
+            if ((durationMs != -1L) and (currentPosition != -1L)) with(binding) {
+                chapterDuration.text =
+                    "${getDuration(currentPosition, true)} / ${getDuration(durationMs, true)}"
 
-                    if ((0 <= currentPosition) and (currentPosition <= durationMs) and !chapterSeek.isFocused) {
-                        chapterSeek.valueFrom = 0f
-                        chapterSeek.valueTo = durationMs.toFloat()
-                        chapterSeek.value = currentPosition.toFloat()
-                    }
+                if ((0 <= currentPosition) and (currentPosition <= durationMs) and !chapterSeek.isFocused) {
+                    chapterSeek.valueFrom = 0f
+                    chapterSeek.valueTo = durationMs.toFloat()
+                    chapterSeek.value = currentPosition.toFloat()
                 }
+            }
         }
     }
 
     @SuppressLint("DiscouragedApi", "SetTextI18n")
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         binding = FragmentQuranMediaPlaybackBinding.inflate(layoutInflater, container, false)
         val bundle = QuranMediaPlaybackArgs.fromBundle(requireArguments())
@@ -75,20 +71,6 @@ class QuranMediaPlayback : Fragment() {
 
         with(binding) {
             chapterPlay.setOnClickListener {
-                playing = !playing
-
-                chapterPlay.icon = if (playing) {
-                    AppCompatResources.getDrawable(
-                        requireContext(),
-                        com.hifnawy.quran.shared.R.drawable.media_pause
-                    )
-                } else {
-                    AppCompatResources.getDrawable(
-                        requireContext(),
-                        com.hifnawy.quran.shared.R.drawable.media_play
-                    )
-                }
-
                 (activity as MainActivity).sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
                     putExtra("PLAY_PAUSE", "PLAY")
                 })
@@ -108,13 +90,11 @@ class QuranMediaPlayback : Fragment() {
 
             chapterSeek.addOnChangeListener { _, value, fromUser ->
                 if (fromUser) {
-                    chapterDuration.text =
-                        "${
-                            getDuration(
-                                value.toLong(),
-                                true
-                            )
-                        } / ${getDuration(chapterSeek.valueTo.toLong(), true)}"
+                    chapterDuration.text = "${
+                        getDuration(
+                            value.toLong(), true
+                        )
+                    } / ${getDuration(chapterSeek.valueTo.toLong(), true)}"
 
                     (activity as MainActivity).sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
                         putExtra("POSITION", value.toLong().toString())
@@ -125,11 +105,15 @@ class QuranMediaPlayback : Fragment() {
 
         if (!QuranMediaService.isRunning) {
             (activity as MainActivity).startForegroundService(Intent(
-                context,
-                QuranMediaService::class.java
+                context, QuranMediaService::class.java
             ).apply {
                 putExtra("RECITER_ID", bundle.reciter)
                 putExtra("CHAPTER_ID", bundle.chapter)
+            })
+        } else {
+            (activity as MainActivity).sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
+                putExtra("RECITER", reciter)
+                putExtra("CHAPTER", chapter)
             })
         }
 
@@ -175,28 +159,22 @@ class QuranMediaPlayback : Fragment() {
     @SuppressLint("DiscouragedApi")
     private fun updateUI(reciter: Reciter, chapter: Chapter) {
         val drawableId = resources.getIdentifier(
-            "chapter_${chapter.id.toString().padStart(3, '0')}",
-            "drawable",
-            requireContext().packageName
+            "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", requireContext().packageName
         )
 
         val bitmap = Blur.with(context)
             .scheme(Blur.SCHEME_NATIVE) //different implementation, RenderScript、OpenGL、Native(default) and Java
             .mode(Blur.MODE_GAUSSIAN) //blur algorithms，Gaussian、Stack(default) and Box
             .radius(5) //blur radius，max=25，default=5
-            .sampleFactor(2.0f)
-            .processor()
-            .blur(
+            .sampleFactor(2.0f).processor().blur(
                 (AppCompatResources.getDrawable(
-                    requireContext(),
-                    drawableId
+                    requireContext(), drawableId
                 ) as BitmapDrawable).bitmap
             )
 
         val dominantColor = Palette.from(
             (AppCompatResources.getDrawable(
-                requireContext(),
-                drawableId
+                requireContext(), drawableId
             ) as BitmapDrawable).bitmap
         ).generate().getDominantColor(Color.RED)
 
@@ -213,20 +191,17 @@ class QuranMediaPlayback : Fragment() {
             chapterImage.setImageDrawable(AppCompatResources.getDrawable(requireContext(), drawableId))
             chapterSeek.trackActiveTintList = ColorStateList.valueOf(dominantColor)
             chapterSeek.thumbTintList = ColorStateList.valueOf(dominantColor)
+            if (QuranMediaService.isRunning) {
+                chapterPlay.icon =
+                    if (QuranMediaService.isMediaPlaying) AppCompatResources.getDrawable(
+                        requireContext(), com.hifnawy.quran.shared.R.drawable.media_pause
+                    ) else AppCompatResources.getDrawable(
+                        requireContext(), com.hifnawy.quran.shared.R.drawable.media_play
+                    )
+            }
             chapterPlay.setBackgroundColor(dominantColor)
             chapterNext.setBackgroundColor(dominantColor)
             chapterPrevious.setBackgroundColor(dominantColor)
         }
     }
-
-    @Suppress("EXTENSION_SHADOWED_BY_MEMBER")
-    private inline fun <reified GenericType : Serializable> Intent.getSerializableExtra(key: String): GenericType? =
-        when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> getSerializableExtra(
-                key,
-                GenericType::class.java
-            )
-
-            else -> @Suppress("DEPRECATION") getSerializableExtra(key) as? GenericType
-        }
 }

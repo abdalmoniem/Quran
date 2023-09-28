@@ -31,26 +31,18 @@ class ChaptersList : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
+        val reciter = ChaptersListArgs.fromBundle(requireArguments()).reciter
+
         var chapters: List<Chapter>
         var chaptersListAdapter: ChaptersListAdapter
 
         (activity as MainActivity).supportActionBar?.apply {
-            // // methods to display the icon in the ActionBar
-            // setDisplayUseLogoEnabled(true)
-            // setDisplayShowHomeEnabled(true)
-            // setDisplayShowTitleEnabled(true)
-
-            // adding icon in the ActionBar
-            // setIcon(R.mipmap.ic_quran_mobile_round)
-
-            // disable back button
-            setDisplayHomeAsUpEnabled(false)
-
             // providing title for the ActionBar
             title = "   ${getString(R.string.quran)}"
 
             // providing subtitle for the ActionBar
-            subtitle = "   ${getString(R.string.chapters)}"
+            subtitle =
+                "   ${getString(R.string.chapters)}: ${if (reciter.translated_name != null) reciter.translated_name!!.name else reciter.reciter_name}"
         }
 
         // Inflate the layout for this fragment
@@ -69,7 +61,6 @@ class ChaptersList : Fragment() {
                         "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
                     )
 
-                    val reciter = ChaptersListArgs.fromBundle(requireArguments()).reciter
                     navController.navigate(ChaptersListDirections.actionToChapterPlay(reciter, chapter))
                 }
 

@@ -134,6 +134,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:elevation="100dp"
+        android:scaleX="-1"
         app:labelBehavior="gone"
         app:layout_constraintBottom_toTopOf="@id/chapter_play"
         app:layout_constraintEnd_toEndOf="parent"

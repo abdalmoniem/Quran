@@ -1,7 +1,6 @@
 package com.hifnawy.quran.ui.activities
 
 import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -9,13 +8,12 @@ import androidx.navigation.NavController
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.navigateUp
-import androidx.navigation.ui.setupActionBarWithNavController
 import com.google.android.material.color.DynamicColors
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.ActivityMainBinding
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
-import java.io.Serializable
+import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializable
 
 
 class MainActivity : AppCompatActivity() {
@@ -37,16 +35,12 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(binding.appToolbar)
 
         navController = findNavController(R.id.fragment_container)
-        appBarConfiguration = AppBarConfiguration(navController.graph)
-        setupActionBarWithNavController(navController, appBarConfiguration)
+        // appBarConfiguration = AppBarConfiguration(navController.graph)
+        // setupActionBarWithNavController(navController, appBarConfiguration)
 
         supportActionBar?.apply {
-            // methods to display the icon in the ActionBar
-            // setDisplayUseLogoEnabled(true)
-            // setDisplayShowHomeEnabled(true)
-            // setDisplayShowTitleEnabled(true)
-
             // disable back button
+            setHomeButtonEnabled(false)
             setDisplayHomeAsUpEnabled(false)
 
             // adding icon in the ActionBar
@@ -82,15 +76,4 @@ class MainActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean {
         return navController.navigateUp(appBarConfiguration) || super.onSupportNavigateUp()
     }
-
-    @Suppress("EXTENSION_SHADOWED_BY_MEMBER")
-    private inline fun <reified GenericType : Serializable> Bundle.getSerializable(key: String): GenericType? =
-        when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> getSerializable(
-                key,
-                GenericType::class.java
-            )
-
-            else -> @Suppress("DEPRECATION") getSerializable(key) as? GenericType
-        }
 }
