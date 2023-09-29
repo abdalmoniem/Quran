@@ -419,7 +419,7 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 )
                     // Show controls on lock screen even when user hides sensitive content.
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                    .setSmallIcon(R.drawable.quran_icon_monochrome_64).setSilent(true)
+                    .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
                     // Apply the media style template
                     .setStyle(
                         androidx.media.app.NotificationCompat.MediaStyle()
@@ -731,7 +731,7 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 )
                     // Show controls on lock screen even when user hides sensitive content.
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                    .setSmallIcon(R.drawable.quran_icon_monochrome_64).setSilent(true)
+                    .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
                     // Apply the media style template
                     .setStyle(
                         androidx.media.app.NotificationCompat.MediaStyle()

@@ -179,7 +179,7 @@ class QuranMediaPlayback : Fragment() {
         ).generate().getDominantColor(Color.RED)
 
         with(binding) {
-            rootLayout.background = bitmap.toDrawable(resources)
+            chapterBackgroundImage.setImageDrawable(bitmap.toDrawable(resources))
             chapterName.text = chapter.name_arabic
             reciterName.text =
                 if (reciter.translated_name != null) reciter.translated_name!!.name else reciter.reciter_name

@@ -21,7 +21,7 @@
             android:elevation="200dp"
             android:padding="0dp"
             android:scaleType="fitXY"
-            android:src="@drawable/chapter_001" />
+            android:src="@drawable/chapter_name" />
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -35,8 +35,9 @@
                 android:layout_height="120dp"
                 android:alpha="0.4"
                 android:scaleType="fitXY"
-                android:src="@drawable/chapter_001"
-                android:tintMode="multiply" />
+                android:src="@drawable/chapter_name"
+                android:tintMode="add"
+                app:tint="@color/black" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -50,16 +51,30 @@
                     android:gravity="center_vertical"
                     android:orientation="vertical">
 
-                    <TextView
-                        android:id="@+id/chapter_name"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
-                        android:text="@string/chapter_name"
-                        android:textColor="@color/white"
-                        android:textSize="20sp"
-                        android:textStyle="bold"
-                        app:layout_constraintTop_toTopOf="@id/chapter_image" />
+                        android:orientation="horizontal"
+                        android:gravity="end">
+
+                        <TextView
+                            android:id="@+id/chapter_name"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:gravity="start"
+                            android:text="@string/chapter_name"
+                            android:textColor="@color/white"
+                            android:textSize="20sp"
+                            android:textStyle="bold"
+                            app:layout_constraintTop_toTopOf="@id/chapter_image" />
+
+                        <ImageView
+                            android:layout_width="32dp"
+                            android:layout_height="23dp"
+                            android:src="@drawable/quran_icon_monochrome_white_64" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/reciter_name"
