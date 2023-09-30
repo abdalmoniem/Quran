@@ -1,6 +1,7 @@
 package com.hifnawy.quran.shared
 
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -123,6 +124,8 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
     private lateinit var exoPlayerPositionListener: Handler
 
+    private lateinit var sharedPrefs: SharedPreferences
+
     private var currentReciterId: Int = -1
 
     private var currentChapterId: Int = -1
@@ -137,7 +140,9 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
     private var mediaState = MediaState.RECITER_BROWSE
 
-    private lateinit var sharedPrefs: SharedPreferences
+    private lateinit var serviceForegroundNotification: Notification
+
+    private lateinit var serviceForegroundNotificationChannel: NotificationChannel
 
     private val audioAttributes =
         AudioAttributes.Builder().setContentType(C.CONTENT_TYPE_SPEECH).setUsage(C.USAGE_MEDIA).build()
@@ -434,35 +439,33 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                     sharedPrefs.edit().putLong("LAST_CHAPTER_POSITION", chapterPosition).apply()
                 }
 
-                val chapterImageDrawableId = resources.getIdentifier(
-                    "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", packageName
-                )
+                serviceForegroundNotificationChannel = NotificationChannel(
+                    "${getString(R.string.quran_recitation_notification_name)} Service",
+                    "${getString(R.string.quran_recitation_notification_name)} Service",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply { description = chapter.name_arabic }
 
-                val notification = NotificationCompat.Builder(
-                    this@QuranMediaService, getString(R.string.quran_recitation_notification_name)
-                )
-                    // Show controls on lock screen even when user hides sensitive content.
-                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                serviceForegroundNotification = NotificationCompat.Builder(
+                    this@QuranMediaService,
+                    "${getString(R.string.quran_recitation_notification_name)} Service"
+                ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
                     .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
-                    // Apply the media style template
-                    .setStyle(
-                        androidx.media.app.NotificationCompat.MediaStyle()
-                            // .setShowActionsInCompactView(1 /* #1: pause button \*/)
-                            .setMediaSession(mediaSession.sessionToken)
-                    ).setContentTitle(chapter.name_arabic)
+                    .setContentTitle(chapter.name_arabic)
                     .setContentText(if (reciter.translated_name != null) reciter.translated_name.name else reciter.reciter_name)
-                    .setLargeIcon(
-                        BitmapFactory.decodeResource(
-                            this@QuranMediaService.resources, chapterImageDrawableId
-                        )
-                    ).build()
+                    .build()
+
+                // Register the channel with the system
+                notificationManager.createNotificationChannel(serviceForegroundNotificationChannel)
 
                 if (exoPlayer.isPlaying) {
                     exoPlayer.stop()
                 }
 
                 currentChapterPosition = chapterPosition
-                startForeground(R.integer.quran_chapter_notification_channel_id, notification)
+                startForeground(
+                    R.integer.quran_chapter_recitation_notification_channel_id,
+                    serviceForegroundNotification
+                )
                 setMediaPlaybackState(BUFFERING)
                 playMedia()
             }
@@ -492,6 +495,8 @@ class QuranMediaService : MediaBrowserServiceCompat() {
             )
             mediaSession.release()
         }
+
+        notificationManager.cancel(R.integer.quran_ongoing_media_service_notification_channel_id)
     }
 
     override fun onGetRoot(
@@ -764,7 +769,7 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
                     val notification = NotificationCompat.Builder(
                         this@QuranMediaService, getString(R.string.quran_recitation_notification_name)
-                    )
+                    ).setOngoing(true)
                         // Show controls on lock screen even when user hides sensitive content.
                         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                         .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
@@ -781,17 +786,16 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                             )
                         ).build()
 
-                    val name = getString(R.string.quran_recitation_notification_name)
-                    val descriptionText = chapter.name_arabic
-                    val importance = NotificationManager.IMPORTANCE_HIGH
                     val channel = NotificationChannel(
-                        getString(R.string.quran_recitation_notification_name), name, importance
-                    ).apply { description = descriptionText }
+                        getString(R.string.quran_recitation_notification_name),
+                        getString(R.string.quran_recitation_notification_name),
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply { description = chapter.name_arabic }
 
                     // Register the channel with the system
                     notificationManager.createNotificationChannel(channel)
                     notificationManager.notify(
-                        R.integer.quran_chapter_notification_channel_id, notification
+                        R.integer.quran_chapter_recitation_notification_channel_id, notification
                     )
 
                     exoPlayerPositionListener.removeCallbacksAndMessages(null)
@@ -852,24 +856,37 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     }
 
     private fun setMediaPlaybackState(state: Int) {
-        var playbackState: PlaybackStateCompat? = null
+        lateinit var playbackState: PlaybackStateCompat
         when (state) {
-            PLAYING -> playbackState = PlaybackStateCompat.Builder().setActions(
-                PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_REWIND or PlaybackStateCompat.ACTION_FAST_FORWARD or PlaybackStateCompat.ACTION_SET_REPEAT_MODE or PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_SEEK_TO
-            ).setState(PlaybackStateCompat.STATE_PLAYING, exoPlayer.currentPosition, 1f).build()
+            PLAYING -> {
+                // notificationManager.notify(
+                //     R.integer.quran_ongoing_media_service_notification_channel_id,
+                //     serviceForegroundNotification
+                // )
 
-            PAUSED -> playbackState = PlaybackStateCompat.Builder()
-                .setActions(PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY)
-                .setState(PlaybackStateCompat.STATE_PAUSED, exoPlayer.currentPosition, 1f).build()
+                playbackState = PlaybackStateCompat.Builder().setActions(
+                    PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_REWIND or PlaybackStateCompat.ACTION_FAST_FORWARD or PlaybackStateCompat.ACTION_SET_REPEAT_MODE or PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_SEEK_TO
+                ).setState(PlaybackStateCompat.STATE_PLAYING, exoPlayer.currentPosition, 1f).build()
+            }
+
+            PAUSED -> {
+                // notificationManager.cancel(R.integer.quran_ongoing_media_service_notification_channel_id)
+
+                playbackState = PlaybackStateCompat.Builder()
+                    .setActions(PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY)
+                    .setState(PlaybackStateCompat.STATE_PAUSED, exoPlayer.currentPosition, 1f).build()
+            }
 
             SKIPPING_TO_NEXT -> {
                 startDownload = true
+
                 playbackState = PlaybackStateCompat.Builder().setActions(PlaybackStateCompat.ACTION_STOP)
                     .setState(PlaybackStateCompat.STATE_SKIPPING_TO_NEXT, 0, 1f).build()
             }
 
             SKIPPING_TO_PREVIOUS -> {
                 startDownload = true
+
                 playbackState = PlaybackStateCompat.Builder().setActions(PlaybackStateCompat.ACTION_STOP)
                     .setState(PlaybackStateCompat.STATE_SKIPPING_TO_PREVIOUS, 0, 1f).build()
             }
@@ -882,9 +899,13 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 PlaybackStateCompat.Builder().setActions(PlaybackStateCompat.ACTION_STOP)
                     .setState(PlaybackStateCompat.STATE_CONNECTING, 0, 1f).build()
 
-            STOPPED -> playbackState =
-                PlaybackStateCompat.Builder().setActions(PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID)
+            STOPPED -> {
+                // notificationManager.cancel(R.integer.quran_ongoing_media_service_notification_channel_id)
+
+                playbackState = PlaybackStateCompat.Builder()
+                    .setActions(PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID)
                     .setState(PlaybackStateCompat.STATE_STOPPED, 0, 1f).build()
+            }
         }
 
         mediaSession.setPlaybackState(playbackState)

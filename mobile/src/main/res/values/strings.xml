@@ -14,4 +14,5 @@
     <string name="revelation_order">ترتيب الوحى: %1$s</string>
     <string name="verse_count">عدد الآيات: %1$s</string>
     <string name="app_widget_description">This is an app widget description</string>
+    <string name="notification_permission_required">قد لا يعمل النطبيق جيداً إذا لم يحصل على إذن نشر الإشعارات، من فضلك قم بالسماح لعهذا الإذن</string>
 </resources>
