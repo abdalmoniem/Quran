@@ -1,6 +1,7 @@
 package com.hifnawy.quran.ui.fragments
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -15,7 +16,9 @@ import android.view.ViewGroup
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.graphics.drawable.toDrawable
 import androidx.fragment.app.Fragment
+import androidx.navigation.fragment.findNavController
 import androidx.palette.graphics.Palette
+import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.FragmentQuranMediaPlaybackBinding
 import com.hifnawy.quran.shared.QuranMediaService
 import com.hifnawy.quran.shared.model.Chapter
@@ -46,25 +49,36 @@ class QuranMediaPlayback : Fragment() {
     private val serviceUpdatesBroadcastReceiver = object : BroadcastReceiver() {
         @SuppressLint("SetTextI18n")
         override fun onReceive(context: Context, intent: Intent) {
-            val durationMs = intent.getLongExtra("DURATION", -1L)
-            val currentPosition = intent.getLongExtra("CURRENT_POSITION", -1L)
+            if (intent.extras != null) {
+                val durationMs = intent.getLongExtra("DURATION", -1L)
+                val currentPosition = intent.getLongExtra("CURRENT_POSITION", -1L)
 
-            reciter = intent.getSerializableExtra<Reciter>("RECITER")
-            chapter = intent.getSerializableExtra<Chapter>("CHAPTER")
+                reciter = intent.getSerializableExtra<Reciter>("RECITER")
+                chapter = intent.getSerializableExtra<Chapter>("CHAPTER")
 
-            if ((reciter != null) and (chapter != null)) {
-                updateUI(reciter!!, chapter!!)
-            }
-
-            if ((durationMs != -1L) and (currentPosition != -1L)) with(binding) {
-                chapterDuration.text =
-                    "${getDuration(currentPosition, true)} / ${getDuration(durationMs, true)}"
-
-                if ((0 <= currentPosition) and (currentPosition <= durationMs) and !chapterSeek.isFocused) {
-                    chapterSeek.valueFrom = 0f
-                    chapterSeek.valueTo = durationMs.toFloat()
-                    chapterSeek.value = currentPosition.toFloat()
+                if ((reciter != null) and (chapter != null)) {
+                    updateUI(reciter!!, chapter!!)
                 }
+
+                if ((durationMs != -1L) and (currentPosition != -1L)) with(binding) {
+                    chapterDuration.text =
+                        "${getDuration(currentPosition, true)} / ${getDuration(durationMs, true)}"
+
+                    if ((0 <= currentPosition) and (currentPosition <= durationMs) and !chapterSeek.isFocused) {
+                        chapterSeek.valueFrom = 0f
+                        chapterSeek.valueTo = durationMs.toFloat()
+                        chapterSeek.value = currentPosition.toFloat()
+                    }
+                }
+            } else {
+                AlertDialog.Builder(this@QuranMediaPlayback.context)
+                    .setTitle(getString(R.string.connection_error_title))
+                    .setMessage(getString(R.string.connection_error_message))
+                    .setPositiveButton("اخيار قارئ آخر") { _, _ ->
+                        // navigate up twice to get back to reciters list fragment
+                        findNavController().navigateUp()
+                        findNavController().navigateUp()
+                    }.show()
             }
         }
     }
