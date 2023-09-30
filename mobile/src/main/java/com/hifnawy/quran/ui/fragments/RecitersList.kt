@@ -63,6 +63,7 @@ class RecitersList : Fragment() {
                         "clicked on $position: ${reciter.translated_name?.name} ${itemView.recitationStyle.text}"
                     )
 
+                    reciterSearch.text = null
                     navController.navigate(
                         directions = RecitersListDirections.actionToChaptersList(
                             reciter = reciter

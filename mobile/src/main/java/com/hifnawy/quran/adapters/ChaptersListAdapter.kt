@@ -92,6 +92,8 @@ class ChaptersListAdapter(
         //     AnimationUtils.loadLayoutAnimation(context, R.anim.layout_animation_fall_down)
     }
 
+    fun getChapters(): ArrayList<Chapter> = chapters
+
     fun clear() {
         this.chapters.clear()
     }

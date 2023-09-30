@@ -9,7 +9,6 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -23,7 +22,8 @@ import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
 import com.hifnawy.quran.ui.activities.MainActivity
-import java.text.NumberFormat
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.time.Duration
 import java.util.Locale
 import com.hoko.blur.HokoBlur as Blur
@@ -37,7 +37,8 @@ class QuranMediaPlayback : Fragment() {
 
     private var reciter: Reciter? = null
     private var chapter: Chapter? = null
-    private val numberFormat = NumberFormat.getInstance(Locale("ar", "EG"))
+    private val decimalFormat =
+        DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
     private val parentActivity: MainActivity by lazy {
         (activity as MainActivity)
     }
@@ -85,21 +86,21 @@ class QuranMediaPlayback : Fragment() {
                                     downloadDialog.visibility = View.VISIBLE
                                 }
 
-                                downloadDialogMessage.text = "${
+                                downloadDialogChapterDownloadMessage.text = "${
                                     context.getString(
                                         com.hifnawy.quran.shared.R.string.loading_chapter,
                                         chapter?.name_arabic
                                     )
-                                }\n${numberFormat.format(bytesDownloaded / (1024 * 1024))} مب. / ${
-                                    numberFormat.format(
+                                }\n${decimalFormat.format(bytesDownloaded / (1024 * 1024))} مب. / ${
+                                    decimalFormat.format(
                                         fileSize / (1024 * 1024)
                                     )
                                 } مب. (${
-                                    numberFormat.format(
+                                    decimalFormat.format(
                                         percentage
                                     )
                                 }٪)"
-                                downloadDialogProgress.value = percentage
+                                downloadDialogChapterProgress.value = percentage
                             }
                             // Log.d(
                             //     "Quran_Media_Download",
@@ -260,8 +261,9 @@ class QuranMediaPlayback : Fragment() {
 
         with(binding) {
             downloadDialog.visibility = View.GONE
-            downloadDialogProgress.valueFrom = 0f
-            downloadDialogProgress.valueTo = 100f
+
+            downloadDialogChapterProgress.valueFrom = 0f
+            downloadDialogChapterProgress.valueTo = 100f
             chapterBackgroundImage.setImageDrawable(bitmap.toDrawable(resources))
             chapterName.text = chapter.name_arabic
             reciterName.text =

@@ -108,21 +108,22 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_horizontal"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:paddingBottom="30dp"
+                android:paddingTop="30dp">
 
                 <TextView
-                    android:id="@+id/download_dialog_message"
+                    android:id="@+id/download_dialog_chapter_download_message"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/loading_chapter"
                     android:textSize="20sp" />
 
                 <com.google.android.material.slider.Slider
-                    android:id="@+id/download_dialog_progress"
+                    android:id="@+id/download_dialog_chapter_progress"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:clickable="false"
-                    android:elevation="100dp"
                     android:scaleX="-1"
                     android:value="23"
                     android:valueFrom="0"

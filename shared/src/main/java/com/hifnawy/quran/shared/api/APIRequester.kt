@@ -17,7 +17,7 @@ class APIRequester {
     }
 
     companion object {
-        suspend fun sendRESTRequest(url: String, handleResponse: ResponseHandler) {
+        private suspend fun sendRESTRequest(url: String, handleResponse: ResponseHandler) {
             val client: OkHttpClient = OkHttpClient().newBuilder().build()
             val request: Request =
                 Request.Builder().url(url)

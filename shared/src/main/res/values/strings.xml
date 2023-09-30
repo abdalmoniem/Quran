@@ -12,6 +12,7 @@
     <string name="revelation_order">ترتيب الوحى: %1$s</string>
     <string name="verse_count">عدد الآيات: %1$s</string>
     <string name="loading_chapter">جارٍ تحميل سورة %1$s…</string>
+    <string name="loading_all_chapters">جارٍ تحميل السور (%1$s٪)…</string>
     <string name="quran_recitation_notification_name">Quran Recitation</string>
     <string name="quran_recitation_notification_description">quran recitation description</string>
     <string name="quran_media_service_updates">SERVICE_UPDATES</string>

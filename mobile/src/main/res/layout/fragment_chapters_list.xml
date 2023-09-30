@@ -7,6 +7,108 @@
     android:layoutDirection="rtl"
     tools:context=".ui.fragments.RecitersList">
 
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/download_dialog"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="200dp"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:alpha="0.9"
+                android:background="@color/black"
+                android:importantForAccessibility="no"
+                android:scaleType="centerCrop" />
+        </FrameLayout>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="30dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="20dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingBottom="30dp"
+                android:paddingTop="30dp">
+
+                <TextView
+                    android:id="@+id/download_dialog_all_chapters_download_message"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/loading_all_chapters"
+                    android:textSize="20sp" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/download_dialog_all_chapters_progress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clickable="false"
+                    android:value="23"
+                    android:valueFrom="0"
+                    android:valueTo="100"
+                    app:haloColor="#00ffffff"
+                    app:haloRadius="0dp"
+                    app:labelBehavior="gone"
+                    app:thumbColor="#00ffffff"
+                    app:thumbElevation="0dp"
+                    app:thumbRadius="0dp"
+                    app:tickVisible="false"
+                    app:trackHeight="20dp" />
+
+                <TextView
+                    android:id="@+id/download_dialog_chapter_download_message"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/loading_chapter"
+                    android:textSize="20sp" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/download_dialog_chapter_progress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clickable="false"
+                    android:value="23"
+                    android:valueFrom="0"
+                    android:valueTo="100"
+                    app:haloColor="#00ffffff"
+                    app:haloRadius="0dp"
+                    app:labelBehavior="gone"
+                    app:thumbColor="#00ffffff"
+                    app:thumbElevation="0dp"
+                    app:thumbRadius="0dp"
+                    app:tickVisible="false"
+                    app:trackHeight="20dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/download_dialog_cancel_download"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="30dp"
+                    android:text="@string/cancel_download"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/chapters_list"
         android:layout_width="match_parent"
@@ -22,6 +124,22 @@
         tools:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
         tools:listitem="@layout/chapter_item" />
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/download_all_chapters"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginStart="10dp"
+        app:cornerRadius="10dp"
+        app:icon="@drawable/baseline_file_download_24"
+        app:iconGravity="textStart"
+        app:iconPadding="0dp"
+        app:iconSize="20dp"
+        app:iconTint="@color/white"
+        app:layout_constraintEnd_toStartOf="@id/chapter_search"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/chapter_search"
         android:layout_width="0dp"
@@ -35,7 +153,7 @@
         android:textSize="25sp"
         app:layout_constraintBottom_toTopOf="@id/chapters_list"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintStart_toEndOf="@id/download_all_chapters"
         app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

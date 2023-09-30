@@ -1,5 +1,6 @@
 package com.hifnawy.quran.ui.fragments
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -14,12 +15,19 @@ import androidx.recyclerview.widget.GridLayoutManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
+import com.hifnawy.quran.shared.QuranMediaService
 import com.hifnawy.quran.shared.api.APIRequester
+import com.hifnawy.quran.shared.api.APIRequester.Companion.getChapter
 import com.hifnawy.quran.shared.model.Chapter
+import com.hifnawy.quran.shared.tools.Utilities.Companion.downloadFile
 import com.hifnawy.quran.ui.activities.MainActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.net.URL
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 
 /**
  * A simple [Fragment] subclass.
@@ -31,6 +39,7 @@ class ChaptersList : Fragment() {
         (activity as MainActivity)
     }
 
+    @SuppressLint("SetTextI18n")
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
@@ -53,6 +62,8 @@ class ChaptersList : Fragment() {
         navController = findNavController()
 
         with(binding) {
+            downloadDialog.visibility = View.GONE
+
             lifecycleScope.launch(context = Dispatchers.IO) {
                 chapters = APIRequester.getChaptersList()
 
@@ -64,7 +75,76 @@ class ChaptersList : Fragment() {
                         "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
                     )
 
+                    chapterSearch.text = null
                     navController.navigate(ChaptersListDirections.actionToChapterPlay(reciter, chapter))
+                }
+
+                downloadDialogCancelDownload.setOnClickListener {
+                    QuranMediaService.startDownload = false
+                    downloadDialog.visibility = View.GONE
+                }
+
+                downloadAllChapters.setOnClickListener {
+                    downloadDialog.visibility = View.VISIBLE
+
+                    downloadDialogChapterProgress.valueFrom = 0f
+                    downloadDialogChapterProgress.valueTo = 100f
+                    downloadDialogChapterProgress.value = 0f
+                    downloadDialogAllChaptersProgress.valueFrom = 0f
+                    downloadDialogAllChaptersProgress.valueTo = 100f
+                    downloadDialogAllChaptersProgress.value = 0f
+
+                    val decimalFormat =
+                        DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
+
+                    var chaptersDownloaded = 0
+
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        QuranMediaService.startDownload = true
+                        for (chapter in chaptersListAdapter.getChapters()) {
+                            if (downloadDialog.visibility == View.VISIBLE) {
+                                val chapterAudioFile = getChapter(reciter.id, chapter.id)
+
+                                context?.let { context ->
+                                    downloadFile(
+                                        context, URL(chapterAudioFile?.audio_url), reciter, chapter
+                                    ) { bytesDownloaded, fileSize, percentage ->
+                                        lifecycleScope.launch(Dispatchers.Main) {
+                                            with(binding) {
+                                                downloadDialogChapterDownloadMessage.text = "${
+                                                    this@ChaptersList.context?.getString(
+                                                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                                                        chapter.name_arabic
+                                                    )
+                                                }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. / ${
+                                                    decimalFormat.format(
+                                                        fileSize.toFloat() / (1024 * 1024)
+                                                    )
+                                                } مب. (${
+                                                    decimalFormat.format(
+                                                        percentage
+                                                    )
+                                                }٪)"
+                                                downloadDialogChapterProgress.value = percentage
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            chaptersDownloaded++
+
+                            lifecycleScope.launch(Dispatchers.Main) {
+                                val chaptersDownloadProgress =
+                                    (chaptersDownloaded.toFloat() / chaptersListAdapter.itemCount.toFloat()) * 100f
+                                downloadDialogAllChaptersProgress.value = chaptersDownloadProgress
+                                downloadDialogAllChaptersDownloadMessage.text = context?.getString(
+                                    com.hifnawy.quran.shared.R.string.loading_all_chapters,
+                                    decimalFormat.format(chaptersDownloadProgress)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 withContext(Dispatchers.Main) {
@@ -92,5 +172,23 @@ class ChaptersList : Fragment() {
 
             return root
         }
+    }
+
+    override fun onPause() {
+        QuranMediaService.startDownload = false
+
+        super.onPause()
+    }
+
+    override fun onStop() {
+        QuranMediaService.startDownload = false
+
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        QuranMediaService.startDownload = false
+
+        super.onDestroy()
     }
 }
