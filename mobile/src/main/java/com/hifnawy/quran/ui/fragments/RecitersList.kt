@@ -28,6 +28,9 @@ import kotlinx.coroutines.withContext
 class RecitersList : Fragment() {
     private lateinit var binding: FragmentRecitersListBinding
     private lateinit var navController: NavController
+    private val parentActivity: MainActivity by lazy {
+        (activity as MainActivity)
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -35,7 +38,7 @@ class RecitersList : Fragment() {
         var reciters: List<Reciter>
         var recitersListAdapter: RecitersListAdapter
 
-        (activity as MainActivity).supportActionBar?.apply {
+        parentActivity.supportActionBar?.apply {
             // providing title for the ActionBar
             title = "   ${getString(R.string.quran)}"
 

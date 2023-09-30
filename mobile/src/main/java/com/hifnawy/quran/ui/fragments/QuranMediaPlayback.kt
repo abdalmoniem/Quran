@@ -35,9 +35,12 @@ import com.hoko.blur.HokoBlur as Blur
 class QuranMediaPlayback : Fragment() {
     private lateinit var binding: FragmentQuranMediaPlaybackBinding
 
-    private lateinit var reciter: Reciter
-    private lateinit var chapter: Chapter
+    private var reciter: Reciter? = null
+    private var chapter: Chapter? = null
     private val numberFormat = NumberFormat.getInstance(Locale("ar", "EG"))
+    private val parentActivity: MainActivity by lazy {
+        (activity as MainActivity)
+    }
 
     private val serviceUpdatesBroadcastReceiver = object : BroadcastReceiver() {
         @SuppressLint("SetTextI18n")
@@ -45,8 +48,8 @@ class QuranMediaPlayback : Fragment() {
             val durationMs = intent.getLongExtra("DURATION", -1L)
             val currentPosition = intent.getLongExtra("CURRENT_POSITION", -1L)
 
-            val reciter = intent.getSerializableExtra<Reciter>("RECITER")
-            val chapter = intent.getSerializableExtra<Chapter>("CHAPTER")
+            reciter = intent.getSerializableExtra<Reciter>("RECITER")
+            chapter = intent.getSerializableExtra<Chapter>("CHAPTER")
 
             if ((reciter != null) and (chapter != null)) {
                 updateUI(reciter!!, chapter!!)
@@ -83,9 +86,9 @@ class QuranMediaPlayback : Fragment() {
                                 }
 
                                 downloadDialogMessage.text = "${
-                                    this@QuranMediaPlayback.getString(
+                                    context.getString(
                                         com.hifnawy.quran.shared.R.string.loading_chapter,
-                                        chapter.name_arabic
+                                        chapter?.name_arabic
                                     )
                                 }\n${numberFormat.format(bytesDownloaded / (1024 * 1024))} مب. / ${
                                     numberFormat.format(
@@ -95,13 +98,13 @@ class QuranMediaPlayback : Fragment() {
                                     numberFormat.format(
                                         percentage
                                     )
-                                })%"
+                                }٪)"
                                 downloadDialogProgress.value = percentage
                             }
-                            Log.d(
-                                "Quran_Media_Download",
-                                "downloading ${chapter.name_simple} $bytesDownloaded / $fileSize ($percentage%)"
-                            )
+                            // Log.d(
+                            //     "Quran_Media_Download",
+                            //     "downloading ${chapter?.name_simple} $bytesDownloaded / $fileSize ($percentage%)"
+                            // )
                         }
 
                         "DOWNLOADED" -> {
@@ -124,27 +127,28 @@ class QuranMediaPlayback : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         binding = FragmentQuranMediaPlaybackBinding.inflate(layoutInflater, container, false)
-        val bundle = QuranMediaPlaybackArgs.fromBundle(requireArguments())
-        reciter = bundle.reciter
-        chapter = bundle.chapter
+        with(QuranMediaPlaybackArgs.fromBundle(requireArguments())) {
+            this@QuranMediaPlayback.reciter = reciter
+            this@QuranMediaPlayback.chapter = chapter
+        }
 
-        updateUI(reciter, chapter)
+        updateUI(reciter!!, chapter!!)
 
         with(binding) {
             chapterPlay.setOnClickListener {
-                (activity as MainActivity).sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
+                parentActivity.sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
                     putExtra("PLAY_PAUSE", "PLAY")
                 })
             }
 
             chapterNext.setOnClickListener {
-                (activity as MainActivity).sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
+                parentActivity.sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
                     putExtra("NEXT", "NEXT")
                 })
             }
 
             chapterPrevious.setOnClickListener {
-                (activity as MainActivity).sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
+                parentActivity.sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
                     putExtra("PREVIOUS", "PREVIOUS")
                 })
             }
@@ -157,52 +161,62 @@ class QuranMediaPlayback : Fragment() {
                         )
                     } / ${getDuration(chapterSeek.valueTo.toLong(), true)}"
 
-                    (activity as MainActivity).sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
+                    parentActivity.sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
                         putExtra("POSITION", value.toLong().toString())
                     })
                 }
             }
         }
 
-        if (!QuranMediaService.isRunning) {
-            (activity as MainActivity).startForegroundService(Intent(
-                context, QuranMediaService::class.java
-            ).apply {
-                putExtra("RECITER", bundle.reciter)
-                putExtra("CHAPTER", bundle.chapter)
-            })
-        } else {
-            (activity as MainActivity).sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
-                putExtra("RECITER", reciter)
-                putExtra("CHAPTER", chapter)
-            })
+        with(parentActivity) {
+            if (!QuranMediaService.isRunning) {
+                startForegroundService(Intent(
+                    context, QuranMediaService::class.java
+                ).apply {
+                    putExtra("RECITER", reciter)
+                    putExtra("CHAPTER", chapter)
+                })
+            } else {
+                QuranMediaService.startDownload = true
+
+                sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
+                    putExtra("RECITER", reciter)
+                    putExtra("CHAPTER", chapter)
+                })
+            }
         }
 
         return binding.root
     }
 
     override fun onResume() {
+        with(parentActivity) {
+            supportActionBar?.hide()
+            registerReceiver(
+                serviceUpdatesBroadcastReceiver,
+                IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates))
+            )
+            registerReceiver(
+                downloadUpdatesBroadcastReceiver,
+                IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_file_download_updates))
+            )
+        }
         super.onResume()
-        (activity as MainActivity).supportActionBar?.hide()
-        (activity as MainActivity).registerReceiver(
-            serviceUpdatesBroadcastReceiver,
-            IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)),
-        )
-
-        (activity as MainActivity).registerReceiver(
-            downloadUpdatesBroadcastReceiver,
-            IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_file_download_updates)),
-        )
     }
 
     override fun onPause() {
+        with(parentActivity) {
+            unregisterReceiver(serviceUpdatesBroadcastReceiver)
+            unregisterReceiver(downloadUpdatesBroadcastReceiver)
+
+            QuranMediaService.startDownload = false
+        }
         super.onPause()
-        (activity as MainActivity).unregisterReceiver(serviceUpdatesBroadcastReceiver)
     }
 
     override fun onStop() {
         super.onStop()
-        (activity as MainActivity).supportActionBar?.show()
+        parentActivity.supportActionBar?.show()
     }
 
     private fun getDuration(durationMs: Long, getHoursPart: Boolean): String {

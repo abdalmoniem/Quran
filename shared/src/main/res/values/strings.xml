@@ -17,4 +17,5 @@
     <string name="quran_media_service_updates">SERVICE_UPDATES</string>
     <string name="quran_media_player_controls">MEDIA_PLAYER_CONTROLS</string>
     <string name="quran_media_service_file_download_updates">FILE_DOWNLOAD_UPDATES</string>
+    <string name="quran_media_service_download_commands">DOWNLOAD_COMMANDS</string>
 </resources>

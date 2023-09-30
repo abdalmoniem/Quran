@@ -27,6 +27,9 @@ import kotlinx.coroutines.withContext
 class ChaptersList : Fragment() {
     private lateinit var binding: FragmentChaptersListBinding
     private lateinit var navController: NavController
+    private val parentActivity: MainActivity by lazy {
+        (activity as MainActivity)
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -36,7 +39,7 @@ class ChaptersList : Fragment() {
         var chapters: List<Chapter>
         var chaptersListAdapter: ChaptersListAdapter
 
-        (activity as MainActivity).supportActionBar?.apply {
+        parentActivity.supportActionBar?.apply {
             // providing title for the ActionBar
             title = "   ${getString(R.string.quran)}"
 
