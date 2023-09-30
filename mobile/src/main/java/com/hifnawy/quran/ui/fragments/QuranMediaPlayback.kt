@@ -9,6 +9,7 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -22,7 +23,9 @@ import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
 import com.hifnawy.quran.ui.activities.MainActivity
+import java.text.NumberFormat
 import java.time.Duration
+import java.util.Locale
 import com.hoko.blur.HokoBlur as Blur
 
 
@@ -32,7 +35,11 @@ import com.hoko.blur.HokoBlur as Blur
 class QuranMediaPlayback : Fragment() {
     private lateinit var binding: FragmentQuranMediaPlaybackBinding
 
-    private val broadcastReceiver = object : BroadcastReceiver() {
+    private lateinit var reciter: Reciter
+    private lateinit var chapter: Chapter
+    private val numberFormat = NumberFormat.getInstance(Locale("ar", "EG"))
+
+    private val serviceUpdatesBroadcastReceiver = object : BroadcastReceiver() {
         @SuppressLint("SetTextI18n")
         override fun onReceive(context: Context, intent: Intent) {
             val durationMs = intent.getLongExtra("DURATION", -1L)
@@ -58,14 +65,68 @@ class QuranMediaPlayback : Fragment() {
         }
     }
 
+    private val downloadUpdatesBroadcastReceiver = object : BroadcastReceiver() {
+        @SuppressLint("SetTextI18n")
+        override fun onReceive(context: Context, intent: Intent) {
+            with(intent) {
+                val downloadStatus = getStringExtra("DOWNLOAD_STATUS")
+                val bytesDownloaded = getLongExtra("BYTES_DOWNLOADED", -1L)
+                val fileSize = getIntExtra("FILE_SIZE", -1)
+                val percentage = getFloatExtra("PERCENTAGE", -1.0f)
+
+                if (!downloadStatus.isNullOrEmpty() && (bytesDownloaded != -1L) && (fileSize != -1) && (percentage != -1.0f)) {
+                    when (downloadStatus) {
+                        "DOWNLOADING" -> {
+                            with(binding) {
+                                if (downloadDialog.visibility != View.VISIBLE) {
+                                    downloadDialog.visibility = View.VISIBLE
+                                }
+
+                                downloadDialogMessage.text = "${
+                                    this@QuranMediaPlayback.getString(
+                                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                                        chapter.name_arabic
+                                    )
+                                }\n${numberFormat.format(bytesDownloaded / (1024 * 1024))} مب. / ${
+                                    numberFormat.format(
+                                        fileSize / (1024 * 1024)
+                                    )
+                                } مب. (${
+                                    numberFormat.format(
+                                        percentage
+                                    )
+                                })%"
+                                downloadDialogProgress.value = percentage
+                            }
+                            Log.d(
+                                "Quran_Media_Download",
+                                "downloading ${chapter.name_simple} $bytesDownloaded / $fileSize ($percentage%)"
+                            )
+                        }
+
+                        "DOWNLOADED" -> {
+                            binding.downloadDialog.visibility = View.GONE
+                        }
+
+                        else -> {
+
+                        }
+                    }
+                } else {
+
+                }
+            }
+        }
+    }
+
     @SuppressLint("DiscouragedApi", "SetTextI18n")
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         binding = FragmentQuranMediaPlaybackBinding.inflate(layoutInflater, container, false)
         val bundle = QuranMediaPlaybackArgs.fromBundle(requireArguments())
-        val reciter = bundle.reciter
-        val chapter = bundle.chapter
+        reciter = bundle.reciter
+        chapter = bundle.chapter
 
         updateUI(reciter, chapter)
 
@@ -124,14 +185,19 @@ class QuranMediaPlayback : Fragment() {
         super.onResume()
         (activity as MainActivity).supportActionBar?.hide()
         (activity as MainActivity).registerReceiver(
-            broadcastReceiver,
+            serviceUpdatesBroadcastReceiver,
             IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)),
+        )
+
+        (activity as MainActivity).registerReceiver(
+            downloadUpdatesBroadcastReceiver,
+            IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_file_download_updates)),
         )
     }
 
     override fun onPause() {
         super.onPause()
-        (activity as MainActivity).unregisterReceiver(broadcastReceiver)
+        (activity as MainActivity).unregisterReceiver(serviceUpdatesBroadcastReceiver)
     }
 
     override fun onStop() {
@@ -165,7 +231,7 @@ class QuranMediaPlayback : Fragment() {
         val bitmap = Blur.with(context)
             .scheme(Blur.SCHEME_NATIVE) //different implementation, RenderScript、OpenGL、Native(default) and Java
             .mode(Blur.MODE_GAUSSIAN) //blur algorithms，Gaussian、Stack(default) and Box
-            .radius(5) //blur radius，max=25，default=5
+            .radius(3) //blur radius，max=25，default=5
             .sampleFactor(2.0f).processor().blur(
                 (AppCompatResources.getDrawable(
                     requireContext(), drawableId
@@ -179,6 +245,9 @@ class QuranMediaPlayback : Fragment() {
         ).generate().getDominantColor(Color.RED)
 
         with(binding) {
+            downloadDialog.visibility = View.GONE
+            downloadDialogProgress.valueFrom = 0f
+            downloadDialogProgress.valueTo = 100f
             chapterBackgroundImage.setImageDrawable(bitmap.toDrawable(resources))
             chapterName.text = chapter.name_arabic
             reciterName.text =
@@ -192,12 +261,11 @@ class QuranMediaPlayback : Fragment() {
             chapterSeek.trackActiveTintList = ColorStateList.valueOf(dominantColor)
             chapterSeek.thumbTintList = ColorStateList.valueOf(dominantColor)
             if (QuranMediaService.isRunning) {
-                chapterPlay.icon =
-                    if (QuranMediaService.isMediaPlaying) AppCompatResources.getDrawable(
-                        requireContext(), com.hifnawy.quran.shared.R.drawable.media_pause_black
-                    ) else AppCompatResources.getDrawable(
-                        requireContext(), com.hifnawy.quran.shared.R.drawable.media_play_black
-                    )
+                chapterPlay.icon = if (QuranMediaService.isMediaPlaying) AppCompatResources.getDrawable(
+                    requireContext(), com.hifnawy.quran.shared.R.drawable.media_pause_black
+                ) else AppCompatResources.getDrawable(
+                    requireContext(), com.hifnawy.quran.shared.R.drawable.media_play_black
+                )
             }
             chapterPlay.setBackgroundColor(dominantColor)
             chapterNext.setBackgroundColor(dominantColor)

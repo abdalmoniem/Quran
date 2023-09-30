@@ -51,7 +51,6 @@ class ChaptersListAdapter(
             val chapter = this@ChaptersListAdapter.chapters[position]
             val nf = NumberFormat.getInstance(Locale("ar", "EG"))
 
-
             chapterName.text = chapter.name_arabic
             verseCount.text = context.getString(R.string.verse_count, nf.format(chapter.verses_count))
             revelationPlace.text = chapter.revelation_place.place

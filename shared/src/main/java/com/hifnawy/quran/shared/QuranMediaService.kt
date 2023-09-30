@@ -45,9 +45,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Files
-import java.nio.file.Paths
+import java.nio.file.attribute.BasicFileAttributes
 
 
 /**
@@ -851,6 +852,7 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     }
 
     private fun downloadFile(url: URL, reciter: Reciter, chapter: Chapter): File {
+        var newDownload = false
         val reciterDirectory =
             "${this@QuranMediaService.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}"
         val chapterFileName =
@@ -861,10 +863,71 @@ class QuranMediaService : MediaBrowserServiceCompat() {
         if (!reciterDirectoryFile.exists()) {
             reciterDirectoryFile.mkdirs()
         }
+        // download the file if it doesn't exist
+        // url.openStream().use { Files.copy(it, Paths.get(chapterFileName)) }
 
-        if (!chapterFile.exists()) {
-            // download the file if it doesn't exist
-            url.openStream().use { Files.copy(it, Paths.get(chapterFileName)) }
+        val connection = url.openConnection() as HttpURLConnection
+
+        connection.requestMethod = "GET"
+        connection.setRequestProperty("Accept-Encoding", "identity")
+        connection.connect()
+
+        when (connection.responseCode) {
+            in 200..299 -> {
+                val fileSize = connection.contentLength
+
+                if (chapterFile.exists()) {
+                    val chapterFileSize =
+                        Files.readAttributes(chapterFile.toPath(), BasicFileAttributes::class.java)
+                            .size()
+
+                    if (chapterFileSize != fileSize.toLong()) {
+                        chapterFile.delete()
+                        chapterFile.createNewFile()
+                        newDownload = true
+                    }
+                } else {
+                    newDownload = true
+                }
+
+                if (newDownload) {
+                    val inputStream = connection.inputStream
+                    val outputStream = chapterFile.outputStream()
+
+                    Log.d("Quran_Media_Download", "fileSize: $fileSize")
+
+                    val buffer = ByteArray(1024)
+                    var bytesDownloaded = 0L
+                    var bytes = 0
+                    while (bytes >= 0) {
+                        bytesDownloaded += bytes
+
+                        // update progress
+                        val percentage = (bytesDownloaded.toFloat() / fileSize.toFloat() * 100)
+
+                        sendBroadcast(Intent(getString(R.string.quran_media_service_file_download_updates)).apply {
+                            putExtra("DOWNLOAD_STATUS", "DOWNLOADING")
+                            putExtra("BYTES_DOWNLOADED", bytesDownloaded)
+                            putExtra("FILE_SIZE", fileSize)
+                            putExtra("PERCENTAGE", percentage)
+                        })
+
+                        outputStream.write(buffer, 0, bytes)
+                        bytes = inputStream.read(buffer)
+                    }
+                    inputStream.close()
+                    outputStream.close()
+
+                    sendBroadcast(Intent(getString(R.string.quran_media_service_file_download_updates)).apply {
+                        putExtra("DOWNLOAD_STATUS", "DOWNLOADED")
+                        putExtra("BYTES_DOWNLOADED", bytesDownloaded)
+                        putExtra("FILE_SIZE", fileSize)
+                        putExtra("PERCENTAGE", 100.0f)
+                    })
+                }
+            }
+
+            else -> {}
         }
 
         return chapterFile
