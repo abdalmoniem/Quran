@@ -19,6 +19,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:alpha="0.4"
+            android:importantForAccessibility="no"
             android:scaleType="centerCrop"
             android:src="@drawable/chapter_name"
             android:tintMode="add"
@@ -35,7 +36,8 @@
         app:layout_constraintBottom_toTopOf="@id/chapter_duration"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/chapter_name" />
+        app:layout_constraintTop_toBottomOf="@id/chapter_name"
+        tools:ignore="VisualLintOverlap" />
 
     <TextView
         android:id="@+id/chapter_duration"
@@ -49,7 +51,8 @@
         app:layout_constraintBottom_toTopOf="@id/chapter_seek"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/reciter_name" />
+        app:layout_constraintTop_toBottomOf="@id/reciter_name"
+        tools:ignore="HardcodedText,VisualLintOverlap" />
 
     <TextView
         android:id="@+id/chapter_name"
@@ -62,7 +65,8 @@
         app:layout_constraintBottom_toTopOf="@id/reciter_name"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/chapter_image_card" />
+        app:layout_constraintTop_toBottomOf="@id/chapter_image_card"
+        tools:ignore="VisualLintOverlap" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/download_dialog"
@@ -85,6 +89,7 @@
                 android:layout_height="match_parent"
                 android:alpha="0.9"
                 android:background="@color/black"
+                android:importantForAccessibility="no"
                 android:scaleType="centerCrop" />
         </FrameLayout>
 
@@ -122,6 +127,7 @@
                     android:value="23"
                     android:valueFrom="0"
                     android:valueTo="100"
+                    app:haloColor="#00ffffff"
                     app:haloRadius="0dp"
                     app:labelBehavior="gone"
                     app:thumbColor="#00ffffff"
@@ -209,6 +215,7 @@
             android:id="@+id/chapter_image"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:importantForAccessibility="no"
             android:scaleType="fitCenter"
             android:src="@drawable/chapter_name" />
     </com.google.android.material.card.MaterialCardView>

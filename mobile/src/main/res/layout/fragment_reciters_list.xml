@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:layoutDirection="rtl"
     tools:context=".ui.fragments.RecitersList">
 
     <androidx.recyclerview.widget.RecyclerView
@@ -21,19 +22,16 @@
         android:id="@+id/reciter_search"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:drawableStart="@drawable/baseline_search_24"
-        android:drawableTint="@color/material_dynamic_tertiary50"
+        android:drawableEnd="@drawable/baseline_search_24"
+        android:drawableTint="@color/design_default_color_secondary"
         android:hint="@string/reciter_search"
         android:importantForAutofill="no"
         android:inputType="textFilter"
         android:maxLines="1"
-        android:textAlignment="viewEnd"
         android:textSize="25sp"
         app:layout_constraintBottom_toTopOf="@id/reciters_list"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0"
-        tools:ignore="VisualLintTextFieldSize" />
+        app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
