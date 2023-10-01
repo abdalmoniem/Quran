@@ -13,7 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
-import androidx.navigation.findNavController
+import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.navigateUp
 import com.google.android.material.color.DynamicColors
@@ -38,12 +38,49 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(binding.root)
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 93)
+            }
+        }
+
+        val navHostFragment =
+            supportFragmentManager.findFragmentById(R.id.fragment_container) as NavHostFragment
+        val graphInflater = navHostFragment.navController.navInflater
+        val graph = graphInflater.inflate(R.navigation.navigation_map)
+        var toMediaPlayer = intent.extras != null
+
+        var reciter: Reciter? = null
+        var chapter: Chapter? = null
+
+        if (intent.extras != null) {
+            val destinationFragment = intent.extras!!.getInt("DESTINATION", -1)
+            reciter = intent.extras!!.getSerializable<Reciter>("RECITER")
+            chapter = intent.extras!!.getSerializable<Chapter>("CHAPTER")
+
+            if ((destinationFragment != -1) and (reciter != null) and (chapter != null)) {
+                graph.setStartDestination(R.id.chapter_play)
+            }
+        } else {
+            graph.setStartDestination(R.id.reciters_list)
+        }
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
 
         setSupportActionBar(binding.appToolbar)
 
-        navController = findNavController(R.id.fragment_container)
+        navController = navHostFragment.navController
+        navController.graph = graph
+
+        if (toMediaPlayer) {
+            navController.navigate(R.id.action_to_chapter_play_from_notification, Bundle().apply {
+                putSerializable("reciter", reciter!!)
+                putSerializable("chapter", chapter!!)
+            })
+        }
+
+        // navController = findNavController(R.id.fragment_container)
         // appBarConfiguration = AppBarConfiguration(navController.graph)
         // setupActionBarWithNavController(navController, appBarConfiguration)
 
@@ -61,29 +98,13 @@ class MainActivity : AppCompatActivity() {
             // providing subtitle for the ActionBar
             subtitle = "   ${getString(R.string.reciters)}"
         }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 93)
-            }
-        }
     }
 
-    override fun onResume() {
-        intent.extras?.run {
-            val destinationFragment = getInt("DESTINATION", -1)
-            val reciter = getSerializable<Reciter>("RECITER")
-            val chapter = getSerializable<Chapter>("CHAPTER")
-            if ((destinationFragment != -1) and (reciter != null) and (chapter != null)) {
-                navController.navigate(R.id.action_to_chapter_play_from_notification, Bundle().apply {
-                    putSerializable("reciter", reciter!!)
-                    putSerializable("chapter", chapter!!)
-                })
-            }
-        }
-
-        super.onResume()
-    }
+    // override fun onResume() {
+    //
+    //
+    //     super.onResume()
+    // }
 
     override fun onRequestPermissionsResult(
         requestCode: Int, permissions: Array<out String>, grantResults: IntArray

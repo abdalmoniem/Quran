@@ -103,20 +103,30 @@ class ChaptersList : Fragment() {
                         QuranMediaService.startDownload = true
                         for (chapter in chaptersListAdapter.getChapters()) {
                             if (downloadDialog.visibility == View.VISIBLE) {
+                                withContext(Dispatchers.Main) {
+                                    downloadDialogChapterDownloadMessage.text = "${
+                                        this@ChaptersList.context?.getString(
+                                            com.hifnawy.quran.shared.R.string.loading_chapter,
+                                            chapter.name_arabic
+                                        )
+                                    }\n…"
+                                    downloadDialogChapterProgress.value = 100f
+                                }
+
                                 val chapterAudioFile = getChapter(reciter.id, chapter.id)
 
                                 context?.let { context ->
                                     downloadFile(
                                         context, URL(chapterAudioFile?.audio_url), reciter, chapter
                                     ) { bytesDownloaded, fileSize, percentage ->
-                                        lifecycleScope.launch(Dispatchers.Main) {
+                                        withContext(Dispatchers.Main) {
                                             with(binding) {
                                                 downloadDialogChapterDownloadMessage.text = "${
                                                     this@ChaptersList.context?.getString(
                                                         com.hifnawy.quran.shared.R.string.loading_chapter,
                                                         chapter.name_arabic
                                                     )
-                                                }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. / ${
+                                                }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
                                                     decimalFormat.format(
                                                         fileSize.toFloat() / (1024 * 1024)
                                                     )
@@ -174,16 +184,10 @@ class ChaptersList : Fragment() {
         }
     }
 
-    override fun onPause() {
+    override fun onDestroyView() {
         QuranMediaService.startDownload = false
 
-        super.onPause()
-    }
-
-    override fun onStop() {
-        QuranMediaService.startDownload = false
-
-        super.onStop()
+        super.onDestroyView()
     }
 
     override fun onDestroy() {

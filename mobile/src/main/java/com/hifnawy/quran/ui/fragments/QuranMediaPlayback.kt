@@ -27,6 +27,7 @@ import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
 import com.hifnawy.quran.ui.activities.MainActivity
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
+import java.text.NumberFormat
 import java.time.Duration
 import java.util.Locale
 import com.hoko.blur.HokoBlur as Blur
@@ -38,6 +39,7 @@ import com.hoko.blur.HokoBlur as Blur
 class QuranMediaPlayback : Fragment() {
     private lateinit var binding: FragmentQuranMediaPlaybackBinding
 
+    private var broadcastsRegistered = false
     private var reciter: Reciter? = null
     private var chapter: Chapter? = null
     private val decimalFormat =
@@ -61,8 +63,11 @@ class QuranMediaPlayback : Fragment() {
                 }
 
                 if ((durationMs != -1L) and (currentPosition != -1L)) with(binding) {
-                    chapterDuration.text =
-                        "${getDuration(currentPosition, true)} / ${getDuration(durationMs, true)}"
+                    chapterDuration.text = "${
+                        getDuration(
+                            currentPosition, (Duration.ofMillis(durationMs).toHours() > 0)
+                        )
+                    } \\ ${getDuration(durationMs, (Duration.ofMillis(durationMs).toHours() > 0))}"
 
                     if ((0 <= currentPosition) and (currentPosition <= durationMs) and !chapterSeek.isFocused) {
                         chapterSeek.valueFrom = 0f
@@ -105,7 +110,7 @@ class QuranMediaPlayback : Fragment() {
                                         com.hifnawy.quran.shared.R.string.loading_chapter,
                                         chapter?.name_arabic
                                     )
-                                }\n${decimalFormat.format(bytesDownloaded / (1024 * 1024))} مب. / ${
+                                }\n${decimalFormat.format(bytesDownloaded / (1024 * 1024))} مب. \\ ${
                                     decimalFormat.format(
                                         fileSize / (1024 * 1024)
                                     )
@@ -118,7 +123,7 @@ class QuranMediaPlayback : Fragment() {
                             }
                             // Log.d(
                             //     "Quran_Media_Download",
-                            //     "downloading ${chapter?.name_simple} $bytesDownloaded / $fileSize ($percentage%)"
+                            //     "downloading ${chapter?.name_simple} $bytesDownloaded \\ $fileSize ($percentage%)"
                             // )
                         }
 
@@ -172,9 +177,15 @@ class QuranMediaPlayback : Fragment() {
                 if (fromUser) {
                     chapterDuration.text = "${
                         getDuration(
-                            value.toLong(), true
+                            value.toLong(),
+                            (Duration.ofMillis(chapterSeek.valueTo.toLong()).toHours() > 0)
                         )
-                    } / ${getDuration(chapterSeek.valueTo.toLong(), true)}"
+                    } \\ ${
+                        getDuration(
+                            chapterSeek.valueTo.toLong(),
+                            (Duration.ofMillis(chapterSeek.valueTo.toLong()).toHours() > 0)
+                        )
+                    }"
 
                     parentActivity.sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
                         putExtra("POSITION", value.toLong().toString())
@@ -183,72 +194,62 @@ class QuranMediaPlayback : Fragment() {
             }
         }
 
-        with(parentActivity) {
-            if (!QuranMediaService.isRunning) {
-                startForegroundService(Intent(
-                    context, QuranMediaService::class.java
-                ).apply {
-                    putExtra("RECITER", reciter)
-                    putExtra("CHAPTER", chapter)
-                })
-            } else {
-                QuranMediaService.startDownload = true
-
-                sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
-                    putExtra("RECITER", reciter)
-                    putExtra("CHAPTER", chapter)
-                })
-            }
-        }
-
         return binding.root
+    }
+
+    override fun onDestroyView() {
+        cleanUp()
+
+        super.onDestroyView()
     }
 
     override fun onResume() {
         with(parentActivity) {
             supportActionBar?.hide()
-            registerReceiver(
-                serviceUpdatesBroadcastReceiver,
-                IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates))
-            )
-            registerReceiver(
-                downloadUpdatesBroadcastReceiver,
-                IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_file_download_updates))
-            )
+
+            if (!broadcastsRegistered) {
+                registerReceiver(
+                    serviceUpdatesBroadcastReceiver,
+                    IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates))
+                )
+                registerReceiver(
+                    downloadUpdatesBroadcastReceiver,
+                    IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_file_download_updates))
+                )
+
+                broadcastsRegistered = true
+            }
+
+            if (!QuranMediaService.isMediaPlaying) {
+                if (!QuranMediaService.isRunning) {
+                    startForegroundService(Intent(
+                        context, QuranMediaService::class.java
+                    ).apply {
+                        putExtra("RECITER", reciter)
+                        putExtra("CHAPTER", chapter)
+                    })
+                } else {
+                    QuranMediaService.startDownload = true
+
+                    sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
+                        putExtra("RECITER", reciter)
+                        putExtra("CHAPTER", chapter)
+                    })
+                }
+            }
         }
+
         super.onResume()
     }
 
-    override fun onPause() {
-        with(parentActivity) {
-            unregisterReceiver(serviceUpdatesBroadcastReceiver)
-            unregisterReceiver(downloadUpdatesBroadcastReceiver)
+    override fun onDestroy() {
+        cleanUp()
 
-            QuranMediaService.startDownload = false
+        if (!QuranMediaService.isMediaPlaying) {
+            parentActivity.stopService(Intent(context, QuranMediaService::class.java))
         }
-        super.onPause()
-    }
 
-    override fun onStop() {
-        super.onStop()
-        parentActivity.supportActionBar?.show()
-    }
-
-    private fun getDuration(durationMs: Long, getHoursPart: Boolean): String {
-        val duration: Duration = Duration.ofMillis(durationMs)
-
-        val durationS = duration.seconds
-        val hours = durationS / 3600
-        val minutes = (durationS % 3600) / 60
-        val seconds = durationS % 60
-
-        return "${
-            if (hours > 0) "${
-                hours.toString().padStart(2, '0')
-            }:" else if (getHoursPart) "00:" else ""
-        }${
-            minutes.toString().padStart(2, '0')
-        }:${seconds.toString().padStart(2, '0')}"
+        super.onDestroy()
     }
 
     @SuppressLint("DiscouragedApi")
@@ -301,5 +302,36 @@ class QuranMediaPlayback : Fragment() {
             chapterNext.setBackgroundColor(dominantColor)
             chapterPrevious.setBackgroundColor(dominantColor)
         }
+    }
+
+    private fun getDuration(durationMs: Long, showHours: Boolean): String {
+        val duration: Duration = Duration.ofMillis(durationMs)
+
+        val durationS = duration.seconds
+        val hours = durationS / 3600
+        val minutes = (durationS % 3600) / 60
+        val seconds = durationS % 60
+
+        val numberFormat = NumberFormat.getInstance(Locale("ar", "EG"))
+        val hoursString = numberFormat.format(hours).padStart(2, '۰')
+        val minutesString = numberFormat.format(minutes).padStart(2, '۰')
+        val secondsString = numberFormat.format(seconds).padStart(2, '۰')
+
+        return "$secondsString:$minutesString${if (hours > 0) ":$hoursString" else if (showHours) ":۰۰" else ""}"
+    }
+
+    private fun cleanUp() {
+        with(parentActivity) {
+            if (broadcastsRegistered) {
+                unregisterReceiver(serviceUpdatesBroadcastReceiver)
+                unregisterReceiver(downloadUpdatesBroadcastReceiver)
+
+                broadcastsRegistered = false
+            }
+
+            parentActivity.supportActionBar?.show()
+        }
+
+        QuranMediaService.startDownload = false
     }
 }

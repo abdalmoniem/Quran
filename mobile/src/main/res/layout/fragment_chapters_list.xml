@@ -56,6 +56,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/loading_all_chapters"
+                    android:textAlignment="center"
                     android:textSize="20sp" />
 
                 <com.google.android.material.slider.Slider
@@ -80,6 +81,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/loading_chapter"
+                    android:textAlignment="center"
                     android:textSize="20sp" />
 
                 <com.google.android.material.slider.Slider
@@ -104,7 +106,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="30dp"
-                    android:text="@string/cancel_download"/>
+                    android:text="@string/cancel_download" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </androidx.constraintlayout.widget.ConstraintLayout>
@@ -136,8 +138,8 @@
         app:iconPadding="0dp"
         app:iconSize="20dp"
         app:iconTint="@color/white"
-        app:layout_constraintEnd_toStartOf="@id/chapter_search"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintStart_toEndOf="@id/chapter_search"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <com.google.android.material.textfield.TextInputEditText
@@ -152,8 +154,8 @@
         android:maxLines="1"
         android:textSize="25sp"
         app:layout_constraintBottom_toTopOf="@id/chapters_list"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/download_all_chapters"
+        app:layout_constraintEnd_toStartOf="@id/download_all_chapters"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

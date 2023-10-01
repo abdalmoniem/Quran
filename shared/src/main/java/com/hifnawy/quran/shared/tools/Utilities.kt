@@ -11,6 +11,8 @@ import com.hifnawy.quran.shared.QuranMediaService
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.Serializable
 import java.net.HttpURLConnection
@@ -47,12 +49,12 @@ class Utilities {
             key: String, value: Serializable
         ): SharedPreferences.Editor = putString(key, Gson().toJson(value))
 
-        fun downloadFile(
+        suspend fun downloadFile(
             context: Context,
             url: URL,
             reciter: Reciter,
             chapter: Chapter,
-            callback: ((bytesDownloaded: Long, fileSize: Int, percentage: Float) -> Unit)? = null
+            callback: (suspend (bytesDownloaded: Long, fileSize: Int, percentage: Float) -> Unit)? = null
         ): Pair<File, Int> {
             QuranMediaService.downloadComplete = false
 
@@ -72,7 +74,9 @@ class Utilities {
             // download the file if it doesn't exist
             // url.openStream().use { Files.copy(it, Paths.get(chapterFileName)) }
 
-            (url.openConnection() as HttpURLConnection).apply {
+            (withContext(Dispatchers.IO) {
+                url.openConnection()
+            } as HttpURLConnection).apply {
                 requestMethod = "GET"
                 setRequestProperty("Accept-Encoding", "identity")
                 connect()
@@ -110,7 +114,7 @@ class Utilities {
 
                                 Log.d(
                                     "Quran_Media_Download",
-                                    "downloading ${chapterFile.name} $bytesDownloaded / $chapterAudioFileSize ($percentage%)"
+                                    "downloading ${chapterFile.name} $bytesDownloaded \\ $chapterAudioFileSize ($percentage%)"
                                 )
 
                                 context.sendBroadcast(Intent(context.getString(R.string.quran_media_service_file_download_updates)).apply {

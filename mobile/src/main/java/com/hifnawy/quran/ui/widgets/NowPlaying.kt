@@ -11,6 +11,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.util.Log
 import android.widget.RemoteViews
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.content.ContextCompat.startActivity
 import androidx.palette.graphics.Palette
 import com.hifnawy.quran.R
 import com.hifnawy.quran.shared.QuranMediaService
@@ -198,28 +199,32 @@ class NowPlaying : AppWidgetProvider() {
     }
 
     private fun openMediaPlayer(context: Context?) {
-        context?.startActivity(Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("DESTINATION", 3)
-            putExtra("RECITER", currentReciter)
-            putExtra("CHAPTER", currentChapter)
-        })
+        Log.d("Quran_Widget", "opening media player...")
 
         sharedPrefs?.run {
             val lastReciter = getSerializableExtra<Reciter>("LAST_RECITER")
             val lastChapter = getSerializableExtra<Chapter>("LAST_CHAPTER")
             val lastChapterPosition = getLong("LAST_CHAPTER_POSITION", -1L)
 
-            context?.startForegroundService(Intent(
-                context, QuranMediaService::class.java
-            ).apply {
+            startActivity(context!!, Intent(context, MainActivity::class.java).apply {
+                Log.d("Quran_Widget", "updating intent media player...")
+
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra("DESTINATION", 3)
                 putExtra("RECITER", lastReciter)
                 putExtra("CHAPTER", lastChapter)
+            }, null)
 
-                if (lastChapterPosition != -1L) {
-                    putExtra("CHAPTER_POSITION", lastChapterPosition)
-                }
-            })
+            // context.startForegroundService(Intent(
+            //     context, QuranMediaService::class.java
+            // ).apply {
+            //     putExtra("RECITER", lastReciter)
+            //     putExtra("CHAPTER", lastChapter)
+            //
+            //     if (lastChapterPosition != -1L) {
+            //         putExtra("CHAPTER_POSITION", lastChapterPosition)
+            //     }
+            // })
         }
     }
 }

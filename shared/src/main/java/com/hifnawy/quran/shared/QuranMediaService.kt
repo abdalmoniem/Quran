@@ -50,6 +50,9 @@ import kotlinx.coroutines.withContext
 import java.net.URL
 import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 
 
 /**
@@ -476,6 +479,8 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     override fun onDestroy() {
         isRunning = false
 
+        unregisterReceiver(mediaPlayerControlsBroadcastReceiver)
+
         Log.w(
             "ExoPlayer_Audio_Player", "${::QuranMediaService.javaClass.name} service is being destroyed!"
         )
@@ -671,9 +676,56 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 putExtra("CHAPTER", chapter)
             })
 
+            Intent(
+                this@QuranMediaService, Class.forName("com.hifnawy.quran.ui.widgets.NowPlaying")
+            ).apply {
+                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                putExtra("RECITER", reciter)
+                putExtra("CHAPTER", chapter)
+
+                val widgetIds = AppWidgetManager.getInstance(this@QuranMediaService).getAppWidgetIds(
+                    ComponentName(
+                        this@QuranMediaService, Class.forName("com.hifnawy.quran.ui.widgets.NowPlaying")
+                    )
+                )
+                if ((widgetIds != null) && widgetIds.isNotEmpty()) {
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
+                    sendBroadcast(this)
+                }
+            }
+
+            val decimalFormat =
+                DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
+
             val (audioFile, audioFileSize) = downloadFile(
                 this@QuranMediaService, URL(chapterAudioFile?.audio_url), reciter, chapter
-            )
+            ) { bytesDownloaded, fileSize, percentage ->
+                serviceForegroundNotification = NotificationCompat.Builder(
+                    this@QuranMediaService,
+                    "${getString(R.string.quran_recitation_notification_name)} Service"
+                ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
+                    .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
+                    .setContentTitle(getString(R.string.loading_chapter, chapter.name_arabic))
+                    .setContentText(
+                        "${decimalFormat.format(bytesDownloaded / (1024 * 1024))} مب. \\ ${
+                            decimalFormat.format(
+                                fileSize / (1024 * 1024)
+                            )
+                        } مب. (${
+                            decimalFormat.format(
+                                percentage
+                            )
+                        }٪)"
+                    )
+                    .setSubText(if (reciter.translated_name != null) reciter.translated_name.name else reciter.reciter_name)
+                    .build()
+
+                // notificationManager.cancel(R.integer.quran_chapter_recitation_notification_channel_id)
+                notificationManager.notify(
+                    R.integer.quran_chapter_recitation_notification_channel_id,
+                    serviceForegroundNotification
+                )
+            }
             if (audioFile.exists()) {
                 @Suppress("BlockingMethodInNonBlockingContext") val audioFileActualSize =
                     Files.readAttributes(
