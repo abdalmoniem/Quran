@@ -13,6 +13,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
@@ -24,6 +25,7 @@ import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
 import androidx.media.MediaBrowserServiceCompat
@@ -340,6 +342,7 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                     setMediaPlaybackState(STOPPED)
                     if (exoPlayer.isPlaying) {
                         exoPlayer.stop()
+                        exoPlayer.clearMediaItems()
                     }
 
                     Log.d("ExoPlayer_Audio_Player", "Stopping...")
@@ -582,19 +585,16 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     private fun createBrowsableMediaItem(
         mediaId: String,
         folderName: String,
-        // iconUri: Uri
     ): MediaBrowserCompat.MediaItem {
         val mediaDescriptionBuilder = MediaDescriptionCompat.Builder()
         mediaDescriptionBuilder.setMediaId(mediaId)
         mediaDescriptionBuilder.setTitle(folderName)
 
-        // val drawableId = resources.getIdentifier(
-        //     "chapter_${chapter.id.toString().padStart(3, '0')}",
-        //     "drawable",
-        //     packageName
-        // )
-        // val iconUri = Uri.parse("android.resource://$packageName/$drawableId")
-        mediaDescriptionBuilder.setIconUri(Uri.parse("android.resource://$packageName/${R.drawable.reciter_name}"))
+        mediaDescriptionBuilder.setIconBitmap(
+            (AppCompatResources.getDrawable(
+                this@QuranMediaService, R.drawable.reciter_name
+            ) as BitmapDrawable).bitmap
+        )
         val extras = Bundle()
         extras.putInt(
             MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_SINGLE_ITEM,
@@ -617,7 +617,6 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     @SuppressLint("DiscouragedApi")
     private fun createMediaItem(
         mediaId: String, chapter: Chapter, chapterAudioFile: ChapterAudioFile?
-        // iconUri: Uri
     ): MediaBrowserCompat.MediaItem {
         val mediaDescriptionBuilder = MediaDescriptionCompat.Builder()
         mediaDescriptionBuilder.setMediaId(mediaId)
@@ -631,9 +630,12 @@ class QuranMediaService : MediaBrowserServiceCompat() {
         val drawableId = resources.getIdentifier(
             "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", packageName
         )
-        val iconUri = Uri.parse("android.resource://$packageName/$drawableId")
 
-        mediaDescriptionBuilder.setIconUri(iconUri)
+        mediaDescriptionBuilder.setIconBitmap(
+            (AppCompatResources.getDrawable(
+                this@QuranMediaService, drawableId
+            ) as BitmapDrawable).bitmap
+        )
 
         val extras = Bundle()
         extras.putInt(
@@ -675,6 +677,27 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 putExtra("RECITER", reciter)
                 putExtra("CHAPTER", chapter)
             })
+
+            var drawableId = resources.getIdentifier(
+                "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", packageName
+            )
+
+            mediaSession.setMetadata(
+                MediaMetadataCompat.Builder().putText(
+                    MediaMetadataCompat.METADATA_KEY_TITLE,
+                    getString(R.string.loading_chapter, chapter.name_arabic)
+                ).putText(
+                    MediaMetadataCompat.METADATA_KEY_ARTIST,
+                    (if (reciter.translated_name != null) reciter.translated_name.name else reciter.reciter_name) + if (reciter.style != null) " (${reciter.style.style})" else ""
+                ).putText(
+                    MediaMetadataCompat.METADATA_KEY_GENRE,
+                    this@QuranMediaService.getString(R.string.quran)
+                ).putBitmap(
+                    MediaMetadataCompat.METADATA_KEY_ALBUM_ART, (AppCompatResources.getDrawable(
+                        this@QuranMediaService, drawableId
+                    ) as BitmapDrawable).bitmap
+                ).build()
+            )
 
             Intent(
                 this@QuranMediaService, Class.forName("com.hifnawy.quran.ui.widgets.NowPlaying")
@@ -726,65 +749,136 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                     serviceForegroundNotification
                 )
             }
+
             if (audioFile.exists()) {
                 @Suppress("BlockingMethodInNonBlockingContext") val audioFileActualSize =
                     Files.readAttributes(
                         audioFile.toPath(), BasicFileAttributes::class.java
                     ).size()
                 if ((audioFileSize > -1) && (audioFileSize.toLong() == audioFileActualSize)) {
-                    val drawableId = resources.getIdentifier(
-                        "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", packageName
-                    )
-                    val uri = Uri.parse("android.resource://$packageName/$drawableId")
-
-                    mediaSession.setMetadata(
-                        MediaMetadataCompat.Builder().putText(
-                            MediaMetadataCompat.METADATA_KEY_TITLE,
-                            getString(R.string.loading_chapter, chapter.name_arabic)
-                        ).putText(
-                            MediaMetadataCompat.METADATA_KEY_ARTIST,
-                            (if (reciter.translated_name != null) reciter.translated_name.name else reciter.reciter_name) + if (reciter.style != null) " (${reciter.style.style})" else ""
-                        ).putText(
-                            MediaMetadataCompat.METADATA_KEY_GENRE,
-                            this@QuranMediaService.getString(R.string.quran)
-                        ).putText(
-                            MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, uri.toString()
-                        ).build()
-                    )
-
-                    val mmr = MediaMetadataRetriever().apply {
+                    val mediaMetadataRetriever = MediaMetadataRetriever().apply {
                         setDataSource(this@QuranMediaService, audioFile.toUri())
                     }
 
-                    val durationStr = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                    val durationStr =
+                        mediaMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                     val durationMs = durationStr!!.toInt()
 
-                    Log.d(
-                        "ExoPlayer_Audio_Player",
-                        "reciter_id: ${reciter.id}\n" + "chapter_id: ${chapter.id}\n" + "file_size: ${chapterAudioFile?.file_size}\n" + "file: ${audioFile}\n" + "Duration in ms: $durationMs"
+                    withContext(Dispatchers.Main) {
+                        setMediaPlaybackState(PLAYING)
+                    }
+
+                    mediaSession.setMetadata(
+                        MediaMetadataCompat.Builder()
+                            .putText(MediaMetadataCompat.METADATA_KEY_TITLE, chapter.name_arabic)
+                            .putText(
+                                MediaMetadataCompat.METADATA_KEY_ARTIST,
+                                (if (reciter.translated_name != null) reciter.translated_name.name else reciter.reciter_name) + if (reciter.style != null) " (${reciter.style.style})" else ""
+                            ).putText(
+                                MediaMetadataCompat.METADATA_KEY_GENRE,
+                                this@QuranMediaService.getString(R.string.quran)
+                            ).putLong(
+                                MediaMetadataCompat.METADATA_KEY_DURATION, durationMs.toLong()
+                            ).putBitmap(
+                                MediaMetadataCompat.METADATA_KEY_ALBUM_ART,
+                                (AppCompatResources.getDrawable(
+                                    this@QuranMediaService, drawableId
+                                ) as BitmapDrawable).bitmap
+                            ).build()
                     )
+
+                    val pendingIntent = PendingIntent.getActivity(
+                        this@QuranMediaService, 0, Intent(
+                            this@QuranMediaService,
+                            Class.forName("com.hifnawy.quran.ui.activities.MainActivity")
+                        ).apply {
+                            putExtra("DESTINATION", 3)
+                            putExtra("RECITER", reciter)
+                            putExtra("CHAPTER", chapter)
+                        }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                    )
+
+                    val notification = NotificationCompat.Builder(
+                        this@QuranMediaService, getString(R.string.quran_recitation_notification_name)
+                    ).setOngoing(true)
+                        // Show controls on lock screen even when user hides sensitive content.
+                        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                        .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
+                        // Apply the media style template
+                        .setStyle(
+                            androidx.media.app.NotificationCompat.MediaStyle()
+                                // .setShowActionsInCompactView(1 /* #1: pause button \*/)
+                                .setMediaSession(mediaSession.sessionToken)
+                        ).setContentTitle(chapter.name_arabic)
+                        .setContentText(if (reciter.translated_name != null) reciter.translated_name.name else reciter.reciter_name)
+                        .setContentIntent(pendingIntent).setLargeIcon(
+                            BitmapFactory.decodeResource(
+                                this@QuranMediaService.resources, drawableId
+                            )
+                        ).build()
+
+                    val channel = NotificationChannel(
+                        getString(R.string.quran_recitation_notification_name),
+                        getString(R.string.quran_recitation_notification_name),
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply { description = chapter.name_arabic }
+
+                    // Register the channel with the system
+                    notificationManager.createNotificationChannel(channel)
+                    notificationManager.notify(
+                        R.integer.quran_chapter_recitation_notification_channel_id, notification
+                    )
+
+                    exoPlayerPositionListener.removeCallbacksAndMessages(null)
+                    exoPlayerPositionListener.post(object : Runnable {
+                        override fun run() {
+                            isMediaPlaying = exoPlayer.isPlaying
+                            currentChapterPosition = exoPlayer.currentPosition
+
+                            val reciterUpdated =
+                                reciters.first { reciter -> reciter.id == currentReciterId }
+                            val chapterUpdated =
+                                chapters.first { chapter -> chapter.id == currentChapterId }
+
+                            sharedPrefs.edit().putLong("LAST_CHAPTER_POSITION", currentChapterPosition)
+                                .apply()
+
+                            sendBroadcast(Intent(getString(R.string.quran_media_service_updates)).apply {
+                                putExtra("DURATION", exoPlayer.duration)
+                                putExtra("CURRENT_POSITION", exoPlayer.currentPosition)
+                                putExtra("RECITER", reciterUpdated)
+                                putExtra("CHAPTER", chapterUpdated)
+                            })
+
+                            Intent(
+                                this@QuranMediaService,
+                                Class.forName("com.hifnawy.quran.ui.widgets.NowPlaying")
+                            ).apply {
+                                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                                putExtra("RECITER", reciterUpdated)
+                                putExtra("CHAPTER", chapterUpdated)
+
+                                val widgetIds =
+                                    AppWidgetManager.getInstance(this@QuranMediaService).getAppWidgetIds(
+                                        ComponentName(
+                                            this@QuranMediaService,
+                                            Class.forName("com.hifnawy.quran.ui.widgets.NowPlaying")
+                                        )
+                                    )
+                                if ((widgetIds != null) && widgetIds.isNotEmpty()) {
+                                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
+                                    sendBroadcast(this)
+                                }
+                            }
+
+                            exoPlayerPositionListener.postDelayed(this, 10)
+                        }
+                    })
 
                     withContext(Dispatchers.Main) {
                         if (exoPlayer.isPlaying) {
                             exoPlayer.stop()
                         }
-
-                        // Collections.rotate(
-                        //     chaptersAudioFiles,
-                        //     (chaptersAudioFiles.indexOf(chapterAudioFile)) * -1
-                        // )
-
-                        // val mediaItems: ArrayList<com.google.android.exoplayer2.MediaItem> = ArrayList()
-                        //
-                        // chaptersAudioFiles.forEach {
-                        //     Log.d("ExoPlayer_Audio_Player", "chapterId: ${it.chapter_id}")
-                        //     mediaItems.add(
-                        //         com.google.android.exoplayer2.MediaItem.fromUri(
-                        //             it.audio_url.toUri()
-                        //         )
-                        //     )
-                        // }
-                        // exoPlayer.setMediaItems(mediaItems.toList())
 
                         val mediaItem =
                             com.google.android.exoplayer2.MediaItem.fromUri(audioFile.toUri())
@@ -792,117 +886,11 @@ class QuranMediaService : MediaBrowserServiceCompat() {
 
                         exoPlayer.prepare()
 
-                        mediaSession.setMetadata(
-                            MediaMetadataCompat.Builder()
-                                .putText(MediaMetadataCompat.METADATA_KEY_TITLE, chapter.name_arabic)
-                                .putText(
-                                    MediaMetadataCompat.METADATA_KEY_ARTIST,
-                                    (if (reciter.translated_name != null) reciter.translated_name.name else reciter.reciter_name) + if (reciter.style != null) " (${reciter.style.style})" else ""
-                                ).putText(
-                                    MediaMetadataCompat.METADATA_KEY_GENRE,
-                                    this@QuranMediaService.getString(R.string.quran)
-                                ).putLong(
-                                    MediaMetadataCompat.METADATA_KEY_DURATION, durationMs.toLong()
-                                ).putText(
-                                    MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, uri.toString()
-                                ).build()
-                        )
-
-                        val pendingIntent = PendingIntent.getActivity(
-                            this@QuranMediaService, 0, Intent(
-                                this@QuranMediaService,
-                                Class.forName("com.hifnawy.quran.ui.activities.MainActivity")
-                            ).apply {
-                                putExtra("DESTINATION", 3)
-                                putExtra("RECITER", reciter)
-                                putExtra("CHAPTER", chapter)
-                            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-                        )
-
-                        val notification = NotificationCompat.Builder(
-                            this@QuranMediaService,
-                            getString(R.string.quran_recitation_notification_name)
-                        ).setOngoing(true)
-                            // Show controls on lock screen even when user hides sensitive content.
-                            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                            .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
-                            // Apply the media style template
-                            .setStyle(
-                                androidx.media.app.NotificationCompat.MediaStyle()
-                                    // .setShowActionsInCompactView(1 /* #1: pause button \*/)
-                                    .setMediaSession(mediaSession.sessionToken)
-                            ).setContentTitle(chapter.name_arabic)
-                            .setContentText(if (reciter.translated_name != null) reciter.translated_name.name else reciter.reciter_name)
-                            .setContentIntent(pendingIntent).setLargeIcon(
-                                BitmapFactory.decodeResource(
-                                    this@QuranMediaService.resources, drawableId
-                                )
-                            ).build()
-
-                        val channel = NotificationChannel(
-                            getString(R.string.quran_recitation_notification_name),
-                            getString(R.string.quran_recitation_notification_name),
-                            NotificationManager.IMPORTANCE_HIGH
-                        ).apply { description = chapter.name_arabic }
-
-                        // Register the channel with the system
-                        notificationManager.createNotificationChannel(channel)
-                        notificationManager.notify(
-                            R.integer.quran_chapter_recitation_notification_channel_id, notification
-                        )
-
-                        exoPlayerPositionListener.removeCallbacksAndMessages(null)
-                        exoPlayerPositionListener.post(object : Runnable {
-                            override fun run() {
-                                isMediaPlaying = exoPlayer.isPlaying
-                                currentChapterPosition = exoPlayer.currentPosition
-
-                                val reciterUpdated =
-                                    reciters.first { reciter -> reciter.id == currentReciterId }
-                                val chapterUpdated =
-                                    chapters.first { chapter -> chapter.id == currentChapterId }
-
-                                sharedPrefs.edit()
-                                    .putLong("LAST_CHAPTER_POSITION", currentChapterPosition).apply()
-
-                                sendBroadcast(Intent(getString(R.string.quran_media_service_updates)).apply {
-                                    putExtra("DURATION", exoPlayer.duration)
-                                    putExtra("CURRENT_POSITION", exoPlayer.currentPosition)
-                                    putExtra("RECITER", reciterUpdated)
-                                    putExtra("CHAPTER", chapterUpdated)
-                                })
-
-                                Intent(
-                                    this@QuranMediaService,
-                                    Class.forName("com.hifnawy.quran.ui.widgets.NowPlaying")
-                                ).apply {
-                                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                                    putExtra("RECITER", reciterUpdated)
-                                    putExtra("CHAPTER", chapterUpdated)
-
-                                    val widgetIds = AppWidgetManager.getInstance(this@QuranMediaService)
-                                        .getAppWidgetIds(
-                                            ComponentName(
-                                                this@QuranMediaService,
-                                                Class.forName("com.hifnawy.quran.ui.widgets.NowPlaying")
-                                            )
-                                        )
-                                    if ((widgetIds != null) && widgetIds.isNotEmpty()) {
-                                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
-                                        sendBroadcast(this)
-                                    }
-                                }
-
-                                exoPlayerPositionListener.postDelayed(this, 10)
-                            }
-                        })
-
                         if (currentChapterPosition != -1L) {
                             exoPlayer.seekTo(currentChapterPosition)
                         }
 
                         exoPlayer.playWhenReady = true
-                        // exoPlayer.play()
                     }
                 }
             } else {
@@ -916,24 +904,13 @@ class QuranMediaService : MediaBrowserServiceCompat() {
     private fun setMediaPlaybackState(state: Int) {
         lateinit var playbackState: PlaybackStateCompat
         when (state) {
-            PLAYING -> {
-                // notificationManager.notify(
-                //     R.integer.quran_ongoing_media_service_notification_channel_id,
-                //     serviceForegroundNotification
-                // )
+            PLAYING -> playbackState = PlaybackStateCompat.Builder().setActions(
+                PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_REWIND or PlaybackStateCompat.ACTION_FAST_FORWARD or PlaybackStateCompat.ACTION_SET_REPEAT_MODE or PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_SEEK_TO
+            ).setState(PlaybackStateCompat.STATE_PLAYING, exoPlayer.currentPosition, 1f).build()
 
-                playbackState = PlaybackStateCompat.Builder().setActions(
-                    PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_REWIND or PlaybackStateCompat.ACTION_FAST_FORWARD or PlaybackStateCompat.ACTION_SET_REPEAT_MODE or PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_SEEK_TO
-                ).setState(PlaybackStateCompat.STATE_PLAYING, exoPlayer.currentPosition, 1f).build()
-            }
-
-            PAUSED -> {
-                // notificationManager.cancel(R.integer.quran_ongoing_media_service_notification_channel_id)
-
-                playbackState = PlaybackStateCompat.Builder()
-                    .setActions(PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY)
-                    .setState(PlaybackStateCompat.STATE_PAUSED, exoPlayer.currentPosition, 1f).build()
-            }
+            PAUSED -> playbackState = PlaybackStateCompat.Builder()
+                .setActions(PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY)
+                .setState(PlaybackStateCompat.STATE_PAUSED, exoPlayer.currentPosition, 1f).build()
 
             SKIPPING_TO_NEXT -> {
                 startDownload = true
@@ -957,13 +934,9 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                 PlaybackStateCompat.Builder().setActions(PlaybackStateCompat.ACTION_STOP)
                     .setState(PlaybackStateCompat.STATE_CONNECTING, 0, 1f).build()
 
-            STOPPED -> {
-                // notificationManager.cancel(R.integer.quran_ongoing_media_service_notification_channel_id)
-
-                playbackState = PlaybackStateCompat.Builder()
-                    .setActions(PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID)
+            STOPPED -> playbackState =
+                PlaybackStateCompat.Builder().setActions(PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID)
                     .setState(PlaybackStateCompat.STATE_STOPPED, 0, 1f).build()
-            }
         }
 
         mediaSession.setPlaybackState(playbackState)
