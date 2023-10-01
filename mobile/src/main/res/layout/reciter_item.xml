@@ -26,9 +26,9 @@
                 android:id="@+id/reciter_name"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:fontFamily="@font/decotype_thuluth_2"
                 android:text="@string/reciter_name"
-                android:textSize="23sp"
-                android:textStyle="bold"
+                android:textSize="40sp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
