@@ -33,6 +33,12 @@ class NowPlaying : AppWidgetProvider() {
     private var sharedPrefs: SharedPreferences? = null
     private val views: RemoteViews by lazy { RemoteViews(context?.packageName, R.layout.now_playing) }
 
+    override fun onEnabled(context: Context?) {
+        updateUI(context!!)
+
+        super.onEnabled(context)
+    }
+
     override fun onReceive(context: Context?, intent: Intent?) {
         this.context = context
         intent?.run {
@@ -51,8 +57,9 @@ class NowPlaying : AppWidgetProvider() {
             }
 
             val mediaAction = action
-
-            if (mediaAction in listOf("PLAY_PAUSE", "NEXT", "PREVIOUS")) {
+            if (mediaAction == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+                updateUI(context!!)
+            } else if (mediaAction in listOf("PLAY_PAUSE", "NEXT", "PREVIOUS")) {
                 Log.d("Quran_Widget", "$mediaAction button is pressed")
                 if (QuranMediaService.isRunning) {
                     context?.sendBroadcast(Intent(context.getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
@@ -91,67 +98,17 @@ class NowPlaying : AppWidgetProvider() {
         }
     }
 
-    private fun openMediaPlayer(context: Context?) {
-        context?.startActivity(Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            putExtra("DESTINATION", 3)
-            putExtra("RECITER", currentReciter)
-            putExtra("CHAPTER", currentChapter)
-        })
-
-        sharedPrefs?.run {
-            val lastReciter = getSerializableExtra<Reciter>("LAST_RECITER")
-            val lastChapter = getSerializableExtra<Chapter>("LAST_CHAPTER")
-            val lastChapterPosition = getLong("LAST_CHAPTER_POSITION", -1L)
-
-            context?.startForegroundService(Intent(
-                context, QuranMediaService::class.java
-            ).apply {
-                putExtra("RECITER", lastReciter)
-                putExtra("CHAPTER", lastChapter)
-
-                if (lastChapterPosition != -1L) {
-                    putExtra("CHAPTER_POSITION", lastChapterPosition)
-                }
-            })
-        }
-    }
-
     private fun updateAppWidget(
         context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int
     ) {
-        val chapterImagePendingIntent = PendingIntent.getBroadcast(
-            context, 0, Intent(context, NowPlaying::class.java).apply {
-                action = "OPEN_MEDIA_PLAYER"
-            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
+        updateUI(context)
 
-        val chapterPlayPausePendingIntent = PendingIntent.getBroadcast(
-            context, 0, Intent(context, NowPlaying::class.java).apply {
-                action = "PLAY_PAUSE"
-            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
+        // Instruct the widget manager to update the widget
+        appWidgetManager.updateAppWidget(appWidgetId, views)
+    }
 
-        val chapterNextPendingIntent = PendingIntent.getBroadcast(
-            context, 0, Intent(context, NowPlaying::class.java).apply {
-                action = "NEXT"
-            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
-
-        val chapterPreviousPendingIntent = PendingIntent.getBroadcast(
-            context, 0, Intent(context, NowPlaying::class.java).apply {
-                action = "PREVIOUS"
-            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
-
-        with(views) {
-            setOnClickPendingIntent(R.id.chapter_image, chapterImagePendingIntent)
-            setOnClickPendingIntent(R.id.chapter_play, chapterPlayPausePendingIntent)
-            setOnClickPendingIntent(R.id.chapter_next, chapterNextPendingIntent)
-            setOnClickPendingIntent(
-                R.id.chapter_previous, chapterPreviousPendingIntent
-            )
-        }
+    private fun updateUI(context: Context) {
+        setClickListeners(context)
 
         if (currentReciter != null) {
             views.setTextViewText(
@@ -203,7 +160,66 @@ class NowPlaying : AppWidgetProvider() {
                 )
             }
         }
-        // Instruct the widget manager to update the widget
-        appWidgetManager.updateAppWidget(appWidgetId, views)
+    }
+
+    private fun setClickListeners(context: Context?) {
+        val chapterImagePendingIntent = PendingIntent.getBroadcast(
+            context, 0, Intent(context, NowPlaying::class.java).apply {
+                action = "OPEN_MEDIA_PLAYER"
+            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+        val chapterPlayPausePendingIntent = PendingIntent.getBroadcast(
+            context, 0, Intent(context, NowPlaying::class.java).apply {
+                action = "PLAY_PAUSE"
+            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+        val chapterNextPendingIntent = PendingIntent.getBroadcast(
+            context, 0, Intent(context, NowPlaying::class.java).apply {
+                action = "NEXT"
+            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+        val chapterPreviousPendingIntent = PendingIntent.getBroadcast(
+            context, 0, Intent(context, NowPlaying::class.java).apply {
+                action = "PREVIOUS"
+            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+        with(views) {
+            setOnClickPendingIntent(R.id.chapter_image, chapterImagePendingIntent)
+            setOnClickPendingIntent(R.id.chapter_play, chapterPlayPausePendingIntent)
+            setOnClickPendingIntent(R.id.chapter_next, chapterNextPendingIntent)
+            setOnClickPendingIntent(
+                R.id.chapter_previous, chapterPreviousPendingIntent
+            )
+        }
+    }
+
+    private fun openMediaPlayer(context: Context?) {
+        context?.startActivity(Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra("DESTINATION", 3)
+            putExtra("RECITER", currentReciter)
+            putExtra("CHAPTER", currentChapter)
+        })
+
+        sharedPrefs?.run {
+            val lastReciter = getSerializableExtra<Reciter>("LAST_RECITER")
+            val lastChapter = getSerializableExtra<Chapter>("LAST_CHAPTER")
+            val lastChapterPosition = getLong("LAST_CHAPTER_POSITION", -1L)
+
+            context?.startForegroundService(Intent(
+                context, QuranMediaService::class.java
+            ).apply {
+                putExtra("RECITER", lastReciter)
+                putExtra("CHAPTER", lastChapter)
+
+                if (lastChapterPosition != -1L) {
+                    putExtra("CHAPTER_POSITION", lastChapterPosition)
+                }
+            })
+        }
     }
 }

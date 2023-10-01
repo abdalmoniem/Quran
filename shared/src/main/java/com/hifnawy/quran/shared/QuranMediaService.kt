@@ -764,7 +764,7 @@ class QuranMediaService : MediaBrowserServiceCompat() {
                                 putExtra("DESTINATION", 3)
                                 putExtra("RECITER", reciter)
                                 putExtra("CHAPTER", chapter)
-                            }, PendingIntent.FLAG_UPDATE_CURRENT
+                            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
                         )
 
                         val notification = NotificationCompat.Builder(
