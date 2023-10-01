@@ -57,9 +57,7 @@ class NowPlaying : AppWidgetProvider() {
             }
 
             val mediaAction = action
-            if (mediaAction == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
-                updateUI(context!!)
-            } else if (mediaAction in listOf("PLAY_PAUSE", "NEXT", "PREVIOUS")) {
+            if (mediaAction in listOf("PLAY_PAUSE", "NEXT", "PREVIOUS")) {
                 Log.d("Quran_Widget", "$mediaAction button is pressed")
                 if (QuranMediaService.isRunning) {
                     context?.sendBroadcast(Intent(context.getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
@@ -83,6 +81,8 @@ class NowPlaying : AppWidgetProvider() {
             } else {
                 // do nothing
             }
+
+            updateUI(context!!)
         }
 
         super.onReceive(context, intent)
@@ -199,7 +199,7 @@ class NowPlaying : AppWidgetProvider() {
 
     private fun openMediaPlayer(context: Context?) {
         context?.startActivity(Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("DESTINATION", 3)
             putExtra("RECITER", currentReciter)
             putExtra("CHAPTER", currentChapter)
