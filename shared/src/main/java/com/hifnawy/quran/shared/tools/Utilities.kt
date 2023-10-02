@@ -7,10 +7,10 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import com.google.gson.Gson
-import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
+import com.hifnawy.quran.shared.services.MediaService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -153,9 +153,7 @@ class Utilities {
                             }
 
                         } else {
-                            if (callback != null) {
-                                callback(chapterAudioFileSize.toLong(), chapterAudioFileSize, 100f)
-                            }
+                            callback?.invoke(chapterAudioFileSize.toLong(), chapterAudioFileSize, 100f)
                         }
                     }
 

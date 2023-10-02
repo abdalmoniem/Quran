@@ -1,21 +1,15 @@
 package com.hifnawy.quran.ui.fragments
 
-import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.ServiceConnection
 import android.content.res.ColorStateList
-import android.content.res.Resources
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
-import android.os.IBinder
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -27,6 +21,7 @@ import androidx.palette.graphics.Palette
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.FragmentQuranMediaPlaybackBinding
 import com.hifnawy.quran.shared.model.Chapter
+import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
@@ -46,10 +41,8 @@ import com.hoko.blur.HokoBlur as Blur
 class QuranMediaPlayback : Fragment() {
     private lateinit var binding: FragmentQuranMediaPlaybackBinding
 
-    private var mediaService: MediaService? = null
-
-    private var reciter: Reciter? = null
-    private var chapter: Chapter? = null
+    private var currentReciter: Reciter? = null
+    private var currentChapter: Chapter? = null
 
     private val decimalFormat =
         DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
@@ -58,30 +51,20 @@ class QuranMediaPlayback : Fragment() {
         (activity as MainActivity)
     }
 
-    private val serviceConnection: ServiceConnection = object : ServiceConnection {
-        override fun onServiceConnected(componentName: ComponentName, iBinder: IBinder) {
-            mediaService = (iBinder as MediaService.ServiceBinder).instance
-        }
-
-        override fun onServiceDisconnected(componentName: ComponentName) {
-            mediaService = null
-        }
-    }
-
     private val serviceUpdatesBroadcastReceiver = object : BroadcastReceiver() {
         @SuppressLint("SetTextI18n")
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.extras != null) {
-                val durationMs =
-                    intent.getLongExtra(MediaService.IntentDataKeys.CHAPTER_DURATION.name, -1L)
+            if (intent.hasCategory(Constants.Actions.SERVICE_UPDATE.name)) {
+                currentReciter =
+                    intent.getSerializableExtra<Reciter>(Constants.IntentDataKeys.RECITER.name)
+                currentChapter =
+                    intent.getSerializableExtra<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
+                val durationMs = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_DURATION.name, -1L)
                 val currentPosition =
-                    intent.getLongExtra(MediaService.IntentDataKeys.CHAPTER_POSITION.name, -1L)
+                    intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
-                reciter = intent.getSerializableExtra<Reciter>(MediaService.IntentDataKeys.RECITER.name)
-                chapter = intent.getSerializableExtra<Chapter>(MediaService.IntentDataKeys.CHAPTER.name)
-
-                if ((reciter != null) and (chapter != null)) {
-                    updateUI(reciter!!, chapter!!)
+                if ((currentReciter != null) and (currentChapter != null)) {
+                    updateUI(currentReciter!!, currentChapter!!)
                 }
 
                 if ((durationMs != -1L) and (currentPosition != -1L)) with(binding) {
@@ -97,7 +80,7 @@ class QuranMediaPlayback : Fragment() {
                         chapterSeek.value = currentPosition.toFloat()
                     }
                 }
-            } else {
+            } else if (intent.hasCategory(Constants.Actions.ERROR.name)) {
                 AlertDialog.Builder(this@QuranMediaPlayback.context)
                     .setTitle(getString(R.string.connection_error_title))
                     .setMessage(getString(R.string.connection_error_message))
@@ -106,6 +89,8 @@ class QuranMediaPlayback : Fragment() {
                         findNavController().navigateUp()
                         findNavController().navigateUp()
                     }.show()
+            } else {
+                // irrelevant
             }
         }
     }
@@ -130,7 +115,7 @@ class QuranMediaPlayback : Fragment() {
                                 downloadDialogChapterDownloadMessage.text = "${
                                     context.getString(
                                         com.hifnawy.quran.shared.R.string.loading_chapter,
-                                        chapter?.name_arabic
+                                        currentChapter?.name_arabic
                                     )
                                 }\n${decimalFormat.format(bytesDownloaded / (1024 * 1024))} مب. \\ ${
                                     decimalFormat.format(
@@ -169,52 +154,19 @@ class QuranMediaPlayback : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         binding = FragmentQuranMediaPlaybackBinding.inflate(layoutInflater, container, false)
-        with(QuranMediaPlaybackArgs.fromBundle(requireArguments())) {
-            this@QuranMediaPlayback.reciter = reciter
-            this@QuranMediaPlayback.chapter = chapter
-        }
-
-        with(parentActivity) {
-            registerReceiver(
-                serviceUpdatesBroadcastReceiver,
-                IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates))
-            )
-            registerReceiver(
-                downloadUpdatesBroadcastReceiver,
-                IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_file_download_updates))
-            )
-        }
-
-        updateUI(reciter!!, chapter!!)
 
         with(binding) {
             chapterPlay.setOnClickListener {
                 if (MediaService.isMediaPlaying) {
-                    mediaService?.pauseMedia()
+                    MediaService.instance?.pauseMedia()
                 } else {
-                    mediaService?.resumeMedia()
-                }
-
-                ValueAnimator.ofInt(
-                    chapterPlay.cornerRadius,
-                    if (MediaService.isMediaPlaying) chapterPlay.cornerRadius + 80.dp else chapterPlay.cornerRadius - 80.dp
-                ).apply {
-                    duration = 300L
-                    addUpdateListener { valueAnimator ->
-                        Log.d(
-                            "ValueAnimator",
-                            "chapterPlay cornerRadius: ${chapterPlay.cornerRadius.dp}, ${if (MediaService.isMediaPlaying) "increased" else "decreased"} animation value: ${(valueAnimator.animatedValue as Int).dp}"
-                        )
-
-                        chapterPlay.cornerRadius = valueAnimator.animatedValue as Int
-                    }
-                    start()
+                    MediaService.instance?.resumeMedia()
                 }
             }
 
-            chapterNext.setOnClickListener { mediaService?.skipToNextChapter() }
+            chapterNext.setOnClickListener { MediaService.instance?.skipToNextChapter() }
 
-            chapterPrevious.setOnClickListener { mediaService?.skipToPreviousChapter() }
+            chapterPrevious.setOnClickListener { MediaService.instance?.skipToPreviousChapter() }
 
             chapterSeek.addOnChangeListener { _, value, fromUser ->
                 if (fromUser) {
@@ -230,7 +182,7 @@ class QuranMediaPlayback : Fragment() {
                         )
                     }"
 
-                    mediaService?.seekChapterToPosition(value.toLong())
+                    MediaService.instance?.seekChapterToPosition(value.toLong())
                 }
             }
         }
@@ -238,25 +190,35 @@ class QuranMediaPlayback : Fragment() {
         with(parentActivity) {
             supportActionBar?.hide()
 
-            if (mediaService == null) {
-                startService(Intent(
-                    context, MediaService::class.java
-                ).apply {
-                    action = MediaService.Actions.PLAY_MEDIA.name
-                    putExtra(MediaService.IntentDataKeys.RECITER.name, reciter)
-                    putExtra(MediaService.IntentDataKeys.CHAPTER.name, chapter)
-                    putExtra(MediaService.IntentDataKeys.CHAPTER_POSITION.name, 0L)
+            registerReceiver(serviceUpdatesBroadcastReceiver,
+                IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)).apply {
+                    addCategory(Constants.Actions.SERVICE_UPDATE.name)
+                    addCategory(Constants.Actions.ERROR.name)
                 })
-
-                bindService(
-                    Intent(context, MediaService::class.java),
-                    serviceConnection,
-                    Context.BIND_AUTO_CREATE
-                )
-            }
+            registerReceiver(
+                downloadUpdatesBroadcastReceiver,
+                IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_file_download_updates))
+            )
         }
 
         return binding.root
+    }
+
+    override fun onResume() {
+        with(QuranMediaPlaybackArgs.fromBundle(requireArguments())) {
+            currentReciter = reciter
+            currentChapter = chapter
+        }
+
+        if (MediaService.instance == null) {
+            MediaService.initialize(parentActivity, currentReciter, currentChapter)
+        } else {
+            MediaService.instance?.playMedia(currentReciter, currentChapter)
+        }
+
+
+        updateUI(currentReciter!!, currentChapter!!)
+        super.onResume()
     }
 
     override fun onDestroy() {
@@ -341,11 +303,4 @@ class QuranMediaPlayback : Fragment() {
 
         MediaService.startDownload = false
     }
-
-    val Int.dp: Int
-        get() = (this * Resources.getSystem().displayMetrics.density + 0.5f).toInt()
-
-    val Float.dp: Int
-        get() = (this * Resources.getSystem().displayMetrics.density + 0.5f).toInt()
-
 }

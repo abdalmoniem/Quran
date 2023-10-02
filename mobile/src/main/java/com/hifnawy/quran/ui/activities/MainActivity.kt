@@ -21,8 +21,9 @@ import com.google.android.material.snackbar.Snackbar
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.ActivityMainBinding
 import com.hifnawy.quran.shared.model.Chapter
+import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
-import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializable
+import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
 
 
 class MainActivity : AppCompatActivity() {
@@ -47,23 +48,22 @@ class MainActivity : AppCompatActivity() {
         val navHostFragment =
             supportFragmentManager.findFragmentById(R.id.fragment_container) as NavHostFragment
         val graphInflater = navHostFragment.navController.navInflater
-        val graph = graphInflater.inflate(R.navigation.navigation_map)
+        val graph = graphInflater.inflate(R.navigation.navigation_graph)
         var toMediaPlayer = intent.extras != null
 
         var reciter: Reciter? = null
         var chapter: Chapter? = null
 
-        if (intent.extras != null) {
-            val destinationFragment = intent.extras!!.getInt("DESTINATION", -1)
-            reciter = intent.extras!!.getSerializable<Reciter>("RECITER")
-            chapter = intent.extras!!.getSerializable<Chapter>("CHAPTER")
+        intent.extras?.run {
+            with(intent) {
+                reciter = getSerializableExtra<Reciter>(Constants.IntentDataKeys.RECITER.name)
+                chapter = getSerializableExtra<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
 
-            if ((destinationFragment != -1) and (reciter != null) and (chapter != null)) {
-                graph.setStartDestination(R.id.chapter_play)
+                if ((reciter != null) && (chapter != null)) {
+                    graph.setStartDestination(R.id.chapter_play)
+                }
             }
-        } else {
-            graph.setStartDestination(R.id.reciters_list)
-        }
+        } ?: graph.setStartDestination(R.id.reciters_list)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
@@ -75,8 +75,8 @@ class MainActivity : AppCompatActivity() {
 
         if (toMediaPlayer) {
             navController.navigate(R.id.action_to_chapter_play_from_notification, Bundle().apply {
-                putSerializable("reciter", reciter!!)
-                putSerializable("chapter", chapter!!)
+                putSerializable(getString(R.string.nav_graph_reciter_argument), reciter!!)
+                putSerializable(getString(R.string.nav_graph_chapter_argument), chapter!!)
             })
         }
 
@@ -99,12 +99,6 @@ class MainActivity : AppCompatActivity() {
             subtitle = "   ${getString(R.string.reciters)}"
         }
     }
-
-    // override fun onResume() {
-    //
-    //
-    //     super.onResume()
-    // }
 
     override fun onRequestPermissionsResult(
         requestCode: Int, permissions: Array<out String>, grantResults: IntArray

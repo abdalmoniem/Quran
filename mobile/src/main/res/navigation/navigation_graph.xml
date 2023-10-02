@@ -5,16 +5,12 @@
     android:id="@+id/nav_graph"
     app:startDestination="@id/reciters_list">
 
-    <fragment
-        android:id="@+id/reciters_list"
-        android:name="com.hifnawy.quran.ui.fragments.RecitersList"
-        android:label="@string/reciters"
-        tools:layout="@layout/fragment_reciters_list">
-
-        <action
-            android:id="@+id/action_to_chapters_list"
-            app:destination="@id/chapters_list" />
-    </fragment>
+    <action
+        android:id="@+id/action_to_chapter_play_from_notification"
+        app:destination="@id/chapter_play"
+        app:launchSingleTop="false"
+        app:popUpTo="@+id/chapter_play"
+        app:popUpToInclusive="true" />
     <fragment
         android:id="@+id/chapters_list"
         android:name="com.hifnawy.quran.ui.fragments.ChaptersList"
@@ -56,10 +52,14 @@
             app:nullable="false" />
     </fragment>
 
-    <action
-        android:id="@+id/action_to_chapter_play_from_notification"
-        app:destination="@id/chapter_play"
-        app:launchSingleTop="false"
-        app:popUpTo="@+id/chapter_play"
-        app:popUpToInclusive="true"/>
+    <fragment
+        android:id="@+id/reciters_list"
+        android:name="com.hifnawy.quran.ui.fragments.RecitersList"
+        android:label="@string/reciters"
+        tools:layout="@layout/fragment_reciters_list">
+
+        <action
+            android:id="@+id/action_to_chapters_list"
+            app:destination="@id/chapters_list" />
+    </fragment>
 </navigation>
