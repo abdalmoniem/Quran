@@ -1,5 +1,6 @@
 package com.hifnawy.quran.ui.fragments
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.BroadcastReceiver
@@ -9,10 +10,12 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.res.ColorStateList
+import android.content.res.Resources
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -23,9 +26,9 @@ import androidx.navigation.fragment.findNavController
 import androidx.palette.graphics.Palette
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.FragmentQuranMediaPlaybackBinding
-import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
+import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
 import com.hifnawy.quran.ui.activities.MainActivity
 import java.text.DecimalFormat
@@ -74,10 +77,8 @@ class QuranMediaPlayback : Fragment() {
                 val currentPosition =
                     intent.getLongExtra(MediaService.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
-                reciter =
-                    intent.getSerializableExtra<Reciter>(MediaService.IntentDataKeys.RECITER.name)
-                chapter =
-                    intent.getSerializableExtra<Chapter>(MediaService.IntentDataKeys.CHAPTER.name)
+                reciter = intent.getSerializableExtra<Reciter>(MediaService.IntentDataKeys.RECITER.name)
+                chapter = intent.getSerializableExtra<Chapter>(MediaService.IntentDataKeys.CHAPTER.name)
 
                 if ((reciter != null) and (chapter != null)) {
                     updateUI(reciter!!, chapter!!)
@@ -193,6 +194,22 @@ class QuranMediaPlayback : Fragment() {
                 } else {
                     mediaService?.resumeMedia()
                 }
+
+                ValueAnimator.ofInt(
+                    chapterPlay.cornerRadius,
+                    if (MediaService.isMediaPlaying) chapterPlay.cornerRadius + 80.dp else chapterPlay.cornerRadius - 80.dp
+                ).apply {
+                    duration = 300L
+                    addUpdateListener { valueAnimator ->
+                        Log.d(
+                            "ValueAnimator",
+                            "chapterPlay cornerRadius: ${chapterPlay.cornerRadius.dp}, ${if (MediaService.isMediaPlaying) "increased" else "decreased"} animation value: ${(valueAnimator.animatedValue as Int).dp}"
+                        )
+
+                        chapterPlay.cornerRadius = valueAnimator.animatedValue as Int
+                    }
+                    start()
+                }
             }
 
             chapterNext.setOnClickListener { mediaService?.skipToNextChapter() }
@@ -286,7 +303,7 @@ class QuranMediaPlayback : Fragment() {
             )
             chapterImage.setImageDrawable(AppCompatResources.getDrawable(requireContext(), drawableId))
             chapterSeek.trackActiveTintList = ColorStateList.valueOf(dominantColor)
-            chapterSeek.thumbTintList = ColorStateList.valueOf(dominantColor)
+            // chapterSeek.thumbTintList = ColorStateList.valueOf(dominantColor)
             chapterPlay.icon = if (MediaService.isMediaPlaying) AppCompatResources.getDrawable(
                 requireContext(), com.hifnawy.quran.shared.R.drawable.media_pause_black
             ) else AppCompatResources.getDrawable(
@@ -324,4 +341,11 @@ class QuranMediaPlayback : Fragment() {
 
         MediaService.startDownload = false
     }
+
+    val Int.dp: Int
+        get() = (this * Resources.getSystem().displayMetrics.density + 0.5f).toInt()
+
+    val Float.dp: Int
+        get() = (this * Resources.getSystem().displayMetrics.density + 0.5f).toInt()
+
 }
