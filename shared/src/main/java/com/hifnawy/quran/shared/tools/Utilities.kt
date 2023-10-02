@@ -7,7 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import com.google.gson.Gson
-import com.hifnawy.quran.shared.QuranMediaService
+import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
@@ -56,7 +56,7 @@ class Utilities {
             chapter: Chapter,
             callback: (suspend (bytesDownloaded: Long, fileSize: Int, percentage: Float) -> Unit)? = null
         ): Pair<File, Int> {
-            QuranMediaService.downloadComplete = false
+            MediaService.downloadComplete = false
 
             var chapterAudioFileSize = -1
 
@@ -106,7 +106,7 @@ class Utilities {
                             var bytes = 0
                             var bytesDownloaded = 0L
                             val buffer = ByteArray(1024)
-                            while (QuranMediaService.startDownload && (bytes >= 0)) {
+                            while (MediaService.startDownload && (bytes >= 0)) {
                                 bytesDownloaded += bytes
 
                                 val percentage =
@@ -135,13 +135,13 @@ class Utilities {
                             outputStream.close()
                             disconnect()
 
-                            QuranMediaService.startDownload = false
+                            MediaService.startDownload = false
 
                             if (Files.readAttributes(
                                     chapterFile.toPath(), BasicFileAttributes::class.java
                                 ).size() == chapterAudioFileSize.toLong()
                             ) {
-                                QuranMediaService.downloadComplete = true
+                                MediaService.downloadComplete = true
                                 context.sendBroadcast(Intent(context.getString(R.string.quran_media_service_file_download_updates)).apply {
                                     putExtra("DOWNLOAD_STATUS", "DOWNLOADED")
                                     putExtra("BYTES_DOWNLOADED", bytesDownloaded)
@@ -149,7 +149,7 @@ class Utilities {
                                     putExtra("PERCENTAGE", 100.0f)
                                 })
                             } else {
-                                QuranMediaService.downloadComplete = false
+                                MediaService.downloadComplete = false
                             }
 
                         } else {

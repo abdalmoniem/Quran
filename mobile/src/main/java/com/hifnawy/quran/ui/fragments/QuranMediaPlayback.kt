@@ -3,13 +3,16 @@ package com.hifnawy.quran.ui.fragments
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.ServiceConnection
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
+import android.os.IBinder
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -20,7 +23,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.palette.graphics.Palette
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.FragmentQuranMediaPlaybackBinding
-import com.hifnawy.quran.shared.QuranMediaService
+import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
@@ -36,27 +39,45 @@ import com.hoko.blur.HokoBlur as Blur
 /**
  * A simple [Fragment] subclass.
  */
+
 class QuranMediaPlayback : Fragment() {
     private lateinit var binding: FragmentQuranMediaPlaybackBinding
 
-    private var broadcastsRegistered = false
+    private var mediaService: MediaService? = null
+
     private var reciter: Reciter? = null
     private var chapter: Chapter? = null
+
     private val decimalFormat =
         DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
+
     private val parentActivity: MainActivity by lazy {
         (activity as MainActivity)
+    }
+
+    private val serviceConnection: ServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(componentName: ComponentName, iBinder: IBinder) {
+            mediaService = (iBinder as MediaService.ServiceBinder).instance
+        }
+
+        override fun onServiceDisconnected(componentName: ComponentName) {
+            mediaService = null
+        }
     }
 
     private val serviceUpdatesBroadcastReceiver = object : BroadcastReceiver() {
         @SuppressLint("SetTextI18n")
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.extras != null) {
-                val durationMs = intent.getLongExtra("DURATION", -1L)
-                val currentPosition = intent.getLongExtra("CURRENT_POSITION", -1L)
+                val durationMs =
+                    intent.getLongExtra(MediaService.IntentDataKeys.CHAPTER_DURATION.name, -1L)
+                val currentPosition =
+                    intent.getLongExtra(MediaService.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
-                reciter = intent.getSerializableExtra<Reciter>("RECITER")
-                chapter = intent.getSerializableExtra<Chapter>("CHAPTER")
+                reciter =
+                    intent.getSerializableExtra<Reciter>(MediaService.IntentDataKeys.RECITER.name)
+                chapter =
+                    intent.getSerializableExtra<Chapter>(MediaService.IntentDataKeys.CHAPTER.name)
 
                 if ((reciter != null) and (chapter != null)) {
                     updateUI(reciter!!, chapter!!)
@@ -152,26 +173,31 @@ class QuranMediaPlayback : Fragment() {
             this@QuranMediaPlayback.chapter = chapter
         }
 
+        with(parentActivity) {
+            registerReceiver(
+                serviceUpdatesBroadcastReceiver,
+                IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates))
+            )
+            registerReceiver(
+                downloadUpdatesBroadcastReceiver,
+                IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_file_download_updates))
+            )
+        }
+
         updateUI(reciter!!, chapter!!)
 
         with(binding) {
             chapterPlay.setOnClickListener {
-                parentActivity.sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
-                    putExtra("PLAY_PAUSE", "PLAY")
-                })
+                if (MediaService.isMediaPlaying) {
+                    mediaService?.pauseMedia()
+                } else {
+                    mediaService?.resumeMedia()
+                }
             }
 
-            chapterNext.setOnClickListener {
-                parentActivity.sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
-                    putExtra("NEXT", "NEXT")
-                })
-            }
+            chapterNext.setOnClickListener { mediaService?.skipToNextChapter() }
 
-            chapterPrevious.setOnClickListener {
-                parentActivity.sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
-                    putExtra("PREVIOUS", "PREVIOUS")
-                })
-            }
+            chapterPrevious.setOnClickListener { mediaService?.skipToPreviousChapter() }
 
             chapterSeek.addOnChangeListener { _, value, fromUser ->
                 if (fromUser) {
@@ -187,67 +213,37 @@ class QuranMediaPlayback : Fragment() {
                         )
                     }"
 
-                    parentActivity.sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
-                        putExtra("POSITION", value.toLong().toString())
-                    })
+                    mediaService?.seekChapterToPosition(value.toLong())
                 }
+            }
+        }
+
+        with(parentActivity) {
+            supportActionBar?.hide()
+
+            if (mediaService == null) {
+                startService(Intent(
+                    context, MediaService::class.java
+                ).apply {
+                    action = MediaService.Actions.PLAY_MEDIA.name
+                    putExtra(MediaService.IntentDataKeys.RECITER.name, reciter)
+                    putExtra(MediaService.IntentDataKeys.CHAPTER.name, chapter)
+                    putExtra(MediaService.IntentDataKeys.CHAPTER_POSITION.name, 0L)
+                })
+
+                bindService(
+                    Intent(context, MediaService::class.java),
+                    serviceConnection,
+                    Context.BIND_AUTO_CREATE
+                )
             }
         }
 
         return binding.root
     }
 
-    override fun onDestroyView() {
-        cleanUp()
-
-        super.onDestroyView()
-    }
-
-    override fun onResume() {
-        with(parentActivity) {
-            supportActionBar?.hide()
-
-            if (!broadcastsRegistered) {
-                registerReceiver(
-                    serviceUpdatesBroadcastReceiver,
-                    IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates))
-                )
-                registerReceiver(
-                    downloadUpdatesBroadcastReceiver,
-                    IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_file_download_updates))
-                )
-
-                broadcastsRegistered = true
-            }
-
-            if (!QuranMediaService.isMediaPlaying) {
-                if (!QuranMediaService.isRunning) {
-                    startForegroundService(Intent(
-                        context, QuranMediaService::class.java
-                    ).apply {
-                        putExtra("RECITER", reciter)
-                        putExtra("CHAPTER", chapter)
-                    })
-                } else {
-                    QuranMediaService.startDownload = true
-
-                    sendBroadcast(Intent(getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
-                        putExtra("RECITER", reciter)
-                        putExtra("CHAPTER", chapter)
-                    })
-                }
-            }
-        }
-
-        super.onResume()
-    }
-
     override fun onDestroy() {
         cleanUp()
-
-        if (!QuranMediaService.isMediaPlaying) {
-            parentActivity.stopService(Intent(context, QuranMediaService::class.java))
-        }
 
         super.onDestroy()
     }
@@ -291,13 +287,11 @@ class QuranMediaPlayback : Fragment() {
             chapterImage.setImageDrawable(AppCompatResources.getDrawable(requireContext(), drawableId))
             chapterSeek.trackActiveTintList = ColorStateList.valueOf(dominantColor)
             chapterSeek.thumbTintList = ColorStateList.valueOf(dominantColor)
-            if (QuranMediaService.isRunning) {
-                chapterPlay.icon = if (QuranMediaService.isMediaPlaying) AppCompatResources.getDrawable(
-                    requireContext(), com.hifnawy.quran.shared.R.drawable.media_pause_black
-                ) else AppCompatResources.getDrawable(
-                    requireContext(), com.hifnawy.quran.shared.R.drawable.media_play_black
-                )
-            }
+            chapterPlay.icon = if (MediaService.isMediaPlaying) AppCompatResources.getDrawable(
+                requireContext(), com.hifnawy.quran.shared.R.drawable.media_pause_black
+            ) else AppCompatResources.getDrawable(
+                requireContext(), com.hifnawy.quran.shared.R.drawable.media_play_black
+            )
             chapterPlay.setBackgroundColor(dominantColor)
             chapterNext.setBackgroundColor(dominantColor)
             chapterPrevious.setBackgroundColor(dominantColor)
@@ -322,16 +316,12 @@ class QuranMediaPlayback : Fragment() {
 
     private fun cleanUp() {
         with(parentActivity) {
-            if (broadcastsRegistered) {
-                unregisterReceiver(serviceUpdatesBroadcastReceiver)
-                unregisterReceiver(downloadUpdatesBroadcastReceiver)
-
-                broadcastsRegistered = false
-            }
+            unregisterReceiver(serviceUpdatesBroadcastReceiver)
+            unregisterReceiver(downloadUpdatesBroadcastReceiver)
 
             parentActivity.supportActionBar?.show()
         }
 
-        QuranMediaService.startDownload = false
+        MediaService.startDownload = false
     }
 }

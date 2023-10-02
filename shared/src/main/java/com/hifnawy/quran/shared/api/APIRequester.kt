@@ -55,7 +55,7 @@ class APIRequester {
             return chapters.toList()
         }
 
-        suspend fun getChapter(reciterID: Int, chapterID: Int): ChapterAudioFile? {
+        suspend fun getChapterAudioFile(reciterID: Int, chapterID: Int): ChapterAudioFile? {
             var chapterAudioFile: ChapterAudioFile? = null
 
             sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID/$chapterID") { responseBody ->

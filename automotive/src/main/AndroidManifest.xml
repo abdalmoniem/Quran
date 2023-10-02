@@ -19,7 +19,7 @@
          MediaBrowser (for browsing) and MediaController (for playback control)
         -->
         <service
-            android:name=".shared.QuranMediaService"
+            android:name=".shared.services.MediaService"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService" />

@@ -14,7 +14,7 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat.startActivity
 import androidx.palette.graphics.Palette
 import com.hifnawy.quran.R
-import com.hifnawy.quran.shared.QuranMediaService
+import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
@@ -60,7 +60,7 @@ class NowPlaying : AppWidgetProvider() {
             val mediaAction = action
             if (mediaAction in listOf("PLAY_PAUSE", "NEXT", "PREVIOUS")) {
                 Log.d("Quran_Widget", "$mediaAction button is pressed")
-                if (QuranMediaService.isRunning) {
+                if (MediaService.isRunning) {
                     context?.sendBroadcast(Intent(context.getString(com.hifnawy.quran.shared.R.string.quran_media_player_controls)).apply {
                         putExtra(mediaAction, mediaAction)
                     })
@@ -69,7 +69,7 @@ class NowPlaying : AppWidgetProvider() {
                 }
             } else if (mediaAction.equals("OPEN_MEDIA_PLAYER")) {
                 Log.d("Quran_Widget", "$mediaAction button is pressed")
-                if (QuranMediaService.isRunning) {
+                if (MediaService.isRunning) {
                     context?.startActivity(Intent(context, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         putExtra("DESTINATION", 3)
@@ -145,8 +145,8 @@ class NowPlaying : AppWidgetProvider() {
             views.setImageViewBitmap(R.id.background_image, chapterImageBlurred)
             views.setImageViewResource(R.id.chapter_image, chapterImageDrawableId)
 
-            if (QuranMediaService.isRunning) {
-                if (QuranMediaService.isMediaPlaying) {
+            if (MediaService.isRunning) {
+                if (MediaService.isMediaPlaying) {
                     views.setImageViewResource(
                         R.id.chapter_play, com.hifnawy.quran.shared.R.drawable.media_pause_white
                     )
@@ -216,7 +216,7 @@ class NowPlaying : AppWidgetProvider() {
             }, null)
 
             // context.startForegroundService(Intent(
-            //     context, QuranMediaService::class.java
+            //     context, MediaService::class.java
             // ).apply {
             //     putExtra("RECITER", lastReciter)
             //     putExtra("CHAPTER", lastChapter)

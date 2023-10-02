@@ -15,9 +15,9 @@ import androidx.recyclerview.widget.GridLayoutManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
-import com.hifnawy.quran.shared.QuranMediaService
+import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.api.APIRequester
-import com.hifnawy.quran.shared.api.APIRequester.Companion.getChapter
+import com.hifnawy.quran.shared.api.APIRequester.Companion.getChapterAudioFile
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.tools.Utilities.Companion.downloadFile
 import com.hifnawy.quran.ui.activities.MainActivity
@@ -80,7 +80,7 @@ class ChaptersList : Fragment() {
                 }
 
                 downloadDialogCancelDownload.setOnClickListener {
-                    QuranMediaService.startDownload = false
+                    MediaService.startDownload = false
                     downloadDialog.visibility = View.GONE
                 }
 
@@ -100,7 +100,7 @@ class ChaptersList : Fragment() {
                     var chaptersDownloaded = 0
 
                     lifecycleScope.launch(Dispatchers.IO) {
-                        QuranMediaService.startDownload = true
+                        MediaService.startDownload = true
                         for (chapter in chaptersListAdapter.getChapters()) {
                             if (downloadDialog.visibility == View.VISIBLE) {
                                 withContext(Dispatchers.Main) {
@@ -113,7 +113,7 @@ class ChaptersList : Fragment() {
                                     downloadDialogChapterProgress.value = 100f
                                 }
 
-                                val chapterAudioFile = getChapter(reciter.id, chapter.id)
+                                val chapterAudioFile = getChapterAudioFile(reciter.id, chapter.id)
 
                                 context?.let { context ->
                                     downloadFile(
@@ -185,13 +185,13 @@ class ChaptersList : Fragment() {
     }
 
     override fun onDestroyView() {
-        QuranMediaService.startDownload = false
+        MediaService.startDownload = false
 
         super.onDestroyView()
     }
 
     override fun onDestroy() {
-        QuranMediaService.startDownload = false
+        MediaService.startDownload = false
 
         super.onDestroy()
     }
