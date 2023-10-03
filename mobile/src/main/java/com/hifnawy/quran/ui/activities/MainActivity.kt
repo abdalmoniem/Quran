@@ -12,24 +12,29 @@ import android.provider.Settings
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.navigation.NavController
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.NavHostFragment
-import androidx.navigation.ui.AppBarConfiguration
-import androidx.navigation.ui.navigateUp
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.snackbar.Snackbar
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.ActivityMainBinding
+import com.hifnawy.quran.shared.api.APIRequester
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
+import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
+import com.hifnawy.quran.ui.widgets.NowPlaying
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 
 
 class MainActivity : AppCompatActivity() {
+    var reciters: List<Reciter> = mutableListOf()
+    var chapters: List<Chapter> = mutableListOf()
+
     private lateinit var binding: ActivityMainBinding
-    private lateinit var appBarConfiguration: AppBarConfiguration
-    private lateinit var navController: NavController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,50 +44,16 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(binding.root)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 93)
-            }
-        }
-
-        val navHostFragment =
-            supportFragmentManager.findFragmentById(R.id.fragment_container) as NavHostFragment
-        val graphInflater = navHostFragment.navController.navInflater
-        val graph = graphInflater.inflate(R.navigation.navigation_graph)
-        var toMediaPlayer = intent.extras != null
-
-        var reciter: Reciter? = null
-        var chapter: Chapter? = null
-
-        intent.extras?.run {
-            with(intent) {
-                reciter = getSerializableExtra<Reciter>(Constants.IntentDataKeys.RECITER.name)
-                chapter = getSerializableExtra<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
-
-                if ((reciter != null) && (chapter != null)) {
-                    graph.setStartDestination(R.id.chapter_play)
-                }
-            }
-        } ?: graph.setStartDestination(R.id.reciters_list)
-
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
 
         setSupportActionBar(binding.appToolbar)
 
-        navController = navHostFragment.navController
-        navController.graph = graph
-
-        if (toMediaPlayer) {
-            navController.navigate(R.id.action_to_chapter_play_from_notification, Bundle().apply {
-                putSerializable(getString(R.string.nav_graph_reciter_argument), reciter!!)
-                putSerializable(getString(R.string.nav_graph_chapter_argument), chapter!!)
-            })
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 93)
+            }
         }
-
-        // navController = findNavController(R.id.fragment_container)
-        // appBarConfiguration = AppBarConfiguration(navController.graph)
-        // setupActionBarWithNavController(navController, appBarConfiguration)
 
         supportActionBar?.apply {
             // disable back button
@@ -98,6 +69,50 @@ class MainActivity : AppCompatActivity() {
             // providing subtitle for the ActionBar
             subtitle = "   ${getString(R.string.reciters)}"
         }
+    }
+
+    override fun onResume() {
+        var reciter: Reciter?
+        var chapter: Chapter?
+
+        val navHostFragment =
+            supportFragmentManager.findFragmentById(R.id.fragment_container) as NavHostFragment
+        val graphInflater = navHostFragment.navController.navInflater
+        val graph = graphInflater.inflate(R.navigation.navigation_graph)
+        val navController = navHostFragment.navController
+
+        with(intent) {
+            if (hasCategory(NowPlaying::class.simpleName)) {
+                reciter = getSerializableExtra<Reciter>(Constants.IntentDataKeys.RECITER.name)
+                chapter = getSerializableExtra<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
+
+                graph.setStartDestination(R.id.media_playback)
+                navController.graph = graph
+
+                navController.navigate(
+                    R.id.action_to_media_playback_from_notification,
+                    Bundle().apply {
+                        putSerializable(getString(R.string.nav_graph_reciter_argument), reciter!!)
+                        putSerializable(getString(R.string.nav_graph_chapter_argument), chapter!!)
+                    })
+            } else {
+                MediaService.instance?.run {
+                    if (!isMediaPlaying) {
+                        graph.setStartDestination(R.id.reciters_list)
+
+                        getData {
+                            navController.graph = graph
+                        }
+                    }
+                } ?: graph.setStartDestination(R.id.reciters_list)
+
+                getData {
+                    navController.graph = graph
+                }
+            }
+        }
+
+        super.onResume()
     }
 
     override fun onRequestPermissionsResult(
@@ -132,7 +147,24 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        return navController.navigateUp(appBarConfiguration) || super.onSupportNavigateUp()
+    fun getData(onCompleteCallback: () -> Unit) {
+        lifecycleScope.launch {
+            reciters =
+                lifecycleScope.async(context = Dispatchers.IO) { APIRequester.getRecitersList() }
+                    .await()
+            chapters =
+                lifecycleScope.async(context = Dispatchers.IO) { APIRequester.getChaptersList() }
+                    .await()
+
+            // lifecycleScope.async(context = Dispatchers.IO) {
+            //     updateChapterPaths(
+            //         this@MainActivity, reciters, chapters
+            //     )
+            // }.await()
+            //
+            // Log.d(Utilities::class.simpleName, "SharedPrefs Updated!!!")
+
+            onCompleteCallback()
+        }
     }
 }

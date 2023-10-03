@@ -1,17 +1,16 @@
 package com.hifnawy.quran.ui.widgets
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.util.Log
 import android.widget.RemoteViews
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat.startActivity
-import androidx.palette.graphics.Palette
 import com.hifnawy.quran.R
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
@@ -51,7 +50,7 @@ class NowPlaying : AppWidgetProvider() {
             }
 
             if (sharedPrefsManager == null) {
-                sharedPrefsManager = SharedPreferencesManager(context)
+                sharedPrefsManager = SharedPreferencesManager(context!!)
             }
 
             when (val mediaAction = action) {
@@ -68,10 +67,10 @@ class NowPlaying : AppWidgetProvider() {
                     Log.d("Quran_Widget", "$mediaAction button is pressed")
 
                     MediaService.instance?.run {
-                        if (MediaService.isMediaPlaying) {
-                            MediaService.instance?.pauseMedia()
+                        if (isMediaPlaying) {
+                            pauseMedia()
                         } else {
-                            MediaService.instance?.resumeMedia()
+                            resumeMedia()
                         }
                     } ?: openMediaPlayer(context)
                 }
@@ -79,13 +78,23 @@ class NowPlaying : AppWidgetProvider() {
                 WidgetActions.NEXT.name -> {
                     Log.d("Quran_Widget", "$mediaAction button is pressed")
 
-                    MediaService.instance?.skipToNextChapter()
+                    MediaService.instance?.run {
+                        skipToNextChapter().apply {
+                            currentReciter = reciter
+                            currentChapter = chapter
+                        }
+                    }
                 }
 
                 WidgetActions.PREVIOUS.name -> {
                     Log.d("Quran_Widget", "$mediaAction button is pressed")
 
-                    MediaService.instance?.skipToPreviousChapter()
+                    MediaService.instance?.run {
+                        skipToPreviousChapter().apply {
+                            currentReciter = reciter
+                            currentChapter = chapter
+                        }
+                    }
                 }
 
                 WidgetActions.OPEN_MEDIA_PLAYER.name -> {
@@ -128,14 +137,11 @@ class NowPlaying : AppWidgetProvider() {
         setClickListeners(context)
 
         if (currentReciter != null) {
-            views.setTextViewText(
-                R.id.reciter_name,
-                if (currentReciter!!.translated_name != null) currentReciter!!.translated_name!!.name else currentReciter!!.reciter_name
-            )
+            views.setTextViewText(R.id.reciter_name, currentReciter?.name_ar)
         }
 
         if (currentChapter != null) {
-            val chapterImageDrawableId = context.resources.getIdentifier(
+            @SuppressLint("DiscouragedApi") val chapterImageDrawableId = context.resources.getIdentifier(
                 "chapter_${currentChapter?.id.toString().padStart(3, '0')}",
                 "drawable",
                 context.packageName
@@ -151,24 +157,20 @@ class NowPlaying : AppWidgetProvider() {
                     ) as BitmapDrawable).bitmap
                 )
 
-            val dominantColor = Palette.from(
-                (AppCompatResources.getDrawable(
-                    context, chapterImageDrawableId
-                ) as BitmapDrawable).bitmap
-            ).generate().getDominantColor(Color.RED)
-
             views.setTextViewText(R.id.chapter_name, currentChapter!!.name_arabic)
             views.setImageViewBitmap(R.id.background_image, chapterImageBlurred)
             views.setImageViewResource(R.id.chapter_image, chapterImageDrawableId)
 
-            if (MediaService.isMediaPlaying) {
-                views.setImageViewResource(
-                    R.id.chapter_play, com.hifnawy.quran.shared.R.drawable.media_pause_white
-                )
-            } else {
-                views.setImageViewResource(
-                    R.id.chapter_play, com.hifnawy.quran.shared.R.drawable.media_play_white
-                )
+            MediaService.instance?.run {
+                if (isMediaPlaying) {
+                    views.setImageViewResource(
+                        R.id.media_playback, com.hifnawy.quran.shared.R.drawable.media_pause_white
+                    )
+                } else {
+                    views.setImageViewResource(
+                        R.id.media_playback, com.hifnawy.quran.shared.R.drawable.media_play_white
+                    )
+                }
             }
         }
     }
@@ -200,7 +202,7 @@ class NowPlaying : AppWidgetProvider() {
 
         with(views) {
             setOnClickPendingIntent(R.id.chapter_image, chapterImagePendingIntent)
-            setOnClickPendingIntent(R.id.chapter_play, chapterPlayPausePendingIntent)
+            setOnClickPendingIntent(R.id.media_playback, chapterPlayPausePendingIntent)
             setOnClickPendingIntent(R.id.chapter_next, chapterNextPendingIntent)
             setOnClickPendingIntent(
                 R.id.chapter_previous, chapterPreviousPendingIntent
@@ -216,6 +218,7 @@ class NowPlaying : AppWidgetProvider() {
                 Log.d("Quran_Widget", "updating intent media player...")
 
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                addCategory(NowPlaying::class.simpleName)
 
                 putExtra(Constants.IntentDataKeys.RECITER.name, lastReciter)
                 putExtra(Constants.IntentDataKeys.CHAPTER.name, lastChapter)

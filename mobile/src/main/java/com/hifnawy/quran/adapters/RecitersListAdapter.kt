@@ -1,6 +1,8 @@
 package com.hifnawy.quran.adapters
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -46,8 +48,9 @@ class RecitersListAdapter(
         with(holder) {
             val reciter = this@RecitersListAdapter.reciters[position]
 
-            reciterName.text =
-                if (reciter.translated_name != null) reciter.translated_name!!.name else reciter.reciter_name
+            Log.d("RECITER_ADAPTER", reciter.toString())
+
+            reciterName.text = reciter.name_ar
             recitationStyle.text = if (reciter.style != null) reciter.style!!.style else "تلاوة"
 
             cardHolder.setOnClickListener {
@@ -76,6 +79,7 @@ class RecitersListAdapter(
         mLastViewHolderPosition = position
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     fun setReciters(reciters: List<Reciter>) {
         this.reciters = ArrayList(reciters)
 

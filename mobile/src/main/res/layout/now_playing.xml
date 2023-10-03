@@ -109,7 +109,7 @@
                         android:src="@drawable/media_skip_previous_white" />
 
                     <ImageButton
-                        android:id="@+id/chapter_play"
+                        android:id="@+id/media_playback"
                         android:layout_width="32dp"
                         android:layout_height="40dp"
                         android:layout_marginEnd="64dp"

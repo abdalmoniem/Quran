@@ -15,10 +15,9 @@ import androidx.recyclerview.widget.GridLayoutManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
-import com.hifnawy.quran.shared.services.MediaService
-import com.hifnawy.quran.shared.api.APIRequester
 import com.hifnawy.quran.shared.api.APIRequester.Companion.getChapterAudioFile
 import com.hifnawy.quran.shared.model.Chapter
+import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.shared.tools.Utilities.Companion.downloadFile
 import com.hifnawy.quran.ui.activities.MainActivity
 import kotlinx.coroutines.Dispatchers
@@ -53,8 +52,7 @@ class ChaptersList : Fragment() {
             title = "   ${getString(R.string.quran)}"
 
             // providing subtitle for the ActionBar
-            subtitle =
-                "   ${getString(R.string.chapters)}: ${if (reciter.translated_name != null) reciter.translated_name!!.name else reciter.reciter_name}"
+            subtitle = "   ${getString(R.string.chapters)}: ${reciter.name_ar}"
         }
 
         // Inflate the layout for this fragment
@@ -64,135 +62,125 @@ class ChaptersList : Fragment() {
         with(binding) {
             downloadDialog.visibility = View.GONE
 
-            lifecycleScope.launch(context = Dispatchers.IO) {
-                chapters = APIRequester.getChaptersList()
+            chaptersListAdapter = ChaptersListAdapter(
+                root.context, ArrayList(parentActivity.chapters)
+            ) { position, chapter, itemView ->
+                Log.d(
+                    this@ChaptersList.javaClass.canonicalName,
+                    "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
+                )
 
-                chaptersListAdapter = ChaptersListAdapter(
-                    root.context, ArrayList(chapters)
-                ) { position, chapter, itemView ->
-                    Log.d(
-                        this@ChaptersList.javaClass.canonicalName,
-                        "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
-                    )
+                chapterSearch.text = null
+                navController.navigate(ChaptersListDirections.actionToMediaPlayback(reciter, chapter))
+            }
 
-                    chapterSearch.text = null
-                    navController.navigate(ChaptersListDirections.actionToChapterPlay(reciter, chapter))
+            chaptersList.layoutManager =
+                GridLayoutManager(root.context, 3, GridLayoutManager.VERTICAL, false)
+            chaptersList.adapter = chaptersListAdapter
+
+            chapterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
+                if (charSequence.toString().isEmpty()) {
+                    chaptersListAdapter.setChapters(parentActivity.chapters)
+                } else {
+                    val searchResults = parentActivity.chapters.filter { chapter ->
+                        chapter.name_arabic.contains(charSequence.toString())
+                    }
+
+                    if (searchResults.isNotEmpty()) {
+                        chaptersListAdapter.setChapters(searchResults)
+                    } else {
+                        chaptersListAdapter.clear()
+                    }
                 }
+            })
 
-                downloadDialogCancelDownload.setOnClickListener {
-                    MediaService.startDownload = false
-                    downloadDialog.visibility = View.GONE
-                }
+            downloadDialogCancelDownload.setOnClickListener {
+                downloadDialog.visibility = View.GONE
+            }
 
-                downloadAllChapters.setOnClickListener {
-                    downloadDialog.visibility = View.VISIBLE
+            downloadAllChapters.setOnClickListener {
+                downloadDialog.visibility = View.VISIBLE
 
-                    downloadDialogChapterProgress.valueFrom = 0f
-                    downloadDialogChapterProgress.valueTo = 100f
-                    downloadDialogChapterProgress.value = 0f
-                    downloadDialogAllChaptersProgress.valueFrom = 0f
-                    downloadDialogAllChaptersProgress.valueTo = 100f
-                    downloadDialogAllChaptersProgress.value = 0f
+                downloadDialogChapterProgress.valueFrom = 0f
+                downloadDialogChapterProgress.valueTo = 100f
+                downloadDialogChapterProgress.value = 0f
+                downloadDialogAllChaptersProgress.valueFrom = 0f
+                downloadDialogAllChaptersProgress.valueTo = 100f
+                downloadDialogAllChaptersProgress.value = 0f
 
-                    val decimalFormat =
-                        DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
+                val decimalFormat =
+                    DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
 
-                    var chaptersDownloaded = 0
+                var chaptersDownloaded = 0
 
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        MediaService.startDownload = true
-                        for (chapter in chaptersListAdapter.getChapters()) {
-                            if (downloadDialog.visibility == View.VISIBLE) {
-                                withContext(Dispatchers.Main) {
-                                    downloadDialogChapterDownloadMessage.text = "${
-                                        this@ChaptersList.context?.getString(
-                                            com.hifnawy.quran.shared.R.string.loading_chapter,
-                                            chapter.name_arabic
-                                        )
-                                    }\n…"
-                                    downloadDialogChapterProgress.value = 100f
-                                }
+                lifecycleScope.launch(Dispatchers.IO) {
+                    for (chapter in chaptersListAdapter.getChapters()) {
+                        if (downloadDialog.visibility == View.VISIBLE) {
+                            val chapterAudioFile = getChapterAudioFile(reciter.id, chapter.id)
 
-                                val chapterAudioFile = getChapterAudioFile(reciter.id, chapter.id)
-
-                                context?.let { context ->
-                                    downloadFile(
-                                        context, URL(chapterAudioFile?.audio_url), reciter, chapter
-                                    ) { bytesDownloaded, fileSize, percentage ->
-                                        withContext(Dispatchers.Main) {
-                                            with(binding) {
+                            context?.let { context ->
+                                downloadFile(
+                                    context, URL(chapterAudioFile?.audio_url), reciter, chapter
+                                ) { downloadStatus, bytesDownloaded, fileSize, percentage ->
+                                    when (downloadStatus) {
+                                        Utilities.Companion.DownloadStatus.STARTING_DOWNLOAD -> {
+                                            withContext(Dispatchers.Main) {
                                                 downloadDialogChapterDownloadMessage.text = "${
                                                     this@ChaptersList.context?.getString(
                                                         com.hifnawy.quran.shared.R.string.loading_chapter,
                                                         chapter.name_arabic
                                                     )
-                                                }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
-                                                    decimalFormat.format(
-                                                        fileSize.toFloat() / (1024 * 1024)
+                                                }\n…"
+                                                downloadDialogChapterProgress.value = 100f
+                                            }
+                                        }
+
+                                        Utilities.Companion.DownloadStatus.DOWNLOADING -> {
+                                            withContext(Dispatchers.Main) {
+                                                with(binding) {
+                                                    downloadDialogChapterDownloadMessage.text = "${
+                                                        this@ChaptersList.context?.getString(
+                                                            com.hifnawy.quran.shared.R.string.loading_chapter,
+                                                            chapter.name_arabic
+                                                        )
+                                                    }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
+                                                        decimalFormat.format(
+                                                            fileSize.toFloat() / (1024 * 1024)
+                                                        )
+                                                    } مب. (${
+                                                        decimalFormat.format(
+                                                            percentage
+                                                        )
+                                                    }٪)"
+                                                    downloadDialogChapterProgress.value = percentage
+                                                }
+                                            }
+                                        }
+
+                                        Utilities.Companion.DownloadStatus.FINISHED_DOWNLOAD -> {
+                                            chaptersDownloaded++
+
+                                            lifecycleScope.launch(Dispatchers.Main) {
+                                                val chaptersDownloadProgress =
+                                                    (chaptersDownloaded.toFloat() / chaptersListAdapter.itemCount.toFloat()) * 100f
+                                                downloadDialogAllChaptersProgress.value =
+                                                    chaptersDownloadProgress
+                                                downloadDialogAllChaptersDownloadMessage.text =
+                                                    context.getString(
+                                                        com.hifnawy.quran.shared.R.string.loading_all_chapters,
+                                                        decimalFormat.format(chaptersDownloadProgress)
                                                     )
-                                                } مب. (${
-                                                    decimalFormat.format(
-                                                        percentage
-                                                    )
-                                                }٪)"
-                                                downloadDialogChapterProgress.value = percentage
                                             }
                                         }
                                     }
                                 }
                             }
-
-                            chaptersDownloaded++
-
-                            lifecycleScope.launch(Dispatchers.Main) {
-                                val chaptersDownloadProgress =
-                                    (chaptersDownloaded.toFloat() / chaptersListAdapter.itemCount.toFloat()) * 100f
-                                downloadDialogAllChaptersProgress.value = chaptersDownloadProgress
-                                downloadDialogAllChaptersDownloadMessage.text = context?.getString(
-                                    com.hifnawy.quran.shared.R.string.loading_all_chapters,
-                                    decimalFormat.format(chaptersDownloadProgress)
-                                )
-                            }
                         }
                     }
-                }
-
-                withContext(Dispatchers.Main) {
-                    chaptersList.layoutManager =
-                        GridLayoutManager(root.context, 3, GridLayoutManager.VERTICAL, false)
-                    chaptersList.adapter = chaptersListAdapter
-
-                    chapterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
-                        if (charSequence.toString().isEmpty()) {
-                            chaptersListAdapter.setChapters(chapters)
-                        } else {
-                            val searchResults = chapters.filter { chapter ->
-                                chapter.name_arabic.contains(charSequence.toString())
-                            }
-
-                            if (searchResults.isNotEmpty()) {
-                                chaptersListAdapter.setChapters(searchResults)
-                            } else {
-                                chaptersListAdapter.clear()
-                            }
-                        }
-                    })
                 }
             }
 
             return root
         }
-    }
-
-    override fun onDestroyView() {
-        MediaService.startDownload = false
-
-        super.onDestroyView()
-    }
-
-    override fun onDestroy() {
-        MediaService.startDownload = false
-
-        super.onDestroy()
     }
 }

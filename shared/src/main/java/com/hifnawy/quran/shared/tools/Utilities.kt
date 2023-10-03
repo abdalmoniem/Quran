@@ -7,10 +7,9 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import com.google.gson.Gson
-import com.hifnawy.quran.shared.R
+import com.hifnawy.quran.shared.api.APIRequester
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
-import com.hifnawy.quran.shared.services.MediaService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -22,6 +21,10 @@ import java.nio.file.attribute.BasicFileAttributes
 
 class Utilities {
     companion object {
+        enum class DownloadStatus {
+            STARTING_DOWNLOAD, DOWNLOADING, FINISHED_DOWNLOAD
+        }
+
         @Suppress("EXTENSION_SHADOWED_BY_MEMBER")
         inline fun <reified GenericType : Serializable> Bundle.getSerializable(key: String): GenericType? =
             when {
@@ -49,30 +52,32 @@ class Utilities {
             key: String, value: Serializable
         ): SharedPreferences.Editor = putString(key, Gson().toJson(value))
 
+        fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): File {
+            val reciterDirectory =
+                "${context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}"
+            val chapterFileName =
+                "$reciterDirectory/${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3"
+
+            return File(chapterFileName)
+        }
+
         suspend fun downloadFile(
             context: Context,
             url: URL,
             reciter: Reciter,
             chapter: Chapter,
-            callback: (suspend (bytesDownloaded: Long, fileSize: Int, percentage: Float) -> Unit)? = null
+            downloadStatusCallback: (suspend (downloadStatus: DownloadStatus, bytesDownloaded: Long, fileSize: Int, percentage: Float) -> Unit)? = null
         ): Pair<File, Int> {
-            MediaService.downloadComplete = false
-
             var chapterAudioFileSize = -1
-
             var newDownload = false
-            val reciterDirectory =
-                "${context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}"
-            val chapterFileName =
-                "$reciterDirectory/${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3"
-            val reciterDirectoryFile = File(reciterDirectory)
-            val chapterFile = File(chapterFileName)
 
-            if (!reciterDirectoryFile.exists()) {
-                reciterDirectoryFile.mkdirs()
+            val chapterFile = getChapterPath(context, reciter, chapter)
+
+            chapterFile.parentFile?.run {
+                if (!exists()) {
+                    mkdirs()
+                }
             }
-            // download the file if it doesn't exist
-            // url.openStream().use { Files.copy(it, Paths.get(chapterFileName)) }
 
             (withContext(Dispatchers.IO) {
                 url.openConnection()
@@ -100,13 +105,17 @@ class Utilities {
                         }
 
                         if (newDownload) {
+                            downloadStatusCallback?.invoke(
+                                DownloadStatus.STARTING_DOWNLOAD, 0, chapterAudioFileSize, 0f
+                            )
+
                             val inputStream = inputStream
                             val outputStream = chapterFile.outputStream()
 
                             var bytes = 0
                             var bytesDownloaded = 0L
                             val buffer = ByteArray(1024)
-                            while (MediaService.startDownload && (bytes >= 0)) {
+                            while (bytes >= 0) {
                                 bytesDownloaded += bytes
 
                                 val percentage =
@@ -117,16 +126,12 @@ class Utilities {
                                     "downloading ${chapterFile.name} $bytesDownloaded \\ $chapterAudioFileSize ($percentage%)"
                                 )
 
-                                context.sendBroadcast(Intent(context.getString(R.string.quran_media_service_file_download_updates)).apply {
-                                    putExtra("DOWNLOAD_STATUS", "DOWNLOADING")
-                                    putExtra("BYTES_DOWNLOADED", bytesDownloaded)
-                                    putExtra("FILE_SIZE", chapterAudioFileSize)
-                                    putExtra("PERCENTAGE", percentage)
-                                })
-
-                                if (callback != null) {
-                                    callback(bytesDownloaded, chapterAudioFileSize, percentage)
-                                }
+                                downloadStatusCallback?.invoke(
+                                    DownloadStatus.DOWNLOADING,
+                                    bytesDownloaded,
+                                    chapterAudioFileSize,
+                                    percentage
+                                )
 
                                 outputStream.write(buffer, 0, bytes)
                                 bytes = inputStream.read(buffer)
@@ -135,25 +140,29 @@ class Utilities {
                             outputStream.close()
                             disconnect()
 
-                            MediaService.startDownload = false
-
                             if (Files.readAttributes(
                                     chapterFile.toPath(), BasicFileAttributes::class.java
                                 ).size() == chapterAudioFileSize.toLong()
                             ) {
-                                MediaService.downloadComplete = true
-                                context.sendBroadcast(Intent(context.getString(R.string.quran_media_service_file_download_updates)).apply {
-                                    putExtra("DOWNLOAD_STATUS", "DOWNLOADED")
-                                    putExtra("BYTES_DOWNLOADED", bytesDownloaded)
-                                    putExtra("FILE_SIZE", chapterAudioFileSize)
-                                    putExtra("PERCENTAGE", 100.0f)
-                                })
+                                SharedPreferencesManager(context).setChapterPath(reciter, chapter)
+
+                                downloadStatusCallback?.invoke(
+                                    DownloadStatus.FINISHED_DOWNLOAD,
+                                    bytesDownloaded,
+                                    chapterAudioFileSize,
+                                    100.0f
+                                )
                             } else {
-                                MediaService.downloadComplete = false
+                                // do nothing
                             }
 
                         } else {
-                            callback?.invoke(chapterAudioFileSize.toLong(), chapterAudioFileSize, 100f)
+                            downloadStatusCallback?.invoke(
+                                DownloadStatus.FINISHED_DOWNLOAD,
+                                chapterAudioFileSize.toLong(),
+                                chapterAudioFileSize,
+                                100f
+                            )
                         }
                     }
 
@@ -162,6 +171,62 @@ class Utilities {
             }
 
             return chapterFile to chapterAudioFileSize
+        }
+
+        suspend fun updateChapterPaths(
+            context: Context, reciters: List<Reciter>, chapters: List<Chapter>
+        ) {
+            for (reciter in reciters) {
+                for (chapter in chapters) {
+                    val chapterFile = getChapterPath(context, reciter, chapter)
+                    val chapterAudioFile = APIRequester.getChapterAudioFile(reciter.id, chapter.id)
+
+                    if (!chapterFile.exists()) {
+                        Log.d(
+                            Utilities::class.simpleName,
+                            "${chapterFile.absolutePath} doesn't exist, skipping"
+                        )
+                        continue
+                    } else {
+                        Log.d(
+                            Utilities::class.simpleName,
+                            "${chapterFile.absolutePath} exists, checking..."
+                        )
+                    }
+
+                    chapterAudioFile?.audio_url ?: continue
+
+                    @Suppress("BlockingMethodInNonBlockingContext") (URL(chapterAudioFile.audio_url).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        setRequestProperty("Accept-Encoding", "identity")
+                        connect()
+
+                        if (responseCode !in 200..299) {
+                            return@apply
+                        }
+
+                        val chapterFileSize = Files.readAttributes(
+                            chapterFile.toPath(), BasicFileAttributes::class.java
+                        ).size()
+
+                        if (chapterFileSize != contentLength.toLong()) {
+                            Log.d(
+                                Utilities::class.simpleName,
+                                "Chapter Audio File incomplete, Deleting chapterPath:\n" + "reciter #${reciter.id}: ${reciter.reciter_name}\n" + "chapter: ${chapter.name_simple}\n" + "path: ${chapterFile.absolutePath}\n"
+                            )
+                            chapterFile.delete()
+                        } else {
+                            Log.d(
+                                Utilities::class.simpleName,
+                                "Chapter Audio File complete, Updating chapterPath:\n" + "reciter #${reciter.id}: ${reciter.reciter_name}\n" + "chapter: ${chapter.name_simple}\n" + "path: ${chapterFile.absolutePath}\n" + "size: ${chapterFileSize / 1024 / 1024} MBs"
+                            )
+                            SharedPreferencesManager(context).setChapterPath(
+                                reciter, chapter
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

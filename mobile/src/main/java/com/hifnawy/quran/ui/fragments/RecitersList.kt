@@ -7,19 +7,14 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.RecitersListAdapter
 import com.hifnawy.quran.databinding.FragmentRecitersListBinding
-import com.hifnawy.quran.shared.api.APIRequester
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.ui.activities.MainActivity
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 
 /**
@@ -51,51 +46,40 @@ class RecitersList : Fragment() {
         navController = findNavController()
 
         with(binding) {
-            lifecycleScope.launch(context = Dispatchers.IO) {
-                reciters = APIRequester.getRecitersList()
+            recitersListAdapter = RecitersListAdapter(
+                root.context, ArrayList(parentActivity.reciters)
+            ) { position, reciter, itemView ->
+                Log.d(
+                    this@RecitersList.javaClass.canonicalName,
+                    "clicked on $position: ${reciter.name_ar} ${itemView.recitationStyle.text}"
+                )
 
-                recitersListAdapter = RecitersListAdapter(
-                    root.context,
-                    ArrayList(reciters)
-                ) { position, reciter, itemView ->
-                    Log.d(
-                        this@RecitersList.javaClass.canonicalName,
-                        "clicked on $position: ${reciter.translated_name?.name} ${itemView.recitationStyle.text}"
+                reciterSearch.text = null
+                navController.navigate(
+                    directions = RecitersListDirections.actionToChaptersList(
+                        reciter = reciter
                     )
-
-                    reciterSearch.text = null
-                    navController.navigate(
-                        directions = RecitersListDirections.actionToChaptersList(
-                            reciter = reciter
-                        )
-                    )
-                }
-
-                withContext(Dispatchers.Main) {
-                    recitersList.layoutManager = LinearLayoutManager(root.context)
-                    recitersList.adapter = recitersListAdapter
-
-                    reciterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
-                        if (charSequence.toString().isEmpty()) {
-                            recitersListAdapter.setReciters(reciters)
-                        } else {
-                            val searchResults = reciters.filter { reciter ->
-                                return@filter if (reciter.translated_name != null) {
-                                    reciter.translated_name!!.name.contains(charSequence.toString())
-                                } else {
-                                    reciter.reciter_name.contains(charSequence.toString())
-                                }
-                            }
-
-                            if (searchResults.isNotEmpty()) {
-                                recitersListAdapter.setReciters(searchResults)
-                            } else {
-                                recitersListAdapter.clear()
-                            }
-                        }
-                    })
-                }
+                )
             }
+
+            recitersList.layoutManager = LinearLayoutManager(root.context)
+            recitersList.adapter = recitersListAdapter
+
+            reciterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
+                if (charSequence.toString().isEmpty()) {
+                    recitersListAdapter.setReciters(parentActivity.reciters)
+                } else {
+                    val searchResults = parentActivity.reciters.filter { reciter ->
+                        return@filter reciter.name_ar.contains(charSequence.toString())
+                    }
+
+                    if (searchResults.isNotEmpty()) {
+                        recitersListAdapter.setReciters(searchResults)
+                    } else {
+                        recitersListAdapter.clear()
+                    }
+                }
+            })
 
             return root
         }

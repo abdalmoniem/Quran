@@ -6,11 +6,30 @@
     app:startDestination="@id/reciters_list">
 
     <action
-        android:id="@+id/action_to_chapter_play_from_notification"
-        app:destination="@id/chapter_play"
+        android:id="@+id/action_to_reciters_list"
+        app:destination="@id/media_playback"
         app:launchSingleTop="false"
-        app:popUpTo="@+id/chapter_play"
+        app:popUpTo="@+id/reciters_list"
         app:popUpToInclusive="true" />
+
+    <action
+        android:id="@+id/action_to_media_playback_from_notification"
+        app:destination="@id/media_playback"
+        app:launchSingleTop="false"
+        app:popUpTo="@+id/media_playback"
+        app:popUpToInclusive="true" />
+
+    <fragment
+        android:id="@+id/reciters_list"
+        android:name="com.hifnawy.quran.ui.fragments.RecitersList"
+        android:label="@string/reciters"
+        tools:layout="@layout/fragment_reciters_list">
+
+        <action
+            android:id="@+id/action_to_chapters_list"
+            app:destination="@id/chapters_list" />
+    </fragment>
+
     <fragment
         android:id="@+id/chapters_list"
         android:name="com.hifnawy.quran.ui.fragments.ChaptersList"
@@ -22,8 +41,8 @@
             app:destination="@id/reciters_list" />
 
         <action
-            android:id="@+id/action_to_chapter_play"
-            app:destination="@id/chapter_play" />
+            android:id="@+id/action_to_media_playback"
+            app:destination="@id/media_playback" />
 
         <argument
             android:name="reciter"
@@ -32,10 +51,10 @@
     </fragment>
 
     <fragment
-        android:id="@+id/chapter_play"
-        android:name="com.hifnawy.quran.ui.fragments.QuranMediaPlayback"
+        android:id="@+id/media_playback"
+        android:name="com.hifnawy.quran.ui.fragments.MediaPlayback"
         android:label="@string/chapter_name"
-        tools:layout="@layout/fragment_quran_media_playback">
+        tools:layout="@layout/fragment_media_playback">
 
         <action
             android:id="@+id/action_to_chapters_list"
@@ -50,16 +69,5 @@
             android:name="chapter"
             app:argType="com.hifnawy.quran.shared.model.Chapter"
             app:nullable="false" />
-    </fragment>
-
-    <fragment
-        android:id="@+id/reciters_list"
-        android:name="com.hifnawy.quran.ui.fragments.RecitersList"
-        android:label="@string/reciters"
-        tools:layout="@layout/fragment_reciters_list">
-
-        <action
-            android:id="@+id/action_to_chapters_list"
-            app:destination="@id/chapters_list" />
     </fragment>
 </navigation>
