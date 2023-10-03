@@ -16,10 +16,10 @@ class MediaSessionCallback(
     override fun onPlay() {
         Log.d("AndroidAuto", "Playing...")
 
-        with(sharedPrefsManager) {
-            if ((lastReciter != null) and (lastChapter != null)) {
-                mediaService.playMedia(lastReciter, lastChapter, 0L)
-            }
+        sharedPrefsManager.apply {
+            if ((lastReciter == null) || (lastChapter == null)) return@apply
+
+            mediaService.playMedia(lastReciter, lastChapter, 0L)
         }
     }
 
@@ -44,7 +44,7 @@ class MediaSessionCallback(
     }
 
     override fun onStop() {
-        mediaService.stopSelf()
+        // mediaService.stopSelf()
     }
 
     override fun onSkipToQueueItem(queueId: Long) {

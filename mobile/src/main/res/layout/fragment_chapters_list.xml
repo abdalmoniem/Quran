@@ -1,161 +1,178 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.sothree.slidinguppanel.SlidingUpPanelLayout
+    xmlns:sothree="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/sliding_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:layoutDirection="rtl"
+    android:gravity="bottom"
+    sothree:umanoPanelHeight="120dp"
+    sothree:umanoShadowHeight="50dp"
     tools:context=".ui.fragments.RecitersList">
 
     <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/download_dialog"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:elevation="200dp"
-        android:orientation="vertical"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        android:layoutDirection="rtl">
 
-
-        <FrameLayout
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/download_dialog"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
-            <ImageView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:alpha="0.9"
-                android:background="@color/black"
-                android:importantForAccessibility="no"
-                android:scaleType="centerCrop" />
-        </FrameLayout>
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="30dp"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="20dp"
+            android:layout_height="match_parent"
+            android:elevation="200dp"
+            android:orientation="vertical"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
 
-            <LinearLayout
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:alpha="0.9"
+                    android:background="@color/black"
+                    android:importantForAccessibility="no"
+                    android:scaleType="centerCrop" />
+            </FrameLayout>
+
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_horizontal"
-                android:orientation="vertical"
-                android:paddingBottom="30dp"
-                android:paddingTop="30dp">
+                android:layout_margin="30dp"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="20dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
 
-                <TextView
-                    android:id="@+id/download_dialog_all_chapters_download_message"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/loading_all_chapters"
-                    android:textAlignment="center"
-                    android:textSize="20sp" />
-
-                <com.google.android.material.slider.Slider
-                    android:id="@+id/download_dialog_all_chapters_progress"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:clickable="false"
-                    android:value="23"
-                    android:valueFrom="0"
-                    android:valueTo="100"
-                    app:haloColor="#00ffffff"
-                    app:haloRadius="0dp"
-                    app:labelBehavior="gone"
-                    app:thumbColor="#00ffffff"
-                    app:thumbElevation="0dp"
-                    app:thumbRadius="0dp"
-                    app:tickVisible="false"
-                    app:trackHeight="20dp" />
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingBottom="30dp"
+                    android:paddingTop="30dp">
 
-                <TextView
-                    android:id="@+id/download_dialog_chapter_download_message"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/loading_chapter"
-                    android:textAlignment="center"
-                    android:textSize="20sp" />
+                    <TextView
+                        android:id="@+id/download_dialog_all_chapters_download_message"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/loading_all_chapters"
+                        android:textAlignment="center"
+                        android:textSize="20sp" />
 
-                <com.google.android.material.slider.Slider
-                    android:id="@+id/download_dialog_chapter_progress"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:clickable="false"
-                    android:value="23"
-                    android:valueFrom="0"
-                    android:valueTo="100"
-                    app:haloColor="#00ffffff"
-                    app:haloRadius="0dp"
-                    app:labelBehavior="gone"
-                    app:thumbColor="#00ffffff"
-                    app:thumbElevation="0dp"
-                    app:thumbRadius="0dp"
-                    app:tickVisible="false"
-                    app:trackHeight="20dp" />
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/download_dialog_all_chapters_progress"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clickable="false"
+                        android:value="23"
+                        android:valueFrom="0"
+                        android:valueTo="100"
+                        app:haloColor="#00ffffff"
+                        app:haloRadius="0dp"
+                        app:labelBehavior="gone"
+                        app:thumbColor="#00ffffff"
+                        app:thumbElevation="0dp"
+                        app:thumbRadius="0dp"
+                        app:tickVisible="false"
+                        app:trackHeight="20dp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/download_dialog_cancel_download"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="30dp"
-                    android:text="@string/cancel_download" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+                    <TextView
+                        android:id="@+id/download_dialog_chapter_download_message"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/loading_chapter"
+                        android:textAlignment="center"
+                        android:textSize="20sp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/download_dialog_chapter_progress"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clickable="false"
+                        android:value="23"
+                        android:valueFrom="0"
+                        android:valueTo="100"
+                        app:haloColor="#00ffffff"
+                        app:haloRadius="0dp"
+                        app:labelBehavior="gone"
+                        app:thumbColor="#00ffffff"
+                        app:thumbElevation="0dp"
+                        app:thumbRadius="0dp"
+                        app:tickVisible="false"
+                        app:trackHeight="20dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/download_dialog_cancel_download"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="30dp"
+                        android:text="@string/cancel_download" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/chapters_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginBottom="5dp"
+            android:layoutDirection="rtl"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/chapter_search"
+            app:spanCount="3"
+            tools:itemCount="13"
+            tools:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
+            tools:listitem="@layout/chapter_item" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/download_all_chapters"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_marginEnd="10dp"
+            android:layout_marginStart="10dp"
+            app:cornerRadius="10dp"
+            app:icon="@drawable/baseline_file_download_24"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            app:iconSize="20dp"
+            app:iconTint="@color/white"
+            app:layout_constraintStart_toEndOf="@id/chapter_search"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/chapter_search"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:drawableEnd="@drawable/baseline_search_24"
+            android:drawableTint="@color/design_default_color_secondary"
+            android:hint="@string/chapter_search"
+            android:importantForAutofill="no"
+            android:inputType="textFilter"
+            android:maxLines="1"
+            android:textSize="25sp"
+            app:layout_constraintBottom_toTopOf="@id/chapters_list"
+            app:layout_constraintEnd_toStartOf="@id/download_all_chapters"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/chapters_list"
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/fragment_container"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginBottom="5dp"
-        android:layoutDirection="rtl"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/chapter_search"
-        app:spanCount="3"
-        tools:itemCount="13"
-        tools:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
-        tools:listitem="@layout/chapter_item" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/download_all_chapters"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:layout_marginEnd="10dp"
-        android:layout_marginStart="10dp"
-        app:cornerRadius="10dp"
-        app:icon="@drawable/baseline_file_download_24"
-        app:iconGravity="textStart"
-        app:iconPadding="0dp"
-        app:iconSize="20dp"
-        app:iconTint="@color/white"
-        app:layout_constraintStart_toEndOf="@id/chapter_search"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/chapter_search"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:drawableEnd="@drawable/baseline_search_24"
-        android:drawableTint="@color/design_default_color_secondary"
-        android:hint="@string/chapter_search"
-        android:importantForAutofill="no"
-        android:inputType="textFilter"
-        android:maxLines="1"
-        android:textSize="25sp"
-        app:layout_constraintBottom_toTopOf="@id/chapters_list"
-        app:layout_constraintEnd_toStartOf="@id/download_all_chapters"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+        android:layout_height="match_parent"
+        tools:layout="@layout/fragment_media_playback" />
+</com.sothree.slidinguppanel.SlidingUpPanelLayout>

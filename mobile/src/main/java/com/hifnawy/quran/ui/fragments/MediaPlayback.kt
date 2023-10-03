@@ -35,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.net.URL
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
@@ -113,6 +114,8 @@ class MediaPlayback : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
+        Log.d(this::class.simpleName, "onCreate")
+
         binding = FragmentMediaPlaybackBinding.inflate(layoutInflater, container, false)
         sharedPrefsManager = SharedPreferencesManager(binding.root.context)
 
@@ -186,6 +189,8 @@ class MediaPlayback : Fragment() {
     }
 
     override fun onResume() {
+        Log.d(this::class.simpleName, "onResume")
+
         binding.downloadDialog.visibility = View.GONE
 
         with(parentActivity) {
@@ -280,7 +285,8 @@ class MediaPlayback : Fragment() {
         downloadStatus: Utilities.Companion.DownloadStatus,
         bytesDownloaded: Long,
         fileSize: Int,
-        percentage: Float
+        percentage: Float,
+        audioFile: File?
     ) {
         withContext(Dispatchers.Main) {
             when (downloadStatus) {

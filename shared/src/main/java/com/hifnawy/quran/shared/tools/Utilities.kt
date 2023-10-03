@@ -66,8 +66,8 @@ class Utilities {
             url: URL,
             reciter: Reciter,
             chapter: Chapter,
-            downloadStatusCallback: (suspend (downloadStatus: DownloadStatus, bytesDownloaded: Long, fileSize: Int, percentage: Float) -> Unit)? = null
-        ): Pair<File, Int> {
+            downloadStatusCallback: (suspend (downloadStatus: DownloadStatus, bytesDownloaded: Long, fileSize: Int, percentage: Float, audioFile: File?) -> Unit)? = null
+        ) {
             var chapterAudioFileSize = -1
             var newDownload = false
 
@@ -106,7 +106,7 @@ class Utilities {
 
                         if (newDownload) {
                             downloadStatusCallback?.invoke(
-                                DownloadStatus.STARTING_DOWNLOAD, 0, chapterAudioFileSize, 0f
+                                DownloadStatus.STARTING_DOWNLOAD, 0, chapterAudioFileSize, 0f, null
                             )
 
                             val inputStream = inputStream
@@ -130,7 +130,8 @@ class Utilities {
                                     DownloadStatus.DOWNLOADING,
                                     bytesDownloaded,
                                     chapterAudioFileSize,
-                                    percentage
+                                    percentage,
+                                    null
                                 )
 
                                 outputStream.write(buffer, 0, bytes)
@@ -150,7 +151,8 @@ class Utilities {
                                     DownloadStatus.FINISHED_DOWNLOAD,
                                     bytesDownloaded,
                                     chapterAudioFileSize,
-                                    100.0f
+                                    100.0f,
+                                    chapterFile
                                 )
                             } else {
                                 // do nothing
@@ -161,7 +163,8 @@ class Utilities {
                                 DownloadStatus.FINISHED_DOWNLOAD,
                                 chapterAudioFileSize.toLong(),
                                 chapterAudioFileSize,
-                                100f
+                                100f,
+                                chapterFile
                             )
                         }
                     }
@@ -169,8 +172,6 @@ class Utilities {
                     else -> {}
                 }
             }
-
-            return chapterFile to chapterAudioFileSize
         }
 
         suspend fun updateChapterPaths(

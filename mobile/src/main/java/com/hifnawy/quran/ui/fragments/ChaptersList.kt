@@ -16,10 +16,12 @@ import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
 import com.hifnawy.quran.shared.api.APIRequester.Companion.getChapterAudioFile
-import com.hifnawy.quran.shared.model.Chapter
+import com.hifnawy.quran.shared.services.MediaService
+import com.hifnawy.quran.shared.tools.SharedPreferencesManager
 import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.shared.tools.Utilities.Companion.downloadFile
 import com.hifnawy.quran.ui.activities.MainActivity
+import com.sothree.slidinguppanel.SlidingUpPanelLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -44,7 +46,6 @@ class ChaptersList : Fragment() {
     ): View {
         val reciter = ChaptersListArgs.fromBundle(requireArguments()).reciter
 
-        var chapters: List<Chapter>
         var chaptersListAdapter: ChaptersListAdapter
 
         parentActivity.supportActionBar?.apply {
@@ -59,6 +60,26 @@ class ChaptersList : Fragment() {
         binding = FragmentChaptersListBinding.inflate(inflater, container, false)
         navController = findNavController()
 
+        MediaService.instance?.apply {
+            if (isMediaPlaying) {
+                val mediaPlaybackFragment = MediaPlayback().apply {
+                    arguments = Bundle().apply {
+                        putSerializable("reciter", SharedPreferencesManager(this@ChaptersList.requireContext()).lastReciter)
+                        putSerializable("chapter", SharedPreferencesManager(this@ChaptersList.requireContext()).lastChapter)
+                    }
+                }
+
+                childFragmentManager.beginTransaction()
+                    .add(binding.fragmentContainer.id, mediaPlaybackFragment).commit()
+
+                binding.slidingLayout.panelState = SlidingUpPanelLayout.PanelState.COLLAPSED
+            } else {
+                binding.slidingLayout.panelState = SlidingUpPanelLayout.PanelState.HIDDEN
+            }
+        } ?: run {
+            binding.slidingLayout.panelState = SlidingUpPanelLayout.PanelState.HIDDEN
+        }
+
         with(binding) {
             downloadDialog.visibility = View.GONE
 
@@ -71,7 +92,21 @@ class ChaptersList : Fragment() {
                 )
 
                 chapterSearch.text = null
-                navController.navigate(ChaptersListDirections.actionToMediaPlayback(reciter, chapter))
+                // navController.navigate(ChaptersListDirections.actionToMediaPlayback(reciter, chapter))
+
+                val mediaPlaybackFragment = MediaPlayback().apply {
+                    arguments = Bundle().apply {
+                        putSerializable("reciter", reciter)
+                        putSerializable("chapter", chapter)
+                    }
+                }
+
+                childFragmentManager.beginTransaction()
+                    .add(binding.fragmentContainer.id, mediaPlaybackFragment).commit()
+
+                binding.slidingLayout.panelState = SlidingUpPanelLayout.PanelState.EXPANDED
+
+                MediaService.initialize(requireContext(), reciter, chapter)
             }
 
             chaptersList.layoutManager =
@@ -121,7 +156,7 @@ class ChaptersList : Fragment() {
                             context?.let { context ->
                                 downloadFile(
                                     context, URL(chapterAudioFile?.audio_url), reciter, chapter
-                                ) { downloadStatus, bytesDownloaded, fileSize, percentage ->
+                                ) { downloadStatus, bytesDownloaded, fileSize, percentage, _ ->
                                     when (downloadStatus) {
                                         Utilities.Companion.DownloadStatus.STARTING_DOWNLOAD -> {
                                             withContext(Dispatchers.Main) {
