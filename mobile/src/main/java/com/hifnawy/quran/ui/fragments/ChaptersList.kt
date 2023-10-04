@@ -59,14 +59,13 @@ class ChaptersList : Fragment() {
         // Inflate the layout for this fragment
         binding = FragmentChaptersListBinding.inflate(inflater, container, false)
         navController = findNavController()
-
         MediaService.instance?.apply {
             if (isMediaPlaying) {
                 val mediaPlaybackFragment = MediaPlayback().apply {
-                    arguments = Bundle().apply {
-                        putSerializable("reciter", SharedPreferencesManager(this@ChaptersList.requireContext()).lastReciter)
-                        putSerializable("chapter", SharedPreferencesManager(this@ChaptersList.requireContext()).lastChapter)
-                    }
+                    arguments = MediaPlaybackArgs(
+                        SharedPreferencesManager(this@ChaptersList.requireContext()).lastReciter!!,
+                        SharedPreferencesManager(this@ChaptersList.requireContext()).lastChapter!!
+                    ).toBundle()
                 }
 
                 childFragmentManager.beginTransaction()
@@ -94,12 +93,8 @@ class ChaptersList : Fragment() {
                 chapterSearch.text = null
                 // navController.navigate(ChaptersListDirections.actionToMediaPlayback(reciter, chapter))
 
-                val mediaPlaybackFragment = MediaPlayback().apply {
-                    arguments = Bundle().apply {
-                        putSerializable("reciter", reciter)
-                        putSerializable("chapter", chapter)
-                    }
-                }
+                val mediaPlaybackFragment =
+                    MediaPlayback().apply { arguments = MediaPlaybackArgs(reciter, chapter).toBundle() }
 
                 childFragmentManager.beginTransaction()
                     .add(binding.fragmentContainer.id, mediaPlaybackFragment).commit()
