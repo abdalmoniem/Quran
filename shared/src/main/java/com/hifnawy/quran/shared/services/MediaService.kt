@@ -35,10 +35,10 @@ import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.audio.AudioAttributes
 import com.hifnawy.quran.shared.R
-import com.hifnawy.quran.shared.api.APIRequester.Companion.getChapterAudioFile
-import com.hifnawy.quran.shared.api.APIRequester.Companion.getChaptersList
-import com.hifnawy.quran.shared.api.APIRequester.Companion.getReciterChaptersAudioFiles
-import com.hifnawy.quran.shared.api.APIRequester.Companion.getRecitersList
+import com.hifnawy.quran.shared.api.QuranAPI.Companion.getChapterAudioFile
+import com.hifnawy.quran.shared.api.QuranAPI.Companion.getChaptersList
+import com.hifnawy.quran.shared.api.QuranAPI.Companion.getReciterChaptersAudioFiles
+import com.hifnawy.quran.shared.api.QuranAPI.Companion.getRecitersList
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.ChapterAudioFile
 import com.hifnawy.quran.shared.model.Constants
@@ -46,7 +46,7 @@ import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.tools.SharedPreferencesManager
 import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.shared.tools.Utilities.Companion.downloadFile
-import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
+import com.hifnawy.quran.shared.tools.Utilities.Companion.getTypedSerializable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -259,9 +259,9 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                     when (action) {
                         Constants.Actions.PLAY_MEDIA.name -> {
                             val reciter =
-                                getSerializableExtra<Reciter>(Constants.IntentDataKeys.RECITER.name)
+                                getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
                             val chapter =
-                                getSerializableExtra<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
+                                getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
                             val chapterPosition =
                                 getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
@@ -448,7 +448,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         mediaDescriptionBuilder.setTitle(chapter.name_arabic)
 
         if (chapterAudioFile != null) {
-            Log.d(javaClass.canonicalName, Uri.parse(chapterAudioFile.audio_url).toString())
+            Log.d(this::class.simpleName, Uri.parse(chapterAudioFile.audio_url).toString())
             mediaDescriptionBuilder.setMediaUri(Uri.parse(chapterAudioFile.audio_url))
         }
 

@@ -7,7 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import com.google.gson.Gson
-import com.hifnawy.quran.shared.api.APIRequester
+import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
 import kotlinx.coroutines.Dispatchers
@@ -25,8 +25,7 @@ class Utilities {
             STARTING_DOWNLOAD, DOWNLOADING, FINISHED_DOWNLOAD
         }
 
-        @Suppress("EXTENSION_SHADOWED_BY_MEMBER")
-        inline fun <reified GenericType : Serializable> Bundle.getSerializable(key: String): GenericType? =
+        inline fun <reified GenericType : Serializable> Bundle.getTypedSerializable(key: String): GenericType? =
             when {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> getSerializable(
                     key, GenericType::class.java
@@ -35,8 +34,7 @@ class Utilities {
                 else -> @Suppress("DEPRECATION") getSerializable(key) as? GenericType
             }
 
-        @Suppress("EXTENSION_SHADOWED_BY_MEMBER")
-        inline fun <reified GenericType : Serializable> Intent.getSerializableExtra(key: String): GenericType? =
+        inline fun <reified GenericType : Serializable> Intent.getTypedSerializable(key: String): GenericType? =
             when {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> getSerializableExtra(
                     key, GenericType::class.java
@@ -45,21 +43,12 @@ class Utilities {
                 else -> @Suppress("DEPRECATION") getSerializableExtra(key) as? GenericType
             }
 
-        inline fun <reified GenericType : Serializable> SharedPreferences.getSerializableExtra(key: String): GenericType? =
+        inline fun <reified GenericType : Serializable> SharedPreferences.getSerializable(key: String): GenericType? =
             Gson().fromJson(getString(key, null), GenericType::class.java)
 
-        fun SharedPreferences.Editor.putSerializableExtra(
+        fun SharedPreferences.Editor.putSerializable(
             key: String, value: Serializable
         ): SharedPreferences.Editor = putString(key, Gson().toJson(value))
-
-        fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): File {
-            val reciterDirectory =
-                "${context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}"
-            val chapterFileName =
-                "$reciterDirectory/${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3"
-
-            return File(chapterFileName)
-        }
 
         suspend fun downloadFile(
             context: Context,
@@ -180,7 +169,7 @@ class Utilities {
             for (reciter in reciters) {
                 for (chapter in chapters) {
                     val chapterFile = getChapterPath(context, reciter, chapter)
-                    val chapterAudioFile = APIRequester.getChapterAudioFile(reciter.id, chapter.id)
+                    val chapterAudioFile = QuranAPI.getChapterAudioFile(reciter.id, chapter.id)
 
                     if (!chapterFile.exists()) {
                         Log.d(
@@ -228,6 +217,15 @@ class Utilities {
                     }
                 }
             }
+        }
+
+        private fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): File {
+            val reciterDirectory =
+                "${context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}"
+            val chapterFileName =
+                "$reciterDirectory/${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3"
+
+            return File(chapterFileName)
         }
     }
 }

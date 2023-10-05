@@ -18,18 +18,17 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.graphics.drawable.toDrawable
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import androidx.navigation.fragment.findNavController
 import androidx.palette.graphics.Palette
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
-import com.hifnawy.quran.shared.api.APIRequester
+import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.tools.SharedPreferencesManager
 import com.hifnawy.quran.shared.tools.Utilities
-import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
+import com.hifnawy.quran.shared.tools.Utilities.Companion.getTypedSerializable
 import com.hifnawy.quran.ui.activities.MainActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -49,12 +48,9 @@ import com.hoko.blur.HokoBlur as Blur
  * A simple [Fragment] subclass.
  */
 
-class MediaPlayback : Fragment() {
+class MediaPlayback(private var reciter: Reciter, private var chapter: Chapter) : Fragment() {
     private lateinit var binding: FragmentMediaPlaybackBinding
     private lateinit var sharedPrefsManager: SharedPreferencesManager
-
-    private var currentReciter: Reciter? = null
-    private var currentChapter: Chapter? = null
 
     private val decimalFormat =
         DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
@@ -67,17 +63,13 @@ class MediaPlayback : Fragment() {
         @SuppressLint("SetTextI18n")
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.hasCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)) {
-                currentReciter =
-                    intent.getSerializableExtra<Reciter>(Constants.IntentDataKeys.RECITER.name)
-                currentChapter =
-                    intent.getSerializableExtra<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
+                reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)!!
+                chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)!!
                 val durationMs = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_DURATION.name, -1L)
                 val currentPosition =
                     intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
-                if ((currentReciter != null) and (currentChapter != null)) {
-                    updateUI(currentReciter!!, currentChapter!!)
-                }
+                updateUI(reciter, chapter)
 
                 if ((durationMs != -1L) and (currentPosition != -1L)) with(binding) {
                     chapterDuration.text = "${
@@ -98,8 +90,8 @@ class MediaPlayback : Fragment() {
                     .setMessage(getString(R.string.connection_error_message))
                     .setPositiveButton(getString(R.string.connection_error_action)) { _, _ ->
                         // navigate up twice to get back to reciters list fragment
-                        findNavController().navigateUp()
-                        findNavController().navigateUp()
+                        parentFragmentManager.popBackStackImmediate()
+                        parentFragmentManager.popBackStackImmediate()
                     }.create().apply {
                         window?.decorView?.layoutDirection = View.LAYOUT_DIRECTION_RTL
                         show()
@@ -114,8 +106,6 @@ class MediaPlayback : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        Log.d(this::class.simpleName, "onCreate")
-
         binding = FragmentMediaPlaybackBinding.inflate(layoutInflater, container, false)
         sharedPrefsManager = SharedPreferencesManager(binding.root.context)
 
@@ -132,37 +122,17 @@ class MediaPlayback : Fragment() {
 
             chapterNext.setOnClickListener {
                 with(parentActivity) {
-                    if (chapters.isEmpty()) {
-                        getData {
-                            currentChapter = currentChapter?.run {
-                                chapters.single { chapter -> chapter.id == (if (id == 114) 1 else id + 1) }
-                            }
-                            currentChapter?.run { playChapter() }
-                        }
-                    } else {
-                        currentChapter = currentChapter?.run {
-                            chapters.single { chapter -> chapter.id == (if (id == 114) 1 else id + 1) }
-                        }
-                        currentChapter?.run { playChapter() }
-                    }
+                    chapter = chapters.single { chapter -> chapter.id == (if (id == 114) 1 else id + 1) }
+
+                    playChapter(chapter)
                 }
             }
 
             chapterPrevious.setOnClickListener {
                 with(parentActivity) {
-                    if (chapters.isEmpty()) {
-                        getData {
-                            currentChapter = currentChapter?.run {
-                                chapters.single { chapter -> chapter.id == (if (id == 114) 1 else id - 1) }
-                            }
-                            currentChapter?.run { playChapter() }
-                        }
-                    } else {
-                        currentChapter = currentChapter?.run {
-                            chapters.single { chapter -> chapter.id == (if (id == 114) 1 else id - 1) }
-                        }
-                        currentChapter?.run { playChapter() }
-                    }
+                    chapter = chapters.single { chapter -> chapter.id == (if (id == 114) 1 else id - 1) }
+
+                    playChapter(chapter)
                 }
             }
 
@@ -189,8 +159,6 @@ class MediaPlayback : Fragment() {
     }
 
     override fun onResume() {
-        Log.d(this::class.simpleName, "onResume")
-
         binding.downloadDialog.visibility = View.GONE
 
         with(parentActivity) {
@@ -203,12 +171,7 @@ class MediaPlayback : Fragment() {
                 })
         }
 
-        with(MediaPlaybackArgs.fromBundle(requireArguments())) {
-            currentReciter = reciter
-            currentChapter = chapter
-        }
-
-        playChapter()
+        playChapter(chapter)
 
         super.onResume()
     }
@@ -230,16 +193,14 @@ class MediaPlayback : Fragment() {
         super.onDestroy()
     }
 
-    private fun playChapter() {
-        if ((currentReciter == null) || (currentChapter == null)) return
+    private fun playChapter(chapter: Chapter) {
+        updateUI(reciter, chapter)
 
-        updateUI(currentReciter!!, currentChapter!!)
-
-        sharedPrefsManager.getChapterPath(currentReciter!!, currentChapter!!)?.let {
+        sharedPrefsManager.getChapterPath(reciter, chapter)?.let {
             MediaService.instance?.run {
-                playMedia(currentReciter, currentChapter)
+                playMedia(reciter, chapter)
             } ?: MediaService.initialize(
-                parentActivity, currentReciter, currentChapter
+                parentActivity, reciter, chapter
             )
         } ?: downloadChapter()
     }
@@ -250,7 +211,7 @@ class MediaPlayback : Fragment() {
             downloadDialog.visibility = View.VISIBLE
             downloadDialogChapterDownloadMessage.text = "${
                 context?.getString(
-                    com.hifnawy.quran.shared.R.string.loading_chapter, currentChapter?.name_arabic
+                    com.hifnawy.quran.shared.R.string.loading_chapter, chapter.name_arabic
                 )
             }\n${decimalFormat.format(0)} مب. \\ ${decimalFormat.format(0)} مب. (${
                 decimalFormat.format(
@@ -264,16 +225,16 @@ class MediaPlayback : Fragment() {
 
         lifecycleScope.launch {
             val chapterAudioFile = lifecycleScope.async(Dispatchers.IO) {
-                APIRequester.getChapterAudioFile(
-                    currentReciter!!.id, currentChapter!!.id
+                QuranAPI.getChapterAudioFile(
+                    reciter.id, chapter.id
                 )
             }.await()
             lifecycleScope.async(Dispatchers.IO) {
                 Utilities.downloadFile(
-                    requireContext(),
+                    binding.root.context,
                     URL(chapterAudioFile?.audio_url),
-                    currentReciter!!,
-                    currentChapter!!,
+                    reciter,
+                    chapter,
                     ::updateDownloadUI
                 )
             }.await()
@@ -297,8 +258,7 @@ class MediaPlayback : Fragment() {
                     with(binding) {
                         downloadDialogChapterDownloadMessage.text = "${
                             context?.getString(
-                                com.hifnawy.quran.shared.R.string.loading_chapter,
-                                currentChapter?.name_arabic
+                                com.hifnawy.quran.shared.R.string.loading_chapter, chapter.name_arabic
                             )
                         }\n${decimalFormat.format(bytesDownloaded / (1024 * 1024))} مب. \\ ${
                             decimalFormat.format(
@@ -323,9 +283,9 @@ class MediaPlayback : Fragment() {
                         })
 
                     MediaService.instance?.run {
-                        playMedia(currentReciter, currentChapter)
+                        playMedia(reciter, chapter)
                     } ?: MediaService.initialize(
-                        parentActivity, currentReciter, currentChapter
+                        parentActivity, reciter, chapter
                     )
                 }
             }
@@ -334,7 +294,9 @@ class MediaPlayback : Fragment() {
 
     private fun updateUI(reciter: Reciter, chapter: Chapter) {
         @SuppressLint("DiscouragedApi") val drawableId = resources.getIdentifier(
-            "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", requireContext().packageName
+            "chapter_${chapter.id.toString().padStart(3, '0')}",
+            "drawable",
+            binding.root.context.packageName
         )
 
         val bitmap = Blur.with(context)
@@ -343,13 +305,13 @@ class MediaPlayback : Fragment() {
             .radius(3) //blur radius，max=25，default=5
             .sampleFactor(2.0f).processor().blur(
                 (AppCompatResources.getDrawable(
-                    requireContext(), drawableId
+                    binding.root.context, drawableId
                 ) as BitmapDrawable).bitmap
             )
 
         val dominantColor = Palette.from(
             (AppCompatResources.getDrawable(
-                requireContext(), drawableId
+                binding.root.context, drawableId
             ) as BitmapDrawable).bitmap
         ).generate().getDominantColor(Color.RED)
 
@@ -364,14 +326,18 @@ class MediaPlayback : Fragment() {
                     "#dd5f56"
                 )
             )
-            chapterImage.setImageDrawable(AppCompatResources.getDrawable(requireContext(), drawableId))
+            chapterImage.setImageDrawable(
+                AppCompatResources.getDrawable(
+                    binding.root.context, drawableId
+                )
+            )
             chapterSeek.trackActiveTintList = ColorStateList.valueOf(dominantColor)
             // chapterSeek.thumbTintList = ColorStateList.valueOf(dominantColor)
             MediaService.instance?.run {
                 chapterPlayPause.icon = if (isMediaPlaying) AppCompatResources.getDrawable(
-                    requireContext(), com.hifnawy.quran.shared.R.drawable.media_pause_black
+                    binding.root.context, com.hifnawy.quran.shared.R.drawable.media_pause_black
                 ) else AppCompatResources.getDrawable(
-                    requireContext(), com.hifnawy.quran.shared.R.drawable.media_play_black
+                    binding.root.context, com.hifnawy.quran.shared.R.drawable.media_play_black
                 )
             }
             chapterPlayPause.setBackgroundColor(dominantColor)

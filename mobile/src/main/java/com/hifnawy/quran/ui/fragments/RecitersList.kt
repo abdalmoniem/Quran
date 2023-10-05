@@ -7,8 +7,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
-import androidx.navigation.NavController
-import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.RecitersListAdapter
@@ -22,7 +20,6 @@ import com.hifnawy.quran.ui.activities.MainActivity
  */
 class RecitersList : Fragment() {
     private lateinit var binding: FragmentRecitersListBinding
-    private lateinit var navController: NavController
     private val parentActivity: MainActivity by lazy {
         (activity as MainActivity)
     }
@@ -43,23 +40,24 @@ class RecitersList : Fragment() {
 
         // Inflate the layout for this fragment
         binding = FragmentRecitersListBinding.inflate(inflater, container, false)
-        navController = findNavController()
 
         with(binding) {
             recitersListAdapter = RecitersListAdapter(
                 root.context, ArrayList(parentActivity.reciters)
             ) { position, reciter, itemView ->
                 Log.d(
-                    this@RecitersList.javaClass.canonicalName,
+                    this@RecitersList::class.simpleName,
                     "clicked on $position: ${reciter.name_ar} ${itemView.recitationStyle.text}"
                 )
 
                 reciterSearch.text = null
-                navController.navigate(
-                    directions = RecitersListDirections.actionToChaptersList(
-                        reciter = reciter
-                    )
-                )
+
+                with(parentFragmentManager.beginTransaction()) {
+                    hide(this@RecitersList)
+                    addToBackStack(this@RecitersList::class.qualifiedName)
+                    add(parentActivity.binding.fragmentContainer.id, ChaptersList(reciter))
+                    commit()
+                }
             }
 
             recitersList.layoutManager = LinearLayoutManager(root.context)

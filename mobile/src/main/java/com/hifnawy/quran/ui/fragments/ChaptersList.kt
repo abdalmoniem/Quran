@@ -9,19 +9,17 @@ import android.view.ViewGroup
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import androidx.navigation.NavController
-import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
-import com.hifnawy.quran.shared.api.APIRequester.Companion.getChapterAudioFile
+import com.hifnawy.quran.shared.api.QuranAPI.Companion.getChapterAudioFile
+import com.hifnawy.quran.shared.model.Chapter
+import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
-import com.hifnawy.quran.shared.tools.SharedPreferencesManager
 import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.shared.tools.Utilities.Companion.downloadFile
 import com.hifnawy.quran.ui.activities.MainActivity
-import com.sothree.slidinguppanel.SlidingUpPanelLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,9 +31,8 @@ import java.util.Locale
 /**
  * A simple [Fragment] subclass.
  */
-class ChaptersList : Fragment() {
+class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? = null) : Fragment() {
     private lateinit var binding: FragmentChaptersListBinding
-    private lateinit var navController: NavController
     private val parentActivity: MainActivity by lazy {
         (activity as MainActivity)
     }
@@ -44,8 +41,6 @@ class ChaptersList : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        val reciter = ChaptersListArgs.fromBundle(requireArguments()).reciter
-
         var chaptersListAdapter: ChaptersListAdapter
 
         parentActivity.supportActionBar?.apply {
@@ -58,26 +53,6 @@ class ChaptersList : Fragment() {
 
         // Inflate the layout for this fragment
         binding = FragmentChaptersListBinding.inflate(inflater, container, false)
-        navController = findNavController()
-        MediaService.instance?.apply {
-            if (isMediaPlaying) {
-                val mediaPlaybackFragment = MediaPlayback().apply {
-                    arguments = MediaPlaybackArgs(
-                        SharedPreferencesManager(this@ChaptersList.requireContext()).lastReciter!!,
-                        SharedPreferencesManager(this@ChaptersList.requireContext()).lastChapter!!
-                    ).toBundle()
-                }
-
-                childFragmentManager.beginTransaction()
-                    .add(binding.fragmentContainer.id, mediaPlaybackFragment).commit()
-
-                binding.slidingLayout.panelState = SlidingUpPanelLayout.PanelState.COLLAPSED
-            } else {
-                binding.slidingLayout.panelState = SlidingUpPanelLayout.PanelState.HIDDEN
-            }
-        } ?: run {
-            binding.slidingLayout.panelState = SlidingUpPanelLayout.PanelState.HIDDEN
-        }
 
         with(binding) {
             downloadDialog.visibility = View.GONE
@@ -86,22 +61,22 @@ class ChaptersList : Fragment() {
                 root.context, ArrayList(parentActivity.chapters)
             ) { position, chapter, itemView ->
                 Log.d(
-                    this@ChaptersList.javaClass.canonicalName,
+                    this@ChaptersList::class.simpleName,
                     "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
                 )
 
                 chapterSearch.text = null
-                // navController.navigate(ChaptersListDirections.actionToMediaPlayback(reciter, chapter))
 
-                val mediaPlaybackFragment =
-                    MediaPlayback().apply { arguments = MediaPlaybackArgs(reciter, chapter).toBundle() }
+                with(parentFragmentManager.beginTransaction()) {
+                    hide(this@ChaptersList)
+                    addToBackStack(this@ChaptersList::class.qualifiedName)
+                    add(parentActivity.binding.fragmentContainer.id, MediaPlayback(reciter, chapter))
+                    commit()
+                }
 
-                childFragmentManager.beginTransaction()
-                    .add(binding.fragmentContainer.id, mediaPlaybackFragment).commit()
 
-                binding.slidingLayout.panelState = SlidingUpPanelLayout.PanelState.EXPANDED
 
-                MediaService.initialize(requireContext(), reciter, chapter)
+                MediaService.initialize(binding.root.context, reciter, chapter)
             }
 
             chaptersList.layoutManager =

@@ -17,7 +17,7 @@ import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.tools.SharedPreferencesManager
-import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializableExtra
+import com.hifnawy.quran.shared.tools.Utilities.Companion.getTypedSerializable
 import com.hifnawy.quran.ui.activities.MainActivity
 import com.hoko.blur.HokoBlur
 
@@ -41,8 +41,8 @@ class NowPlaying : AppWidgetProvider() {
         this.context = context
 
         intent?.run {
-            val reciter = getSerializableExtra<Reciter>(Constants.IntentDataKeys.RECITER.name)
-            val chapter = getSerializableExtra<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
+            val reciter = getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
+            val chapter = getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
 
             if ((reciter != null) and (chapter != null)) {
                 currentReciter = reciter

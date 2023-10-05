@@ -11,7 +11,7 @@ import okhttp3.Response
 import org.json.JSONObject
 import ru.gildor.coroutines.okhttp.await
 
-class APIRequester {
+class QuranAPI {
     fun interface ResponseHandler {
         fun handleResponse(responseBodyJson: String)
     }
@@ -20,8 +20,8 @@ class APIRequester {
         private suspend fun sendRESTRequest(url: String, handleResponse: ResponseHandler) {
             val client: OkHttpClient = OkHttpClient().newBuilder().build()
             val request: Request =
-                Request.Builder().url(url)
-                    .method("GET", null).addHeader("Accept", "application/json").build()
+                Request.Builder().url(url).method("GET", null).addHeader("Accept", "application/json")
+                    .build()
             val response: Response = client.newCall(request).await()
 
             response.body()?.string()?.let(handleResponse::handleResponse)
@@ -33,7 +33,7 @@ class APIRequester {
             sendRESTRequest("https://api.quran.com/api/v4/resources/recitations?language=ar") { responseBody ->
                 val recitersJsonArray = JSONObject(responseBody).getJSONArray("recitations").toString()
 
-                Log.d(this@Companion::class.java.canonicalName, recitersJsonArray)
+                Log.d(this@Companion::class.simpleName, recitersJsonArray)
 
                 reciters = Gson().fromJson(recitersJsonArray, Array<Reciter>::class.java)
             }
@@ -47,7 +47,7 @@ class APIRequester {
             sendRESTRequest("https://api.quran.com/api/v4/chapters?language=ar") { responseBody ->
                 val chaptersJsonArray = JSONObject(responseBody).getJSONArray("chapters").toString()
 
-                Log.d(this@Companion::class.java.canonicalName, chaptersJsonArray)
+                Log.d(this@Companion::class.simpleName, chaptersJsonArray)
 
                 chapters = Gson().fromJson(chaptersJsonArray, Array<Chapter>::class.java)
             }
@@ -61,7 +61,7 @@ class APIRequester {
             sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID/$chapterID") { responseBody ->
                 val chapterJsonObject = JSONObject(responseBody).getJSONObject("audio_file").toString()
 
-                Log.d(this@Companion::class.java.canonicalName, chapterJsonObject)
+                Log.d(this@Companion::class.simpleName, chapterJsonObject)
 
                 chapterAudioFile = Gson().fromJson(chapterJsonObject, ChapterAudioFile::class.java)
             }
@@ -74,7 +74,7 @@ class APIRequester {
             sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID") { responseBody ->
                 val chapterJsonObject = JSONObject(responseBody).getJSONArray("audio_files").toString()
 
-                Log.d(this@Companion::class.java.canonicalName, chapterJsonObject)
+                Log.d(this@Companion::class.simpleName, chapterJsonObject)
 
                 reciterChaptersAudioFiles =
                     Gson().fromJson(chapterJsonObject, Array<ChapterAudioFile>::class.java)

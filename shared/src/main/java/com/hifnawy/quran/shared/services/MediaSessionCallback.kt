@@ -7,7 +7,7 @@ import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.tools.SharedPreferencesManager
-import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializable
+import com.hifnawy.quran.shared.tools.Utilities.Companion.getTypedSerializable
 
 class MediaSessionCallback(
     private val mediaService: MediaService, private val sharedPrefsManager: SharedPreferencesManager
@@ -19,14 +19,14 @@ class MediaSessionCallback(
         sharedPrefsManager.apply {
             if ((lastReciter == null) || (lastChapter == null)) return@apply
 
-            mediaService.playMedia(lastReciter, lastChapter, 0L)
+            mediaService.playMedia(lastReciter, lastChapter, lastChapterPosition)
         }
     }
 
     override fun onPlayFromMediaId(mediaId: String?, extras: Bundle?) {
         extras?.run {
-            val reciter = getSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
-            val chapter = getSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
+            val reciter = getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
+            val chapter = getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
 
             Log.d("AndroidAuto", "Playing ${reciter?.name_ar} / ${chapter?.name_simple}...")
             mediaService.playMedia(reciter, chapter)
