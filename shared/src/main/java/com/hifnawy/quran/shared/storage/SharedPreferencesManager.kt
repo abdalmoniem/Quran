@@ -1,11 +1,11 @@
-package com.hifnawy.quran.shared.tools
+package com.hifnawy.quran.shared.storage
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.Companion.getSerializable
+import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.Companion.putSerializable
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
-import com.hifnawy.quran.shared.tools.Utilities.Companion.getSerializable
-import com.hifnawy.quran.shared.tools.Utilities.Companion.putSerializable
 
 class SharedPreferencesManager(private val context: Context) {
     private enum class SharedPrefsKeys {
@@ -17,12 +17,12 @@ class SharedPreferencesManager(private val context: Context) {
     )
 
     var lastReciter: Reciter?
-        get() = sharedPrefs.getSerializable<Reciter>(SharedPrefsKeys.LAST_RECITER.name)
+        get() = sharedPrefs.getSerializable(SharedPrefsKeys.LAST_RECITER.name)
         set(value) = sharedPrefs.edit().putSerializable(SharedPrefsKeys.LAST_RECITER.name, value!!)
             .apply()
 
     var lastChapter: Chapter?
-        get() = sharedPrefs.getSerializable<Chapter>(SharedPrefsKeys.LAST_CHAPTER.name)
+        get() = sharedPrefs.getSerializable(SharedPrefsKeys.LAST_CHAPTER.name)
         set(value) = sharedPrefs.edit().putSerializable(SharedPrefsKeys.LAST_CHAPTER.name, value!!)
             .apply()
 

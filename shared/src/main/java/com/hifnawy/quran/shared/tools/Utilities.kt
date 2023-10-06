@@ -1,19 +1,14 @@
 package com.hifnawy.quran.shared.tools
 
 import android.content.Context
-import android.content.Intent
-import android.content.SharedPreferences
-import android.os.Build
-import android.os.Bundle
 import android.util.Log
-import com.google.gson.Gson
 import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
+import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.Serializable
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Files
@@ -24,31 +19,6 @@ class Utilities {
         enum class DownloadStatus {
             STARTING_DOWNLOAD, DOWNLOADING, FINISHED_DOWNLOAD
         }
-
-        inline fun <reified GenericType : Serializable> Bundle.getTypedSerializable(key: String): GenericType? =
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> getSerializable(
-                    key, GenericType::class.java
-                )
-
-                else -> @Suppress("DEPRECATION") getSerializable(key) as? GenericType
-            }
-
-        inline fun <reified GenericType : Serializable> Intent.getTypedSerializable(key: String): GenericType? =
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> getSerializableExtra(
-                    key, GenericType::class.java
-                )
-
-                else -> @Suppress("DEPRECATION") getSerializableExtra(key) as? GenericType
-            }
-
-        inline fun <reified GenericType : Serializable> SharedPreferences.getSerializable(key: String): GenericType? =
-            Gson().fromJson(getString(key, null), GenericType::class.java)
-
-        fun SharedPreferences.Editor.putSerializable(
-            key: String, value: Serializable
-        ): SharedPreferences.Editor = putString(key, Gson().toJson(value))
 
         suspend fun downloadFile(
             context: Context,
@@ -158,7 +128,7 @@ class Utilities {
                         }
                     }
 
-                    else -> {}
+                    else -> Unit
                 }
             }
         }

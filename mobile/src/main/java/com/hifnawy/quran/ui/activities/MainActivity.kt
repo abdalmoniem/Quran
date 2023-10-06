@@ -20,12 +20,12 @@ import com.google.android.material.snackbar.Snackbar
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.ActivityMainBinding
 import com.hifnawy.quran.shared.api.QuranAPI
+import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
-import com.hifnawy.quran.shared.tools.SharedPreferencesManager
-import com.hifnawy.quran.shared.tools.Utilities.Companion.getTypedSerializable
+import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.fragments.ChaptersList
 import com.hifnawy.quran.ui.fragments.MediaPlayback
 import com.hifnawy.quran.ui.fragments.RecitersList
@@ -99,9 +99,15 @@ class MainActivity : AppCompatActivity() {
         val fragment = let {
             val reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
             val chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
+            val chapterPosition = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L)
+
+            Log.d(
+                this::class.simpleName,
+                "Reciter: $reciter\nChapter: $chapter\n chapterPosition: $chapterPosition"
+            )
 
             if ((reciter == null) || (chapter == null)) RecitersList() else MediaPlayback(
-                reciter, chapter
+                reciter, chapter, chapterPosition
             )
         }
 

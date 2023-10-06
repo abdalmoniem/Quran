@@ -22,13 +22,13 @@ import androidx.palette.graphics.Palette
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
 import com.hifnawy.quran.shared.api.QuranAPI
+import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
-import com.hifnawy.quran.shared.tools.SharedPreferencesManager
+import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.shared.tools.Utilities
-import com.hifnawy.quran.shared.tools.Utilities.Companion.getTypedSerializable
 import com.hifnawy.quran.ui.activities.MainActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -48,7 +48,11 @@ import com.hoko.blur.HokoBlur as Blur
  * A simple [Fragment] subclass.
  */
 
-class MediaPlayback(private var reciter: Reciter, private var chapter: Chapter) : Fragment() {
+class MediaPlayback(
+    private var reciter: Reciter,
+    private var chapter: Chapter,
+    private var chapterPosition: Long = 0L
+) : Fragment() {
     private lateinit var binding: FragmentMediaPlaybackBinding
     private lateinit var sharedPrefsManager: SharedPreferencesManager
 
@@ -63,8 +67,8 @@ class MediaPlayback(private var reciter: Reciter, private var chapter: Chapter) 
         @SuppressLint("SetTextI18n")
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.hasCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)) {
-                reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)!!
-                chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)!!
+                reciter = intent.getTypedSerializable(Constants.IntentDataKeys.RECITER.name)!!
+                chapter = intent.getTypedSerializable(Constants.IntentDataKeys.CHAPTER.name)!!
                 val durationMs = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_DURATION.name, -1L)
                 val currentPosition =
                     intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
@@ -122,7 +126,8 @@ class MediaPlayback(private var reciter: Reciter, private var chapter: Chapter) 
 
             chapterNext.setOnClickListener {
                 with(parentActivity) {
-                    chapter = chapters.single { chapter -> chapter.id == (if (id == 114) 1 else id + 1) }
+                    val nextChapterId = if (chapter.id == 114) 1 else chapter.id + 1
+                    chapter = chapters.single { chapter -> chapter.id == nextChapterId }
 
                     playChapter(chapter)
                 }
@@ -130,7 +135,8 @@ class MediaPlayback(private var reciter: Reciter, private var chapter: Chapter) 
 
             chapterPrevious.setOnClickListener {
                 with(parentActivity) {
-                    chapter = chapters.single { chapter -> chapter.id == (if (id == 114) 1 else id - 1) }
+                    val nextChapterId = if (chapter.id == 114) 1 else chapter.id - 1
+                    chapter = chapters.single { chapter -> chapter.id == nextChapterId }
 
                     playChapter(chapter)
                 }
@@ -198,9 +204,9 @@ class MediaPlayback(private var reciter: Reciter, private var chapter: Chapter) 
 
         sharedPrefsManager.getChapterPath(reciter, chapter)?.let {
             MediaService.instance?.run {
-                playMedia(reciter, chapter)
+                prepareMedia(reciter, chapter, chapterPosition)
             } ?: MediaService.initialize(
-                parentActivity, reciter, chapter
+                parentActivity, reciter, chapter, chapterPosition
             )
         } ?: downloadChapter()
     }
@@ -283,7 +289,7 @@ class MediaPlayback(private var reciter: Reciter, private var chapter: Chapter) 
                         })
 
                     MediaService.instance?.run {
-                        playMedia(reciter, chapter)
+                        prepareMedia(reciter, chapter)
                     } ?: MediaService.initialize(
                         parentActivity, reciter, chapter
                     )

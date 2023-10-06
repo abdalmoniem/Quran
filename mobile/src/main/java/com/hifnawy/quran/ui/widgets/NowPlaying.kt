@@ -12,12 +12,12 @@ import android.widget.RemoteViews
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat.startActivity
 import com.hifnawy.quran.R
+import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
-import com.hifnawy.quran.shared.tools.SharedPreferencesManager
-import com.hifnawy.quran.shared.tools.Utilities.Companion.getTypedSerializable
+import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.activities.MainActivity
 import com.hoko.blur.HokoBlur
 
@@ -72,28 +72,63 @@ class NowPlaying : AppWidgetProvider() {
                         } else {
                             resumeMedia()
                         }
-                    } ?: openMediaPlayer(context)
+                    } ?: sharedPrefsManager?.run {
+                        context?.startForegroundService(Intent(
+                            context, MediaService::class.java
+                        ).apply {
+                            action = Constants.Actions.PLAY_MEDIA.name
+                            putExtra(
+                                Constants.IntentDataKeys.RECITER.name, lastReciter
+                            )
+                            putExtra(
+                                Constants.IntentDataKeys.CHAPTER.name, lastChapter
+                            )
+                            putExtra(
+                                Constants.IntentDataKeys.CHAPTER_POSITION.name, lastChapterPosition
+                            )
+                        })
+                    }
                 }
 
                 WidgetActions.NEXT.name -> {
                     Log.d("Quran_Widget", "$mediaAction button is pressed")
 
-                    MediaService.instance?.run {
-                        skipToNextChapter().apply {
-                            currentReciter = reciter
-                            currentChapter = chapter
-                        }
+                    MediaService.instance?.skipToNextChapter() ?: sharedPrefsManager?.run {
+                        context?.startForegroundService(Intent(
+                            context, MediaService::class.java
+                        ).apply {
+                            action = Constants.Actions.PLAY_MEDIA.name
+                            putExtra(
+                                Constants.IntentDataKeys.RECITER.name, lastReciter
+                            )
+                            putExtra(
+                                Constants.IntentDataKeys.CHAPTER.name, lastChapter
+                            )
+                            putExtra(
+                                Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L
+                            )
+                        })
                     }
                 }
 
                 WidgetActions.PREVIOUS.name -> {
                     Log.d("Quran_Widget", "$mediaAction button is pressed")
 
-                    MediaService.instance?.run {
-                        skipToPreviousChapter().apply {
-                            currentReciter = reciter
-                            currentChapter = chapter
-                        }
+                    MediaService.instance?.skipToPreviousChapter() ?: sharedPrefsManager?.run {
+                        context?.startForegroundService(Intent(
+                            context, MediaService::class.java
+                        ).apply {
+                            action = Constants.Actions.PLAY_MEDIA.name
+                            putExtra(
+                                Constants.IntentDataKeys.RECITER.name, lastReciter
+                            )
+                            putExtra(
+                                Constants.IntentDataKeys.CHAPTER.name, lastChapter
+                            )
+                            putExtra(
+                                Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L
+                            )
+                        })
                     }
                 }
 
@@ -103,9 +138,7 @@ class NowPlaying : AppWidgetProvider() {
                     openMediaPlayer(context)
                 }
 
-                else -> {
-                    // do nothing
-                }
+                else -> Unit
             }
 
             updateUI(context!!)
@@ -120,17 +153,11 @@ class NowPlaying : AppWidgetProvider() {
         this.context = context
         // There may be multiple widgets active, so update all of them
         for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
+            updateUI(context)
+
+            // Instruct the widget manager to update the widget
+            appWidgetManager.updateAppWidget(appWidgetId, views)
         }
-    }
-
-    private fun updateAppWidget(
-        context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int
-    ) {
-        updateUI(context)
-
-        // Instruct the widget manager to update the widget
-        appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
     private fun updateUI(context: Context) {
