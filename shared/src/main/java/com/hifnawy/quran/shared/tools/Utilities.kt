@@ -27,8 +27,8 @@ class Utilities {
             chapter: Chapter,
             downloadStatusCallback: (suspend (downloadStatus: DownloadStatus, bytesDownloaded: Long, fileSize: Int, percentage: Float, audioFile: File?) -> Unit)? = null
         ) {
-            var chapterAudioFileSize = -1
             var newDownload = false
+            var chapterAudioFileSize: Int
 
             val chapterFile = getChapterPath(context, reciter, chapter)
 
@@ -133,13 +133,15 @@ class Utilities {
             }
         }
 
+        @Suppress("BlockingMethodInNonBlockingContext")
         suspend fun updateChapterPaths(
             context: Context, reciters: List<Reciter>, chapters: List<Chapter>
         ) {
+            Log.d(Utilities::class.simpleName, "Checking Chapters' Paths...")
+
             for (reciter in reciters) {
                 for (chapter in chapters) {
                     val chapterFile = getChapterPath(context, reciter, chapter)
-                    val chapterAudioFile = QuranAPI.getChapterAudioFile(reciter.id, chapter.id)
 
                     if (!chapterFile.exists()) {
                         Log.d(
@@ -147,16 +149,14 @@ class Utilities {
                             "${chapterFile.absolutePath} doesn't exist, skipping"
                         )
                         continue
-                    } else {
-                        Log.d(
-                            Utilities::class.simpleName,
-                            "${chapterFile.absolutePath} exists, checking..."
-                        )
                     }
 
-                    chapterAudioFile?.audio_url ?: continue
+                    Log.d(Utilities::class.simpleName, "${chapterFile.absolutePath} exists, checking...")
 
-                    @Suppress("BlockingMethodInNonBlockingContext") (URL(chapterAudioFile.audio_url).openConnection() as HttpURLConnection).apply {
+                    val chapterAudioFileUrl =
+                        QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url ?: continue
+
+                    (URL(chapterAudioFileUrl).openConnection() as HttpURLConnection).apply {
                         requestMethod = "GET"
                         setRequestProperty("Accept-Encoding", "identity")
                         connect()
@@ -172,13 +172,13 @@ class Utilities {
                         if (chapterFileSize != contentLength.toLong()) {
                             Log.d(
                                 Utilities::class.simpleName,
-                                "Chapter Audio File incomplete, Deleting chapterPath:\n" + "reciter #${reciter.id}: ${reciter.reciter_name}\n" + "chapter: ${chapter.name_simple}\n" + "path: ${chapterFile.absolutePath}\n"
+                                "Chapter Audio File incomplete, Deleting chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\n"
                             )
                             chapterFile.delete()
                         } else {
                             Log.d(
                                 Utilities::class.simpleName,
-                                "Chapter Audio File complete, Updating chapterPath:\n" + "reciter #${reciter.id}: ${reciter.reciter_name}\n" + "chapter: ${chapter.name_simple}\n" + "path: ${chapterFile.absolutePath}\n" + "size: ${chapterFileSize / 1024 / 1024} MBs"
+                                "Chapter Audio File complete, Updating chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\nsize: ${chapterFileSize / 1024 / 1024} MBs"
                             )
                             SharedPreferencesManager(context).setChapterPath(
                                 reciter, chapter
@@ -187,6 +187,8 @@ class Utilities {
                     }
                 }
             }
+
+            Log.d(Utilities::class.simpleName, "SharedPrefs Updated!!!")
         }
 
         private fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): File {

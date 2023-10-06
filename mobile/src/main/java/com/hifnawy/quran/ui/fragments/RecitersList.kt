@@ -19,15 +19,15 @@ import com.hifnawy.quran.ui.activities.MainActivity
  * A simple [Fragment] subclass.
  */
 class RecitersList : Fragment() {
-    private lateinit var binding: FragmentRecitersListBinding
     private val parentActivity: MainActivity by lazy {
         (activity as MainActivity)
     }
 
+    private lateinit var binding: FragmentRecitersListBinding
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        var reciters: List<Reciter>
         var recitersListAdapter: RecitersListAdapter
 
         parentActivity.supportActionBar?.apply {

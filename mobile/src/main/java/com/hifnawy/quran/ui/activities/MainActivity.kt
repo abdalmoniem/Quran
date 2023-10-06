@@ -2,12 +2,16 @@ package com.hifnawy.quran.ui.activities
 
 import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
@@ -26,6 +30,7 @@ import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
+import com.hifnawy.quran.shared.tools.Utilities.Companion.updateChapterPaths
 import com.hifnawy.quran.ui.fragments.ChaptersList
 import com.hifnawy.quran.ui.fragments.MediaPlayback
 import com.hifnawy.quran.ui.fragments.RecitersList
@@ -40,6 +45,35 @@ class MainActivity : AppCompatActivity() {
     var chapters: List<Chapter> = mutableListOf()
 
     lateinit var binding: ActivityMainBinding
+    lateinit var mediaService: MediaService
+    private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(this) }
+
+    private val serviceConnection: ServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(componentName: ComponentName, iBinder: IBinder) {
+            synchronized(this@MainActivity) {
+                mediaService = (iBinder as MediaService.ServiceBinder).instance
+
+                val fragment = let {
+                    getIntentFragment(intent) ?: mediaService.run {
+                        if (isMediaPlaying) sharedPrefsManager.lastReciter?.run {
+                            ChaptersList(
+                                this
+                            )
+                        } ?: RecitersList()
+                        else RecitersList()
+                    }
+                }
+
+                fetchDataAndLaunchFragment(fragment)
+            }
+        }
+
+        override fun onServiceDisconnected(componentName: ComponentName) {
+            synchronized(this@MainActivity) {
+                // mediaService = null
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,23 +109,19 @@ class MainActivity : AppCompatActivity() {
             subtitle = "   ${getString(R.string.reciters)}"
         }
 
-        val fragment = let {
-            getIntentFragment() ?: MediaService.instance?.run {
-                if (isMediaPlaying) SharedPreferencesManager(this).lastReciter?.run { ChaptersList(this) }
-                    ?: RecitersList()
-                else RecitersList()
-            } ?: RecitersList()
-        }
+        startForegroundService(Intent(this, MediaService::class.java).apply {
+            action = Constants.Actions.START_SERVICE.name
+        })
 
-        fetchDataAndLaunchFragment(fragment)
+        bindService(Intent(this, MediaService::class.java), serviceConnection, Context.BIND_IMPORTANT)
     }
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        getIntentFragment()?.apply { fetchDataAndLaunchFragment(this) }
+        getIntentFragment(intent)?.apply { fetchDataAndLaunchFragment(this) }
     }
 
-    private fun getIntentFragment(): Fragment? {
+    private fun getIntentFragment(intent: Intent?): Fragment? {
         Log.d(this::class.simpleName, "Intent: $intent ${intent?.extras}")
         if (intent == null) return null
         if (!intent.hasCategory(NowPlaying::class.simpleName)) return null
@@ -174,11 +204,15 @@ class MainActivity : AppCompatActivity() {
             chapters =
                 lifecycleScope.async(context = Dispatchers.IO) { QuranAPI.getChaptersList() }.await()
 
-            // lifecycleScope.async(context = Dispatchers.IO) {
-            //     updateChapterPaths(this@MainActivity, reciters, chapters)
-            // }.await()
-            //
-            // Log.d(Utilities::class.simpleName, "SharedPrefs Updated!!!")
+            if (!sharedPrefsManager.areChapterPathsSaved) {
+                lifecycleScope.async(context = Dispatchers.IO) {
+                    updateChapterPaths(
+                        this@MainActivity, reciters, chapters
+                    )
+                }.await()
+
+                sharedPrefsManager.areChapterPathsSaved = true
+            }
 
             withContext(Dispatchers.Main) {
                 supportFragmentManager.beginTransaction().add(binding.fragmentContainer.id, fragment)

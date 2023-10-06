@@ -16,7 +16,6 @@ import com.hifnawy.quran.databinding.FragmentChaptersListBinding
 import com.hifnawy.quran.shared.api.QuranAPI.Companion.getChapterAudioFile
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
-import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.shared.tools.Utilities.Companion.downloadFile
 import com.hifnawy.quran.ui.activities.MainActivity
@@ -32,10 +31,10 @@ import java.util.Locale
  * A simple [Fragment] subclass.
  */
 class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? = null) : Fragment() {
+    private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
+    private val mediaService by lazy { parentActivity.mediaService }
+
     private lateinit var binding: FragmentChaptersListBinding
-    private val parentActivity: MainActivity by lazy {
-        (activity as MainActivity)
-    }
 
     @SuppressLint("SetTextI18n")
     override fun onCreateView(
@@ -74,9 +73,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                     commit()
                 }
 
-
-
-                MediaService.initialize(binding.root.context, reciter, chapter)
+                mediaService.prepareMedia(reciter, chapter)
             }
 
             chaptersList.layoutManager =

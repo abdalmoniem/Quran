@@ -9,7 +9,7 @@ import com.hifnawy.quran.shared.model.Reciter
 
 class SharedPreferencesManager(private val context: Context) {
     private enum class SharedPrefsKeys {
-        LAST_RECITER, LAST_CHAPTER, LAST_CHAPTER_POSITION
+        LAST_RECITER, LAST_CHAPTER, LAST_CHAPTER_POSITION, MEDIA_PATH_CONSISTENCY
     }
 
     private var sharedPrefs: SharedPreferences = context.getSharedPreferences(
@@ -29,6 +29,11 @@ class SharedPreferencesManager(private val context: Context) {
     var lastChapterPosition: Long
         get() = sharedPrefs.getLong(SharedPrefsKeys.LAST_CHAPTER_POSITION.name, -1L)
         set(value) = sharedPrefs.edit().putLong(SharedPrefsKeys.LAST_CHAPTER_POSITION.name, value)
+            .apply()
+
+    var areChapterPathsSaved: Boolean
+        get() = sharedPrefs.getBoolean(SharedPrefsKeys.MEDIA_PATH_CONSISTENCY.name, false)
+        set(value) = sharedPrefs.edit().putBoolean(SharedPrefsKeys.MEDIA_PATH_CONSISTENCY.name, value)
             .apply()
 
     fun setChapterPath(reciter: Reciter, chapter: Chapter) {

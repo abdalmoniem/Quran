@@ -2,7 +2,6 @@ package com.hifnawy.quran.adapters
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -47,8 +46,6 @@ class RecitersListAdapter(
     override fun onBindViewHolder(holder: ReciterViewHolder, position: Int) {
         with(holder) {
             val reciter = this@RecitersListAdapter.reciters[position]
-
-            Log.d("RECITER_ADAPTER", reciter.toString())
 
             reciterName.text = reciter.name_ar
             recitationStyle.text = if (reciter.style != null) reciter.style!!.style else "تلاوة"

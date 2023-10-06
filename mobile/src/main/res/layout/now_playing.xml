@@ -73,8 +73,8 @@
                         <ImageView
                             android:layout_width="32dp"
                             android:layout_height="23dp"
-                            android:layout_marginEnd="15dp"
                             android:layout_marginTop="10dp"
+                            android:layout_marginEnd="15dp"
                             android:src="@drawable/quran_icon_monochrome_white_64" />
                     </LinearLayout>
 
@@ -101,25 +101,41 @@
                         android:id="@+id/chapter_previous"
                         android:layout_width="32dp"
                         android:layout_height="32dp"
-                        android:layout_marginEnd="64dp"
                         android:layout_marginStart="10dp"
+                        android:layout_marginEnd="64dp"
                         android:background="#00000000"
                         android:scaleX="2"
                         android:scaleY="2"
                         android:src="@drawable/media_skip_previous_white" />
 
-                    <ImageButton
-                        android:id="@+id/media_playback"
+                    <FrameLayout
                         android:layout_width="32dp"
                         android:layout_height="40dp"
-                        android:layout_marginEnd="64dp"
                         android:layout_marginStart="10dp"
-                        android:background="#00000000"
-                        android:elevation="50dp"
-                        android:scaleX="2"
-                        android:scaleY="2"
-                        android:src="@drawable/media_play_white"
-                        app:tint="@color/white" />
+                        android:layout_marginEnd="64dp">
+
+                        <ProgressBar
+                            android:id="@+id/chapter_loading"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:indeterminate="true"
+                            android:indeterminateBehavior="cycle"
+                            android:indeterminateOnly="true"
+                            android:indeterminateTint="@color/white"
+                            android:indeterminateTintMode="src_atop"
+                            android:visibility="invisible" />
+
+                        <ImageButton
+                            android:id="@+id/media_playback"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="#00000000"
+                            android:elevation="50dp"
+                            android:scaleX="2"
+                            android:scaleY="2"
+                            android:src="@drawable/media_play_white"
+                            app:tint="@color/white" />
+                    </FrameLayout>
 
                     <ImageButton
                         android:id="@+id/chapter_next"

@@ -28,6 +28,12 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED" />
+                <action android:name="android.appwidget.action.APPWIDGET_DISABLED" />
+                <action android:name="PLAY_PAUSE" />
+                <action android:name="NEXT" />
+                <action android:name="PREVIOUS" />
+                <action android:name="OPEN_MEDIA_PLAYER" />
             </intent-filter>
 
             <meta-data

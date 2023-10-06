@@ -46,10 +46,12 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="50dp"
         android:fontFamily="@font/decotype_thuluth_2"
-        android:text="۰۰:۰۰:۰۰"
+        android:layoutDirection="rtl"
+        android:text="۰۰ : ۰۰ : ۰۰"
+        android:textAlignment="textStart"
         android:textColor="@color/white"
         android:textDirection="rtl"
-        android:textSize="30sp"
+        android:textSize="40sp"
         android:textStyle="bold"
         app:layout_constraintBottom_toTopOf="@id/chapter_seek"
         app:layout_constraintEnd_toEndOf="parent"
@@ -112,8 +114,8 @@
                 android:layout_height="wrap_content"
                 android:gravity="center_horizontal"
                 android:orientation="vertical"
-                android:paddingBottom="30dp"
-                android:paddingTop="30dp">
+                android:paddingTop="30dp"
+                android:paddingBottom="30dp">
 
                 <TextView
                     android:id="@+id/download_dialog_chapter_download_message"
@@ -202,10 +204,10 @@
         android:id="@+id/chapter_image_card"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginBottom="50dp"
-        android:layout_marginEnd="50dp"
         android:layout_marginStart="50dp"
         android:layout_marginTop="150dp"
+        android:layout_marginEnd="50dp"
+        android:layout_marginBottom="50dp"
         app:cardBackgroundColor="#0c5147"
         app:cardCornerRadius="50dp"
         app:cardElevation="150dp"

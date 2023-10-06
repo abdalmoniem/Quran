@@ -9,7 +9,6 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.media.MediaMetadataRetriever
@@ -108,54 +107,6 @@ import java.util.TimerTask
  */
 
 class MediaService : MediaBrowserServiceCompat(), Player.Listener {
-    companion object {
-        @Volatile
-        var instance: MediaService? = null
-
-        private val serviceConnection: ServiceConnection = object : ServiceConnection {
-            override fun onServiceConnected(componentName: ComponentName, iBinder: IBinder) {
-                synchronized(this@Companion) {
-                    instance = (iBinder as MediaService.ServiceBinder).instance
-                }
-            }
-
-            override fun onServiceDisconnected(componentName: ComponentName) {
-                synchronized(this@Companion) {
-                    instance = null
-                }
-            }
-        }
-
-        fun initialize(
-            context: Context, reciter: Reciter?, chapter: Chapter?, chapterPosition: Long = 0L
-        ) {
-            if (instance == null) {
-                with(context) {
-                    startForegroundService(Intent(
-                        context, MediaService::class.java
-                    ).apply {
-                        action = Constants.Actions.PLAY_MEDIA.name
-                        putExtra(
-                            Constants.IntentDataKeys.RECITER.name, reciter
-                        )
-                        putExtra(
-                            Constants.IntentDataKeys.CHAPTER.name, chapter
-                        )
-                        putExtra(
-                            Constants.IntentDataKeys.CHAPTER_POSITION.name, chapterPosition
-                        )
-                    })
-
-                    bindService(
-                        Intent(context, MediaService::class.java),
-                        serviceConnection,
-                        Context.BIND_AUTO_CREATE
-                    )
-                }
-            }
-        }
-    }
-
     inner class ServiceBinder : Binder() {
         val instance: MediaService
             get() = this@MediaService
@@ -259,40 +210,23 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         else serviceBinder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        var reciter: Reciter? = null
+        var chapter: Chapter? = null
+
         intent?.let { serviceIntent ->
             serviceIntent.action?.let { action ->
                 with(serviceIntent) {
                     when (action) {
+                        Constants.Actions.START_SERVICE.name -> Unit
                         Constants.Actions.PLAY_MEDIA.name -> {
-                            val reciter =
+                            reciter =
                                 getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
-                            val chapter =
+                            chapter =
                                 getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
                             val chapterPosition =
                                 getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
-                            serviceForegroundNotificationChannel = NotificationChannel(
-                                "${getString(R.string.quran_recitation_notification_name)} Service",
-                                "${getString(R.string.quran_recitation_notification_name)} Service",
-                                NotificationManager.IMPORTANCE_HIGH
-                            ).apply { description = chapter!!.name_arabic }
-
-                            serviceForegroundNotification = NotificationCompat.Builder(
-                                this@MediaService,
-                                "${getString(R.string.quran_recitation_notification_name)} Service"
-                            ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
-                                .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
-                                .setContentTitle(chapter!!.name_arabic).setContentText(reciter!!.name_ar)
-                                .build()
-
-                            // Register the channel with the system
-                            notificationManager.createNotificationChannel(
-                                serviceForegroundNotificationChannel
-                            )
-                            startForeground(
-                                R.integer.quran_chapter_recitation_notification_channel_id,
-                                serviceForegroundNotification
-                            )
+                            if ((reciter == null) || (chapter == null)) return -1
 
                             Log.d(
                                 this@MediaService::class.simpleName,
@@ -315,12 +249,31 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
                             seekChapterToPosition(chapterPosition)
                         }
-
-                        else -> Unit
                     }
                 }
             }
         }
+
+        serviceForegroundNotificationChannel = NotificationChannel(
+            "${getString(R.string.quran_recitation_notification_name)} Service",
+            "${getString(R.string.quran_recitation_notification_name)} Service",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply { description = chapter?.name_arabic ?: getString(R.string.chapter_name) }
+
+        serviceForegroundNotification = NotificationCompat.Builder(
+            this@MediaService, "${getString(R.string.quran_recitation_notification_name)} Service"
+        ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
+            .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
+            .setContentTitle(chapter?.name_arabic ?: getString(R.string.chapter_name))
+            .setContentText(reciter?.name_ar ?: getString(R.string.reciter_name)).build()
+
+        // Register the channel with the system
+        notificationManager.createNotificationChannel(
+            serviceForegroundNotificationChannel
+        )
+        startForeground(
+            R.integer.quran_chapter_recitation_notification_channel_id, serviceForegroundNotification
+        )
 
         return START_STICKY
     }
@@ -422,10 +375,10 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             }
 
             Player.STATE_ENDED -> {
-                currentChapter =
+                val chapter =
                     mediaManager.chapters.single { chapter -> chapter.id == (if (currentChapter!!.id == 114) 1 else currentChapter!!.id + 1) }
                 currentChapterPosition = -1L
-                prepareMedia(currentReciter, currentChapter)
+                prepareMedia(currentReciter, chapter)
             }
         }
     }
@@ -628,6 +581,8 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
             putExtra(Constants.IntentDataKeys.RECITER.name, reciter)
             putExtra(Constants.IntentDataKeys.CHAPTER.name, chapter)
+            putExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, exoPlayer.currentPosition)
+            putExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, isMediaPlaying)
 
             val widgetIds = AppWidgetManager.getInstance(this@MediaService).getAppWidgetIds(
                 ComponentName(
