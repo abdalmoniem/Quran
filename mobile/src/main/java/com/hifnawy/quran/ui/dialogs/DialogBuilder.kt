@@ -8,8 +8,8 @@ import android.view.LayoutInflater
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.DownloadDialogBinding
+import com.hifnawy.quran.databinding.UpdatingDataDialogBinding
 
 class DialogBuilder {
 
@@ -18,6 +18,19 @@ class DialogBuilder {
     }
 
     companion object {
+
+        fun prepareUpdateDialog(context: Context): AlertDialog {
+            val dialogBinding =
+                UpdatingDataDialogBinding.inflate(LayoutInflater.from(context), null, false)
+            val dialog = MaterialAlertDialogBuilder(context)
+                .setView(dialogBinding.root)
+                .setCancelable(false)
+                .create()
+
+            dialog.window?.decorView?.setBackgroundColor(Color.TRANSPARENT)
+
+            return dialog
+        }
 
         fun showErrorDialog(
                 context: Context,
@@ -53,7 +66,6 @@ class DialogBuilder {
 
                 DownloadType.BULK -> Unit
             }
-
             val dialog = MaterialAlertDialogBuilder(context)
                 .setView(dialogBinding.root)
                 .setCancelable(false)

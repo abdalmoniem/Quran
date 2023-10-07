@@ -6,6 +6,9 @@ import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -127,9 +130,10 @@ class Utilities {
         }
 
         @Suppress("BlockingMethodInNonBlockingContext")
-        suspend fun updateChapterPaths(
-                context: Context, reciters: List<Reciter>, chapters: List<Chapter>
-        ) {
+        suspend fun updateChapterPaths(context: Context) {
+            val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
+            val reciters = ioCoroutineScope.async { QuranAPI.getRecitersList() }.await()
+            val chapters = ioCoroutineScope.async { QuranAPI.getChaptersList() }.await()
             Log.d(Utilities::class.simpleName, "Checking Chapters' Paths...")
 
             for (reciter in reciters) {

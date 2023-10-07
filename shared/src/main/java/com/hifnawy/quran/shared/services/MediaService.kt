@@ -143,7 +143,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private lateinit var sharedPrefsManager: SharedPreferencesManager
     private lateinit var serviceForegroundNotification: Notification
     private lateinit var serviceForegroundNotificationChannel: NotificationChannel
-    private lateinit var mediaManager: MediaManager
+    private val mediaManager: MediaManager by lazy { MediaManager.getInstance(this) }
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
     private var currentChapterPosition: Long = -1L
@@ -152,9 +152,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     override fun onCreate() {
         super.onCreate()
 
-        Log.d(
-                ::MediaService.javaClass.name, "${this::class.simpleName} service started!!!"
-        )
+        Log.d(MediaService::class.simpleName, "${this::class.simpleName} service started!!!")
 
         sharedPrefsManager = SharedPreferencesManager(this)
 
@@ -167,8 +165,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         mediaSession.setCallback(MediaSessionCallback(this@MediaService, sharedPrefsManager))
 
         mediaSession.isActive = true
-
-        mediaManager = MediaManager.getInstance(this)
 
         with(mediaManager) {
             mediaStateListener =
@@ -352,10 +348,11 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             }
 
             Player.STATE_ENDED -> {
-                val chapter =
-                    mediaManager.chapters.single { chapter -> chapter.id == (if (currentChapter!!.id == 114) 1 else currentChapter!!.id + 1) }
+                // val chapter =
+                //     mediaManager.chapters.single { chapter -> chapter.id == (if (currentChapter!!.id == 114) 1 else currentChapter!!.id + 1) }
                 currentChapterPosition = -1L
-                prepareMedia(currentReciter, chapter)
+                skipToNextChapter()
+                // prepareMedia(currentReciter, chapter)
             }
         }
     }
@@ -733,7 +730,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         playbackMonitorTimer.cancel()
         playbackMonitorTimer.purge()
         mediaManager.processNextChapter()
-        // processAndPlayMedia()
     }
 
     fun skipToPreviousChapter() {
@@ -742,7 +738,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         playbackMonitorTimer.purge()
         currentChapterPosition = -1L
         mediaManager.processPreviousChapter()
-        // processAndPlayMedia()
     }
 
     fun seekChapterToPosition(chapterPosition: Long) {

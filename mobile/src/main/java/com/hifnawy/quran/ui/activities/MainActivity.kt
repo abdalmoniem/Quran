@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -23,14 +24,14 @@ import com.google.android.material.color.DynamicColors
 import com.google.android.material.snackbar.Snackbar
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.ActivityMainBinding
-import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
-import com.hifnawy.quran.shared.tools.Utilities.Companion.updateChapterPaths
+import com.hifnawy.quran.shared.tools.Utilities
+import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import com.hifnawy.quran.ui.fragments.ChaptersList
 import com.hifnawy.quran.ui.fragments.MediaPlayback
 import com.hifnawy.quran.ui.fragments.RecitersList
@@ -42,8 +43,6 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
-    var reciters: List<Reciter> = mutableListOf()
-    var chapters: List<Chapter> = mutableListOf()
     lateinit var binding: ActivityMainBinding
     lateinit var mediaService: MediaService
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(this) }
@@ -62,7 +61,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                fetchDataAndLaunchFragment(fragment)
+                launchFragment(fragment)
             }
         }
 
@@ -113,7 +112,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        getIntentFragment(intent)?.apply { fetchDataAndLaunchFragment(this) }
+        getIntentFragment(intent)?.apply { launchFragment(this) }
     }
 
     private fun getIntentFragment(intent: Intent?): Fragment? {
@@ -189,27 +188,27 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    private fun fetchDataAndLaunchFragment(fragment: Fragment) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            reciters =
-                lifecycleScope.async(context = Dispatchers.IO) { QuranAPI.getRecitersList() }.await()
-            chapters =
-                lifecycleScope.async(context = Dispatchers.IO) { QuranAPI.getChaptersList() }.await()
-
-            if (!sharedPrefsManager.areChapterPathsSaved) {
-                lifecycleScope.async(context = Dispatchers.IO) {
-                    updateChapterPaths(
-                            this@MainActivity, reciters, chapters
-                    )
-                }.await()
-
-                sharedPrefsManager.areChapterPathsSaved = true
-            }
-
+    private fun launchFragment(fragment: Fragment) {
+        lifecycleScope.launch {
+            lifecycleScope.async(context = Dispatchers.IO) { checkDataConsistency() }.await()
             withContext(Dispatchers.Main) {
                 supportFragmentManager.beginTransaction().add(binding.fragmentContainer.id, fragment)
                     .commit()
             }
         }
+    }
+
+    private suspend fun checkDataConsistency() {
+        if (sharedPrefsManager.areChapterPathsSaved) return
+        lateinit var dialog: AlertDialog
+
+        withContext(Dispatchers.Main) {
+            dialog = DialogBuilder.prepareUpdateDialog(binding.root.context)
+            dialog.show()
+        }
+        Utilities.updateChapterPaths(this)
+        withContext(Dispatchers.Main) { dialog.dismiss() }
+
+        sharedPrefsManager.areChapterPathsSaved = true
     }
 }

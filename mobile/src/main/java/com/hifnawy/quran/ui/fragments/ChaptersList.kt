@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -17,6 +18,7 @@ import androidx.work.workDataOf
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
+import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
@@ -24,6 +26,9 @@ import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.activities.MainActivity
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
@@ -37,6 +42,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private val mediaService by lazy { parentActivity.mediaService }
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(binding.root.context) }
+    private var chapters: List<Chapter> = mutableListOf()
     private lateinit var binding: FragmentChaptersListBinding
     private lateinit var chaptersListAdapter: ChaptersListAdapter
 
@@ -56,78 +62,83 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
         // Inflate the layout for this fragment
         binding = FragmentChaptersListBinding.inflate(inflater, container, false)
 
-        with(binding) {
-            chaptersListAdapter = ChaptersListAdapter(
-                    root.context, ArrayList(parentActivity.chapters)
-            ) { position, chapter, itemView ->
-                Log.d(
-                        this@ChaptersList::class.simpleName,
-                        "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
-                )
+        lifecycleScope.launch {
+            chapters =
+                lifecycleScope.async(context = Dispatchers.IO) { QuranAPI.getChaptersList() }.await()
 
-                chapterSearch.text = null
+            with(binding) {
+                chaptersListAdapter = ChaptersListAdapter(
+                        root.context, ArrayList(chapters)
+                ) { position, chapter, itemView ->
+                    Log.d(
+                            ChaptersList::class.simpleName,
+                            "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
+                    )
 
-                with(parentFragmentManager.beginTransaction()) {
-                    hide(this@ChaptersList)
-                    addToBackStack(this@ChaptersList::class.qualifiedName)
-                    add(parentActivity.binding.fragmentContainer.id, MediaPlayback(reciter, chapter))
-                    commit()
-                }
+                    chapterSearch.text = null
 
-                mediaService.prepareMedia(reciter, chapter)
-            }
-
-            chaptersList.layoutManager =
-                GridLayoutManager(root.context, 3, GridLayoutManager.VERTICAL, false)
-            chaptersList.adapter = chaptersListAdapter
-
-            chapterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
-                if (charSequence.toString().isEmpty()) {
-                    chaptersListAdapter.setChapters(parentActivity.chapters)
-                } else {
-                    val searchResults = parentActivity.chapters.filter { chapter ->
-                        chapter.name_arabic.contains(charSequence.toString())
+                    with(parentFragmentManager.beginTransaction()) {
+                        hide(this@ChaptersList)
+                        addToBackStack(ChaptersList::class.qualifiedName)
+                        add(parentActivity.binding.fragmentContainer.id, MediaPlayback(reciter, chapter))
+                        commit()
                     }
 
-                    if (searchResults.isNotEmpty()) {
-                        chaptersListAdapter.setChapters(searchResults)
+                    mediaService.prepareMedia(reciter, chapter)
+                }
+
+                chaptersList.layoutManager =
+                    GridLayoutManager(root.context, 3, GridLayoutManager.VERTICAL, false)
+                chaptersList.adapter = chaptersListAdapter
+
+                chapterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
+                    if (charSequence.toString().isEmpty()) {
+                        chaptersListAdapter.setChapters(chapters)
                     } else {
-                        chaptersListAdapter.clear()
-                    }
-                }
-            })
+                        val searchResults = chapters.filter { chapter ->
+                            chapter.name_arabic.contains(charSequence.toString())
+                        }
 
-            downloadAllChapters.setOnClickListener {
-                val workManager = WorkManager.getInstance(binding.root.context)
-                DownloadWorkManager.chapters = chaptersListAdapter.getChapters()
-                sharedPrefsManager.lastDownloadRequestID?.let(::observeWorker)
-                    ?: run {
-                        val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
-                            .setInputData(
-                                    workDataOf(
-                                            Constants.IntentDataKeys.SINGLE_DOWNLOAD_TYPE.name to false,
-                                            Constants.IntentDataKeys.RECITER.name to DownloadWorkManager.fromReciter(
-                                                    reciter
-                                            )
-                                    )
+                        if (searchResults.isNotEmpty()) {
+                            chaptersListAdapter.setChapters(searchResults)
+                        } else {
+                            chaptersListAdapter.clear()
+                        }
+                    }
+                })
+
+                downloadAllChapters.setOnClickListener {
+                    val workManager = WorkManager.getInstance(binding.root.context)
+                    DownloadWorkManager.chapters = chaptersListAdapter.getChapters()
+                    sharedPrefsManager.lastDownloadRequestID?.let(::observeWorker)
+                        ?: run {
+                            val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
+                                .setInputData(
+                                        workDataOf(
+                                                Constants.IntentDataKeys.SINGLE_DOWNLOAD_TYPE.name to false,
+                                                Constants.IntentDataKeys.RECITER.name to DownloadWorkManager.fromReciter(
+                                                        reciter
+                                                )
+                                        )
+                                )
+                                .build()
+
+                            sharedPrefsManager.lastDownloadRequestID = downloadWorkRequest.id.toString()
+                            observeWorker(downloadWorkRequest.id.toString())
+
+                            workManager.enqueueUniqueWork(
+                                    ChaptersList::class.simpleName.toString(),
+                                    ExistingWorkPolicy.KEEP,
+                                    downloadWorkRequest
                             )
-                            .build()
+                        }
+                }
 
-                        sharedPrefsManager.lastDownloadRequestID = downloadWorkRequest.id.toString()
-                        observeWorker(downloadWorkRequest.id.toString())
-
-                        workManager.enqueueUniqueWork(
-                                ChaptersList::class.simpleName.toString(),
-                                ExistingWorkPolicy.KEEP,
-                                downloadWorkRequest
-                        )
-                    }
+                sharedPrefsManager.lastDownloadRequestID?.let(::observeWorker)
             }
-
-            sharedPrefsManager.lastDownloadRequestID?.let(::observeWorker)
-
-            return root
         }
+
+        return binding.root
     }
 
     @SuppressLint("SetTextI18n")

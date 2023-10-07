@@ -64,9 +64,8 @@ class NowPlaying : AppWidgetProvider() {
         if (context == null) return
         if (intent == null) return
         widgetContext = context
-        val mediaAction = intent.action
 
-        when (mediaAction) {
+        when (intent.action) {
             WidgetActions.PLAY_PAUSE.name -> {
                 val state = if (isMediaPlaying) Constants.Actions.PAUSE_MEDIA
                 else Constants.Actions.PLAY_MEDIA

@@ -77,21 +77,11 @@ class MediaPlayback(
             }
 
             chapterNext.setOnClickListener {
-                with(parentActivity) {
-                    val nextChapterId = if (chapter.id == 114) 1 else chapter.id + 1
-                    chapter = chapters.single { chapter -> chapter.id == nextChapterId }
-
-                    playChapter(chapter, 0L)
-                }
+                mediaService.skipToNextChapter()
             }
 
             chapterPrevious.setOnClickListener {
-                with(parentActivity) {
-                    val nextChapterId = if (chapter.id == 114) 1 else chapter.id - 1
-                    chapter = chapters.single { chapter -> chapter.id == nextChapterId }
-
-                    playChapter(chapter, 0L)
-                }
+                mediaService.skipToPreviousChapter()
             }
 
             chapterSeek.addOnChangeListener { _, value, fromUser ->
