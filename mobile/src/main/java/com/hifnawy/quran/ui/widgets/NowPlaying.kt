@@ -97,7 +97,7 @@ class NowPlaying : AppWidgetProvider() {
                 currentReciter = reciter
                 currentChapter = chapter
 
-                // setClickListeners(context)
+                setClickListeners(context)
                 updateUI(context)
             }
 
