@@ -13,7 +13,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
-import com.hifnawy.quran.shared.api.QuranAPI.Companion.getChapterAudioFile
+import com.hifnawy.quran.shared.api.QuranAPI.Companion.getReciterChaptersAudioFiles
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.tools.Utilities
@@ -126,11 +126,33 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                     }
 
                     lifecycleScope.launch(Dispatchers.IO) {
+                        withContext(Dispatchers.Main) {
+                            downloadDialogChapterProgress.progress = 0
+                            downloadDialogChapterDownloadMessage.text = "${
+                                context.getString(
+                                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                                        ""
+                                )
+                            }\n${decimalFormat.format(0)} مب. \\ ${
+                                decimalFormat.format(0)
+                            } مب. (${decimalFormat.format(0)}٪)"
+
+                            downloadDialogAllChaptersProgress.progress = 0
+                            downloadDialogAllChaptersDownloadMessage.text =
+                                context.getString(
+                                        com.hifnawy.quran.shared.R.string.loading_all_chapters,
+                                        decimalFormat.format(0)
+                                )
+                        }
+                        val chapterAudioFiles = getReciterChaptersAudioFiles(reciter.id)
+
                         for (chapter in chaptersListAdapter.getChapters()) {
-                            val chapterAudioFile = getChapterAudioFile(reciter.id, chapter.id)
+                            val chapterAudioFile =
+                                chapterAudioFiles.find { chapterAudioFile -> chapterAudioFile.chapter_id == chapter.id }
+                                    ?: continue
 
                             downloadFile(
-                                    context, URL(chapterAudioFile?.audio_url), reciter, chapter
+                                    context, URL(chapterAudioFile.audio_url), reciter, chapter
                             ) { downloadStatus, bytesDownloaded, fileSize, percentage, _ ->
                                 withContext(Dispatchers.Main) {
                                     when (downloadStatus) {
@@ -157,7 +179,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                                             downloadDialogChapterProgress.progress =
                                                 percentage.toInt()
                                             downloadDialogChapterDownloadMessage.text = "${
-                                                this@ChaptersList.context?.getString(
+                                                context.getString(
                                                         com.hifnawy.quran.shared.R.string.loading_chapter,
                                                         chapter.name_arabic
                                                 )
@@ -180,7 +202,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                                             downloadDialogChapterProgress.progress =
                                                 percentage.toInt()
                                             downloadDialogChapterDownloadMessage.text = "${
-                                                this@ChaptersList.context?.getString(
+                                                context.getString(
                                                         com.hifnawy.quran.shared.R.string.loading_chapter,
                                                         chapter.name_arabic
                                                 )
