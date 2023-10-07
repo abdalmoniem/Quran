@@ -101,6 +101,8 @@ class MediaManager(private var context: Context) {
                             audioFile!!,
                             AppCompatResources.getDrawable(context, drawableId)
                         )
+
+                        DOWNLOAD_ERROR -> Unit
                     }
                     downloadListener?.onProgressChanged(
                         downloadStatus, bytesDownloaded, fileSize, percentage, audioFile

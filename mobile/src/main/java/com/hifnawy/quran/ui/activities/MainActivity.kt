@@ -41,23 +41,21 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
+
     var reciters: List<Reciter> = mutableListOf()
     var chapters: List<Chapter> = mutableListOf()
-
     lateinit var binding: ActivityMainBinding
     lateinit var mediaService: MediaService
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(this) }
-
     private val serviceConnection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(componentName: ComponentName, iBinder: IBinder) {
             synchronized(this@MainActivity) {
                 mediaService = (iBinder as MediaService.ServiceBinder).instance
-
                 val fragment = let {
                     getIntentFragment(intent) ?: mediaService.run {
                         if (isMediaPlaying) sharedPrefsManager.lastReciter?.run {
                             ChaptersList(
-                                this
+                                    this
                             )
                         } ?: RecitersList()
                         else RecitersList()
@@ -98,13 +96,10 @@ class MainActivity : AppCompatActivity() {
             // disable back button
             setHomeButtonEnabled(false)
             setDisplayHomeAsUpEnabled(false)
-
             // adding icon in the ActionBar
             setIcon(R.mipmap.ic_quran_mobile_round)
-
             // providing title for the ActionBar
             title = "   ${getString(R.string.quran)}"
-
             // providing subtitle for the ActionBar
             subtitle = "   ${getString(R.string.reciters)}"
         }
@@ -125,19 +120,18 @@ class MainActivity : AppCompatActivity() {
         Log.d(this::class.simpleName, "Intent: $intent ${intent?.extras}")
         if (intent == null) return null
         if (!intent.hasCategory(NowPlaying::class.simpleName)) return null
-
         val fragment = let {
             val reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
             val chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
             val chapterPosition = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L)
 
             Log.d(
-                this::class.simpleName,
-                "Reciter: $reciter\nChapter: $chapter\n chapterPosition: $chapterPosition"
+                    this::class.simpleName,
+                    "Reciter: $reciter\nChapter: $chapter\n chapterPosition: $chapterPosition"
             )
 
             if ((reciter == null) || (chapter == null)) RecitersList() else MediaPlayback(
-                reciter, chapter, chapterPosition
+                    reciter, chapter, chapterPosition
             )
         }
 
@@ -147,24 +141,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+            requestCode: Int, permissions: Array<out String>, grantResults: IntArray
     ) {
         if (requestCode == 93) {
             if (grantResults.isNotEmpty() && (grantResults[0] != PackageManager.PERMISSION_GRANTED)) {
                 val snackbar = Snackbar.make(
-                    binding.root,
-                    getString(R.string.notification_permission_required),
-                    Snackbar.LENGTH_INDEFINITE
+                        binding.root,
+                        getString(R.string.notification_permission_required),
+                        Snackbar.LENGTH_INDEFINITE
                 )
 
                 snackbar.setAction("الذهاب للإعدادات") {
                     try {
-                        //Open the specific App Info page:
+                        // Open the specific App Info page:
                         startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                             data = Uri.parse("package:$packageName")
                         })
                     } catch (e: ActivityNotFoundException) {
-                        //Open the generic Apps page:
+                        // Open the generic Apps page:
                         val intent = Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)
                         startActivity(intent)
                     }
@@ -180,21 +174,19 @@ class MainActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (supportFragmentManager.backStackEntryCount == 0) {
-            super.onBackPressed()
-        } else {
-            Log.d(
+        if (supportFragmentManager.fragments.isEmpty()) return super.onBackPressed()
+        if (supportFragmentManager.backStackEntryCount == 0) return super.onBackPressed()
+
+        Log.d(
                 this::class.simpleName,
                 "showing ${supportFragmentManager.fragments.dropLast(1).last()}..."
-            )
-            supportFragmentManager.beginTransaction()
-                .show(supportFragmentManager.fragments.dropLast(1).last()).commit()
+        )
+        supportFragmentManager.beginTransaction()
+            .show(supportFragmentManager.fragments.dropLast(1).last()).commit()
 
-            Log.d(
-                this::class.simpleName, "popping ${supportFragmentManager.fragments.last()}..."
-            )
-            supportFragmentManager.popBackStackImmediate()
-        }
+        Log.d(this::class.simpleName, "popping ${supportFragmentManager.fragments.last()}...")
+        supportFragmentManager.popBackStackImmediate()
+
     }
 
     private fun fetchDataAndLaunchFragment(fragment: Fragment) {
@@ -207,7 +199,7 @@ class MainActivity : AppCompatActivity() {
             if (!sharedPrefsManager.areChapterPathsSaved) {
                 lifecycleScope.async(context = Dispatchers.IO) {
                     updateChapterPaths(
-                        this@MainActivity, reciters, chapters
+                            this@MainActivity, reciters, chapters
                     )
                 }.await()
 

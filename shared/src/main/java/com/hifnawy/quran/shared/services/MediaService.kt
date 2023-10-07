@@ -658,6 +658,8 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             Utilities.Companion.DownloadStatus.FINISHED_DOWNLOAD -> setMediaPlaybackState(
                 MediaSessionState.PLAYING
             )
+
+            Utilities.Companion.DownloadStatus.DOWNLOAD_ERROR -> Unit
         }
     }
 

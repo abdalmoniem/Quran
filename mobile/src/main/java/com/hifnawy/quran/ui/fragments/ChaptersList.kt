@@ -19,6 +19,7 @@ import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.shared.tools.Utilities.Companion.downloadFile
 import com.hifnawy.quran.ui.activities.MainActivity
+import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,37 +32,36 @@ import java.util.Locale
  * A simple [Fragment] subclass.
  */
 class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? = null) : Fragment() {
+
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private val mediaService by lazy { parentActivity.mediaService }
-
     private lateinit var binding: FragmentChaptersListBinding
 
     @SuppressLint("SetTextI18n")
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+            inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         var chaptersListAdapter: ChaptersListAdapter
 
         parentActivity.supportActionBar?.apply {
             // providing title for the ActionBar
             title = "   ${getString(R.string.quran)}"
-
             // providing subtitle for the ActionBar
-            subtitle = "   ${getString(R.string.chapters)}: ${reciter.name_ar}"
-        }
+            subtitle =
+                "   ${getString(R.string.chapters)}: ${reciter.name_ar} ${if (reciter.style?.style != null) "(${reciter.style?.style})" else ""}"
 
+            show()
+        }
         // Inflate the layout for this fragment
         binding = FragmentChaptersListBinding.inflate(inflater, container, false)
 
         with(binding) {
-            downloadDialog.visibility = View.GONE
-
             chaptersListAdapter = ChaptersListAdapter(
-                root.context, ArrayList(parentActivity.chapters)
+                    root.context, ArrayList(parentActivity.chapters)
             ) { position, chapter, itemView ->
                 Log.d(
-                    this@ChaptersList::class.simpleName,
-                    "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
+                        this@ChaptersList::class.simpleName,
+                        "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
                 )
 
                 chapterSearch.text = null
@@ -96,87 +96,117 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                 }
             })
 
-            downloadDialogCancelDownload.setOnClickListener {
-                downloadDialog.visibility = View.GONE
-            }
-
             downloadAllChapters.setOnClickListener {
-                downloadDialog.visibility = View.VISIBLE
+                val context = binding.root.context
 
-                downloadDialogChapterProgress.valueFrom = 0f
-                downloadDialogChapterProgress.valueTo = 100f
-                downloadDialogChapterProgress.value = 0f
-                downloadDialogAllChaptersProgress.valueFrom = 0f
-                downloadDialogAllChaptersProgress.valueTo = 100f
-                downloadDialogAllChaptersProgress.value = 0f
+                val (dialog, dialogBinding) = DialogBuilder.prepareDownloadDialog(
+                        binding.root.context,
+                        DialogBuilder.DownloadType.BULK
+                )
 
-                val decimalFormat =
-                    DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
+                with(dialogBinding) {
+                    downloadDialogChapterProgress.min = 0
+                    downloadDialogChapterProgress.max = 100
+                    downloadDialogChapterProgress.progress = 0
+                    downloadDialogAllChaptersProgress.min = 0
+                    downloadDialogAllChaptersProgress.max = 100
+                    downloadDialogAllChaptersProgress.progress = 0
+                    val decimalFormat =
+                        DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
+                    var chaptersDownloaded = 0
 
-                var chaptersDownloaded = 0
+                    dialog.show()
+                    with(dialogBinding) {
+                        downloadDialogAllChaptersProgress.progress = 0
+                        downloadDialogAllChaptersDownloadMessage.text =
+                            context.getString(
+                                    com.hifnawy.quran.shared.R.string.loading_all_chapters,
+                                    decimalFormat.format(0)
+                            )
+                    }
 
-                lifecycleScope.launch(Dispatchers.IO) {
-                    for (chapter in chaptersListAdapter.getChapters()) {
-                        if (downloadDialog.visibility == View.VISIBLE) {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        for (chapter in chaptersListAdapter.getChapters()) {
                             val chapterAudioFile = getChapterAudioFile(reciter.id, chapter.id)
 
-                            context?.let { context ->
-                                downloadFile(
+                            downloadFile(
                                     context, URL(chapterAudioFile?.audio_url), reciter, chapter
-                                ) { downloadStatus, bytesDownloaded, fileSize, percentage, _ ->
+                            ) { downloadStatus, bytesDownloaded, fileSize, percentage, _ ->
+                                withContext(Dispatchers.Main) {
                                     when (downloadStatus) {
                                         Utilities.Companion.DownloadStatus.STARTING_DOWNLOAD -> {
-                                            withContext(Dispatchers.Main) {
-                                                downloadDialogChapterDownloadMessage.text = "${
-                                                    this@ChaptersList.context?.getString(
+                                            downloadDialogChapterProgress.progress =
+                                                percentage.toInt()
+                                            downloadDialogChapterDownloadMessage.text = "${
+                                                this@ChaptersList.context?.getString(
                                                         com.hifnawy.quran.shared.R.string.loading_chapter,
                                                         chapter.name_arabic
-                                                    )
-                                                }\n…"
-                                                downloadDialogChapterProgress.value = 100f
-                                            }
+                                                )
+                                            }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
+                                                decimalFormat.format(
+                                                        fileSize.toFloat() / (1024 * 1024)
+                                                )
+                                            } مب. (${
+                                                decimalFormat.format(
+                                                        percentage
+                                                )
+                                            }٪)"
                                         }
 
                                         Utilities.Companion.DownloadStatus.DOWNLOADING -> {
-                                            withContext(Dispatchers.Main) {
-                                                with(binding) {
-                                                    downloadDialogChapterDownloadMessage.text = "${
-                                                        this@ChaptersList.context?.getString(
-                                                            com.hifnawy.quran.shared.R.string.loading_chapter,
-                                                            chapter.name_arabic
-                                                        )
-                                                    }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
-                                                        decimalFormat.format(
-                                                            fileSize.toFloat() / (1024 * 1024)
-                                                        )
-                                                    } مب. (${
-                                                        decimalFormat.format(
-                                                            percentage
-                                                        )
-                                                    }٪)"
-                                                    downloadDialogChapterProgress.value = percentage
-                                                }
-                                            }
+                                            downloadDialogChapterProgress.progress =
+                                                percentage.toInt()
+                                            downloadDialogChapterDownloadMessage.text = "${
+                                                this@ChaptersList.context?.getString(
+                                                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                                                        chapter.name_arabic
+                                                )
+                                            }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
+                                                decimalFormat.format(
+                                                        fileSize.toFloat() / (1024 * 1024)
+                                                )
+                                            } مب. (${
+                                                decimalFormat.format(
+                                                        percentage
+                                                )
+                                            }٪)"
                                         }
 
                                         Utilities.Companion.DownloadStatus.FINISHED_DOWNLOAD -> {
                                             chaptersDownloaded++
+                                            val chaptersDownloadProgress =
+                                                (chaptersDownloaded.toFloat() / chaptersListAdapter.itemCount.toFloat()) * 100f
 
-                                            lifecycleScope.launch(Dispatchers.Main) {
-                                                val chaptersDownloadProgress =
-                                                    (chaptersDownloaded.toFloat() / chaptersListAdapter.itemCount.toFloat()) * 100f
-                                                downloadDialogAllChaptersProgress.value =
-                                                    chaptersDownloadProgress
-                                                downloadDialogAllChaptersDownloadMessage.text =
-                                                    context.getString(
+                                            downloadDialogChapterProgress.progress =
+                                                percentage.toInt()
+                                            downloadDialogChapterDownloadMessage.text = "${
+                                                this@ChaptersList.context?.getString(
+                                                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                                                        chapter.name_arabic
+                                                )
+                                            }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
+                                                decimalFormat.format(
+                                                        fileSize.toFloat() / (1024 * 1024)
+                                                )
+                                            } مب. (${decimalFormat.format(percentage)}٪)"
+
+                                            downloadDialogAllChaptersProgress.progress =
+                                                chaptersDownloadProgress.toInt()
+                                            downloadDialogAllChaptersDownloadMessage.text =
+                                                context.getString(
                                                         com.hifnawy.quran.shared.R.string.loading_all_chapters,
                                                         decimalFormat.format(chaptersDownloadProgress)
-                                                    )
-                                            }
+                                                )
                                         }
+
+                                        Utilities.Companion.DownloadStatus.DOWNLOAD_ERROR -> Unit
                                     }
                                 }
                             }
+                        }
+
+                        withContext(Dispatchers.Main) {
+                            dialog.dismiss()
                         }
                     }
                 }

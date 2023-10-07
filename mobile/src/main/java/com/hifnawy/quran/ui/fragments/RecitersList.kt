@@ -36,6 +36,8 @@ class RecitersList : Fragment() {
 
             // providing subtitle for the ActionBar
             subtitle = "   ${getString(R.string.reciters)}"
+
+            show()
         }
 
         // Inflate the layout for this fragment

@@ -1,7 +1,6 @@
 package com.hifnawy.quran.ui.fragments
 
 import android.annotation.SuppressLint
-import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -29,11 +28,11 @@ import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.ui.activities.MainActivity
+import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.net.URL
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
@@ -118,15 +117,12 @@ class MediaPlayback(
     }
 
     override fun onResume() {
-        binding.downloadDialog.visibility = View.GONE
-
         with(parentActivity) {
             supportActionBar?.hide()
 
             registerReceiver(mediaUpdatesReceiver,
                              IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)).apply {
                                  addCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)
-                                 addCategory(Constants.ServiceUpdates.ERROR.name)
                              })
         }
 
@@ -162,8 +158,16 @@ class MediaPlayback(
 
     @SuppressLint("SetTextI18n")
     private fun downloadChapter() {
-        with(binding) {
-            downloadDialog.visibility = View.VISIBLE
+        val (dialog, dialogBinding) = DialogBuilder.prepareDownloadDialog(
+                binding.root.context,
+                DialogBuilder.DownloadType.SINGLE
+        )
+
+        dialog.show()
+        with(dialogBinding) {
+            downloadDialogChapterProgress.min = 0
+            downloadDialogChapterProgress.max = 100
+            downloadDialogChapterProgress.progress = 0
             downloadDialogChapterDownloadMessage.text = "${
                 context?.getString(
                         com.hifnawy.quran.shared.R.string.loading_chapter, chapter.name_arabic
@@ -173,7 +177,6 @@ class MediaPlayback(
                         0
                 )
             }٪)"
-            downloadDialogChapterProgress.value = 0f
         }
 
         parentActivity.unregisterReceiver(mediaUpdatesReceiver)
@@ -185,64 +188,68 @@ class MediaPlayback(
                 )
             }.await()
             lifecycleScope.async(Dispatchers.IO) {
-                Utilities.downloadFile(
-                        binding.root.context,
-                        URL(chapterAudioFile?.audio_url),
-                        reciter,
-                        chapter,
-                        ::updateDownloadUI
-                )
+                with(dialogBinding) {
+                    Utilities.downloadFile(
+                            binding.root.context,
+                            URL(chapterAudioFile?.audio_url),
+                            reciter,
+                            chapter
+                    ) { downloadStatus, bytesDownloaded, fileSize, percentage, _ ->
+                        withContext(Dispatchers.Main) {
+                            when (downloadStatus) {
+                                Utilities.Companion.DownloadStatus.STARTING_DOWNLOAD -> Unit
+                                Utilities.Companion.DownloadStatus.DOWNLOADING -> {
+                                    downloadDialogChapterProgress.progress = percentage.toInt()
+                                    downloadDialogChapterDownloadMessage.text = "${
+                                        context?.getString(
+                                                com.hifnawy.quran.shared.R.string.loading_chapter,
+                                                chapter.name_arabic
+                                        )
+                                    }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
+                                        decimalFormat.format(
+                                                fileSize.toFloat() / (1024 * 1024)
+                                        )
+                                    } مب. (${
+                                        decimalFormat.format(
+                                                percentage
+                                        )
+                                    }٪)"
+
+                                }
+
+                                Utilities.Companion.DownloadStatus.FINISHED_DOWNLOAD -> {
+                                    dialog.dismiss()
+
+                                    parentActivity.registerReceiver(mediaUpdatesReceiver,
+                                                                    IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)).apply {
+                                                                        addCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)
+                                                                    })
+
+                                    mediaService.prepareMedia(reciter, chapter)
+                                }
+
+                                Utilities.Companion.DownloadStatus.DOWNLOAD_ERROR -> {
+                                    dialog.dismiss()
+
+                                    DialogBuilder.showErrorDialog(
+                                            this@MediaPlayback.binding.root.context,
+                                            getString(R.string.connection_error_title),
+                                            getString(R.string.connection_error_message),
+                                            getString(R.string.connection_error_action)
+                                    ) { _, _ ->
+                                        parentFragmentManager.beginTransaction()
+                                            .replace(
+                                                    parentActivity.binding.fragmentContainer.id,
+                                                    RecitersList()
+                                            )
+                                            .commit()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }.await()
-        }
-    }
-
-    @SuppressLint("SetTextI18n")
-    private suspend fun updateDownloadUI(
-            downloadStatus: Utilities.Companion.DownloadStatus,
-            bytesDownloaded: Long,
-            fileSize: Int,
-            percentage: Float,
-            audioFile: File?
-    ) {
-        withContext(Dispatchers.Main) {
-            when (downloadStatus) {
-                Utilities.Companion.DownloadStatus.STARTING_DOWNLOAD -> binding.downloadDialog.visibility =
-                    View.VISIBLE
-
-                Utilities.Companion.DownloadStatus.DOWNLOADING -> {
-                    with(binding) {
-                        downloadDialogChapterDownloadMessage.text = "${
-                            context?.getString(
-                                    com.hifnawy.quran.shared.R.string.loading_chapter,
-                                    chapter.name_arabic
-                            )
-                        }\n${decimalFormat.format(bytesDownloaded / (1024 * 1024))} مب. \\ ${
-                            decimalFormat.format(
-                                    fileSize / (1024 * 1024)
-                            )
-                        } مب. (${
-                            decimalFormat.format(
-                                    percentage
-                            )
-                        }٪)"
-                        downloadDialogChapterProgress.value = percentage
-                    }
-                }
-
-                Utilities.Companion.DownloadStatus.FINISHED_DOWNLOAD -> {
-                    binding.downloadDialog.visibility = View.GONE
-
-                    parentActivity.registerReceiver(mediaUpdatesReceiver,
-                                                    IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)).apply {
-                                                        addCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)
-                                                        addCategory(Constants.ServiceUpdates.ERROR.name)
-                                                    })
-
-                    mediaService.run {
-                        prepareMedia(reciter, chapter)
-                    }
-                }
-            }
         }
     }
 
@@ -268,8 +275,6 @@ class MediaPlayback(
         ).generate().getDominantColor(Color.RED)
 
         with(binding) {
-            downloadDialogChapterProgress.valueFrom = 0f
-            downloadDialogChapterProgress.valueTo = 100f
             chapterBackgroundImage.setImageDrawable(bitmap.toDrawable(resources))
             chapterName.text = chapter.name_arabic
             reciterName.text = reciter.name_ar
@@ -343,20 +348,8 @@ class MediaPlayback(
                         chapterSeek.value = currentPosition.toFloat()
                     }
                 }
-            } else if (intent.hasCategory(Constants.ServiceUpdates.ERROR.name)) {
-                AlertDialog.Builder(this@MediaPlayback.context)
-                    .setTitle(getString(R.string.connection_error_title))
-                    .setMessage(getString(R.string.connection_error_message))
-                    .setPositiveButton(getString(R.string.connection_error_action)) { _, _ ->
-                        // navigate up twice to get back to reciters list fragment
-                        parentFragmentManager.popBackStackImmediate()
-                        parentFragmentManager.popBackStackImmediate()
-                    }.create().apply {
-                        window?.decorView?.layoutDirection = View.LAYOUT_DIRECTION_RTL
-                        show()
-                    }
             } else {
-                // irrelevant
+                // do nothing
             }
         }
     }
