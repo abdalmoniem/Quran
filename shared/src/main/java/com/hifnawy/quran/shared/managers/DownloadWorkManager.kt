@@ -16,6 +16,7 @@ import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Files
@@ -46,26 +47,6 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         fun fromChapter(chapter: Chapter): String {
             return gsonParser.toJson(chapter)
         }
-
-        fun toChapters(chaptersJSON: Array<String>): List<Chapter> {
-            val chapters = mutableListOf<Chapter>()
-
-            for (chapterJSON in chaptersJSON) {
-                chapters.add(gsonParser.fromJson(chapterJSON, Chapter::class.java))
-            }
-
-            return chapters
-        }
-
-        fun fromChapters(chapters: List<Chapter>): Array<String> {
-            val chaptersJSON = Array(chapters.size) { "" }
-
-            for (chapterIndex in chapters.indices) {
-                chaptersJSON[chapterIndex] = gsonParser.toJson(chapters[chapterIndex])
-            }
-
-            return chaptersJSON
-        }
     }
 
     enum class DownloadStatus { FILE_EXISTS, STARTING_DOWNLOAD, DOWNLOADING, FINISHED_DOWNLOAD, DOWNLOAD_ERROR, DOWNLOAD_INTERRUPTED
@@ -73,6 +54,10 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
     enum class DownloadWorkerInfo { CURRENT_CHAPTER_NUMBER, DOWNLOAD_STATUS, BYTES_DOWNLOADED, FILE_SIZE, FILE_PATH, PROGRESS
     }
+
+    @Suppress("PrivatePropertyName")
+    private var TAG = DownloadWorkManager::class.simpleName
+    private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(context) }
 
     override suspend fun doWork(): Result {
         val reciterJSON =
@@ -95,17 +80,57 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             val chapter = toChapter(chapterJSON)
             val url = URL(urlString)
 
-            return downloadFile(url, reciter, chapter, true)
+            sharedPrefsManager.getChapterPath(reciter, chapter)?.let { chapterFilePath ->
+                val chapterFile = File(chapterFilePath)
+                val chapterFileSize = Files.readAttributes(
+                        chapterFile.toPath(), BasicFileAttributes::class.java
+                ).size()
+
+                setProgress(
+                        DownloadStatus.FILE_EXISTS,
+                        chapterFileSize,
+                        chapterFileSize.toInt(),
+                        chapterFile.absolutePath,
+                        100f,
+                        null
+                )
+
+                return Result.success(
+                        workDataOf(
+                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FILE_EXISTS.name,
+                                DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterFileSize,
+                                DownloadWorkerInfo.FILE_SIZE.name to chapterFileSize.toInt(),
+                                DownloadWorkerInfo.FILE_PATH.name to chapterFile.absolutePath,
+                                DownloadWorkerInfo.PROGRESS.name to 100f
+                        )
+                )
+            } ?: return downloadFile(url, reciter, chapter, true)
         }
 
         if (chapters.isEmpty()) return Result.failure(workDataOf(DownloadStatus.DOWNLOAD_ERROR.name to "invalid chapters list"))
         val chapterAudioFiles = QuranAPI.getReciterChaptersAudioFiles(reciter.id)
 
         for (currentChapter in chapters) {
-            val chapterAudioFile =
-                chapterAudioFiles.find { chapterAudioFile -> chapterAudioFile.chapter_id == currentChapter.id }
-                    ?: continue
-            downloadFile(URL(chapterAudioFile.audio_url), reciter, currentChapter, false)
+            sharedPrefsManager.getChapterPath(reciter, currentChapter)
+                ?.let { chapterFilePath ->
+                    val chapterFile = File(chapterFilePath)
+                    val chapterFileSize = Files.readAttributes(
+                            chapterFile.toPath(), BasicFileAttributes::class.java
+                    ).size()
+
+                    setProgress(
+                            DownloadStatus.FILE_EXISTS,
+                            chapterFileSize,
+                            chapterFileSize.toInt(),
+                            chapterFile.absolutePath,
+                            100f,
+                            currentChapter
+                    )
+                } ?: chapterAudioFiles.find { chapterAudioFile ->
+                chapterAudioFile.chapter_id == currentChapter.id
+            }?.let { chapterAudioFile ->
+                downloadFile(URL(chapterAudioFile.audio_url), reciter, currentChapter, false)
+            }
         }
 
         return Result.success()
@@ -146,18 +171,6 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             url: URL, reciter: Reciter, chapter: Chapter, singleFileDownload: Boolean = true
     ): Result {
         val decimalFormat = DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
-        var serviceForegroundNotification = NotificationCompat.Builder(
-                context, "${context.getString(R.string.quran_recitation_notification_name)} Service"
-        ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
-            .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true).setContentTitle(
-                    context.getString(R.string.loading_chapter, chapter.name_arabic)
-            ).setContentText(
-                    "${decimalFormat.format(0 / (1024 * 1024))} مب. \\ ${decimalFormat.format(0 / (1024 * 1024))} مب. (${
-                        decimalFormat.format(0)
-                    }٪)"
-            ).setSubText(reciter.name_ar).build()
-        var newDownload = false
-        var chapterAudioFileSize: Int
         val chapterFile = getChapterPath(context, reciter, chapter)
 
         chapterFile.parentFile?.run {
@@ -165,7 +178,6 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 mkdirs()
             }
         }
-
         (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             setRequestProperty("Accept-Encoding", "identity")
@@ -173,165 +185,69 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
             when (responseCode) {
                 in 200..299 -> {
-                    chapterAudioFileSize = contentLength
+                    val chapterAudioFileSize = contentLength
+                    var offset = 0L
 
                     if (chapterFile.exists()) {
                         val chapterFileSize = Files.readAttributes(
                                 chapterFile.toPath(), BasicFileAttributes::class.java
                         ).size()
 
-                        if (chapterFileSize != chapterAudioFileSize.toLong()) {
-                            chapterFile.delete()
-                            chapterFile.createNewFile()
-                            newDownload = true
-                        }
-                    } else {
-                        newDownload = true
+                        offset = chapterFileSize
                     }
 
-                    if (newDownload) {
-                        setProgress(
-                                DownloadStatus.STARTING_DOWNLOAD,
-                                0,
-                                chapterAudioFileSize,
-                                null,
-                                0f,
-                                if (singleFileDownload) null else chapter
-                        )
-                        val inputStream = inputStream
-                        val outputStream = chapterFile.outputStream()
-                        var bytes = 0
-                        var bytesDownloaded = 0L
-                        val buffer = ByteArray(1024)
-                        while (!isStopped && (bytes >= 0)) {
-                            bytesDownloaded += bytes
-                            val percentage =
-                                (bytesDownloaded.toFloat() / chapterAudioFileSize.toFloat() * 100)
-
-                            Log.d(
-                                    DownloadWorkManager::class.simpleName,
-                                    "downloading ${chapterFile.name} $bytesDownloaded \\ $chapterAudioFileSize ($percentage%)"
-                            )
-
-                            setProgress(
-                                    DownloadStatus.DOWNLOADING,
-                                    bytesDownloaded,
-                                    chapterAudioFileSize,
-                                    null,
-                                    percentage,
-                                    if (singleFileDownload) null else chapter
-                            )
-
-                            serviceForegroundNotification = NotificationCompat.Builder(
-                                    context,
-                                    "${context.getString(R.string.quran_recitation_notification_name)} Service"
-                            ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
-                                .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
-                                .setContentTitle(
-                                        context.getString(R.string.loading_chapter, chapter.name_arabic)
-                                ).setContentText(
-                                        "${decimalFormat.format(bytesDownloaded / (1024 * 1024))} مب. \\ ${
-                                            decimalFormat.format(
-                                                    chapterAudioFileSize / (1024 * 1024)
-                                            )
-                                        } مب. (${
-                                            decimalFormat.format(
-                                                    percentage
-                                            )
-                                        }٪)"
-                                ).setSubText(reciter.name_ar).build()
-
-                            setForeground(ForegroundInfo(230893, serviceForegroundNotification))
-
-                            outputStream.write(buffer, 0, bytes)
-                            bytes = inputStream.read(buffer)
-                        }
-                        inputStream.close()
-                        outputStream.close()
+                    if (offset != chapterAudioFileSize.toLong()) {
+                        Log.d(TAG, "skipping $offset bytes in the input stream...")
                         disconnect()
-
-                        if (isStopped) {
-                            setProgress(
-                                    DownloadStatus.DOWNLOAD_INTERRUPTED,
-                                    chapterAudioFileSize.toLong(),
-                                    chapterAudioFileSize,
-                                    chapterFile.absolutePath,
-                                    100f,
-                                    if (singleFileDownload) null else chapter
-                            )
-
-                            return Result.failure(
-                                    workDataOf(
-                                            DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_INTERRUPTED.name,
-                                            DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterAudioFileSize.toLong(),
-                                            DownloadWorkerInfo.FILE_SIZE.name to chapterAudioFileSize,
-                                            DownloadWorkerInfo.FILE_PATH.name to chapterFile.absolutePath,
-                                            DownloadWorkerInfo.PROGRESS.name to 100f
-                                    )
-                            )
-                        } else {
-                            SharedPreferencesManager(context).setChapterPath(reciter, chapter)
-
-                            setProgress(
-                                    DownloadStatus.FINISHED_DOWNLOAD,
-                                    chapterAudioFileSize.toLong(),
-                                    chapterAudioFileSize,
-                                    chapterFile.absolutePath,
-                                    100f,
-                                    if (singleFileDownload) null else chapter
-                            )
-
-                            return Result.success(
-                                    workDataOf(
-                                            DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FINISHED_DOWNLOAD.name,
-                                            DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterAudioFileSize.toLong(),
-                                            DownloadWorkerInfo.FILE_SIZE.name to chapterAudioFileSize,
-                                            DownloadWorkerInfo.FILE_PATH.name to chapterFile.absolutePath,
-                                            DownloadWorkerInfo.PROGRESS.name to 100f
-                                    )
-                            )
-                        }
-                    } else {
-                        SharedPreferencesManager(context).setChapterPath(reciter, chapter)
-
-                        setProgress(
-                                DownloadStatus.FILE_EXISTS,
-                                chapterAudioFileSize.toLong(),
+                        return executeDownload(
+                                url,
+                                reciter,
+                                chapter,
+                                chapterFile,
                                 chapterAudioFileSize,
-                                chapterFile.absolutePath,
-                                100f,
-                                if (singleFileDownload) null else chapter
-                        )
-
-                        serviceForegroundNotification = NotificationCompat.Builder(
-                                context,
-                                "${context.getString(R.string.quran_recitation_notification_name)} Service"
-                        ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
-                            .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
-                            .setContentTitle(
-                                    context.getString(R.string.loading_chapter, chapter.name_arabic)
-                            ).setContentText(
-                                    "${decimalFormat.format(chapterAudioFileSize.toLong() / (1024 * 1024))} مب. \\ ${
-                                        decimalFormat.format(
-                                                chapterAudioFileSize / (1024 * 1024)
-                                        )
-                                    } مب. (${
-                                        decimalFormat.format(100f)
-                                    }٪)"
-                            ).setSubText(reciter.name_ar).build()
-
-                        setForeground(ForegroundInfo(230893, serviceForegroundNotification))
-
-                        return Result.success(
-                                workDataOf(
-                                        DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FILE_EXISTS.name,
-                                        DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterAudioFileSize.toLong(),
-                                        DownloadWorkerInfo.FILE_SIZE.name to chapterAudioFileSize,
-                                        DownloadWorkerInfo.FILE_PATH.name to chapterFile.absolutePath,
-                                        DownloadWorkerInfo.PROGRESS.name to 100f
-                                )
+                                offset,
+                                singleFileDownload
                         )
                     }
+
+                    sharedPrefsManager.setChapterPath(reciter, chapter)
+
+                    setProgress(
+                            DownloadStatus.FILE_EXISTS,
+                            chapterAudioFileSize.toLong(),
+                            chapterAudioFileSize,
+                            chapterFile.absolutePath,
+                            100f,
+                            if (singleFileDownload) null else chapter
+                    )
+                    val serviceForegroundNotification = NotificationCompat.Builder(
+                            context,
+                            "${context.getString(R.string.quran_recitation_notification_name)} Service"
+                    ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
+                        .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
+                        .setContentTitle(
+                                context.getString(R.string.loading_chapter, chapter.name_arabic)
+                        ).setContentText(
+                                "${decimalFormat.format(chapterAudioFileSize.toLong() / (1024 * 1024))} مب. \\ ${
+                                    decimalFormat.format(
+                                            chapterAudioFileSize / (1024 * 1024)
+                                    )
+                                } مب. (${
+                                    decimalFormat.format(100f)
+                                }٪)"
+                        ).setSubText(reciter.name_ar).build()
+
+                    setForeground(ForegroundInfo(230893, serviceForegroundNotification))
+
+                    return Result.success(
+                            workDataOf(
+                                    DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FILE_EXISTS.name,
+                                    DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterAudioFileSize.toLong(),
+                                    DownloadWorkerInfo.FILE_SIZE.name to chapterAudioFileSize,
+                                    DownloadWorkerInfo.FILE_PATH.name to chapterFile.absolutePath,
+                                    DownloadWorkerInfo.PROGRESS.name to 100f
+                            )
+                    )
                 }
 
                 else -> {
@@ -349,6 +265,150 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                             )
                     )
                 }
+            }
+        }
+    }
+
+    @Suppress("BlockingMethodInNonBlockingContext")
+    private suspend fun executeDownload(
+            url: URL,
+            reciter: Reciter,
+            chapter: Chapter,
+            chapterFile: File,
+            chapterAudioFileSize: Int,
+            offset: Long,
+            singleFileDownload: Boolean
+    ): Result {
+        (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            setRequestProperty("Accept-Encoding", "identity")
+            setRequestProperty("Range", "bytes=$offset-")
+            connect()
+            val decimalFormat =
+                DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
+            setProgress(
+                    DownloadStatus.STARTING_DOWNLOAD,
+                    0,
+                    chapterAudioFileSize,
+                    null,
+                    0f,
+                    if (singleFileDownload) null else chapter
+            )
+            val outputStream = FileOutputStream(chapterFile, true)
+            var bytes = 0
+            var bytesDownloaded = offset
+            val buffer = ByteArray(1024)
+            var progress = (bytesDownloaded.toFloat() / chapterAudioFileSize.toFloat() * 100)
+
+            setProgress(
+                    DownloadStatus.DOWNLOADING,
+                    bytesDownloaded,
+                    chapterAudioFileSize,
+                    null,
+                    progress,
+                    if (singleFileDownload) null else chapter
+            )
+
+            if (responseCode !in 200..299) {
+                setProgress(
+                        DownloadStatus.DOWNLOAD_ERROR,
+                        -1L,
+                        -1,
+                        null,
+                        0f,
+                        if (singleFileDownload) null else chapter
+                )
+                return Result.failure(workDataOf(DownloadWorkerInfo.DOWNLOAD_STATUS.name to "connection to $url returned a $responseCode response code"))
+
+            }
+            Log.d(TAG, "Starting Download...")
+            while (!isStopped && (bytes >= 0)) {
+                bytesDownloaded += bytes
+                progress = (bytesDownloaded.toFloat() / chapterAudioFileSize.toFloat() * 100)
+
+                Log.d(
+                        TAG,
+                        "downloading ${chapterFile.name} $bytesDownloaded \\ $chapterAudioFileSize ($progress%)"
+                )
+
+                setProgress(
+                        DownloadStatus.DOWNLOADING,
+                        bytesDownloaded,
+                        chapterAudioFileSize,
+                        null,
+                        progress,
+                        if (singleFileDownload) null else chapter
+                )
+                val serviceForegroundNotification = NotificationCompat.Builder(
+                        context,
+                        "${context.getString(R.string.quran_recitation_notification_name)} Service"
+                ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
+                    .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
+                    .setContentTitle(
+                            context.getString(
+                                    R.string.loading_chapter, chapter.name_arabic
+                            )
+                    ).setContentText(
+                            "${decimalFormat.format(bytesDownloaded / (1024 * 1024))} مب. \\ ${
+                                decimalFormat.format(
+                                        chapterAudioFileSize / (1024 * 1024)
+                                )
+                            } مب. (${
+                                decimalFormat.format(
+                                        progress
+                                )
+                            }٪)"
+                    ).setSubText(reciter.name_ar).build()
+
+                setForeground(ForegroundInfo(230893, serviceForegroundNotification))
+
+                outputStream.write(buffer, 0, bytes)
+                bytes = inputStream.read(buffer)
+            }
+            inputStream.close()
+            outputStream.close()
+            disconnect()
+
+            if (isStopped) {
+                setProgress(
+                        DownloadStatus.DOWNLOAD_INTERRUPTED,
+                        chapterAudioFileSize.toLong(),
+                        chapterAudioFileSize,
+                        chapterFile.absolutePath,
+                        100f,
+                        if (singleFileDownload) null else chapter
+                )
+
+                return Result.failure(
+                        workDataOf(
+                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_INTERRUPTED.name,
+                                DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterAudioFileSize.toLong(),
+                                DownloadWorkerInfo.FILE_SIZE.name to chapterAudioFileSize,
+                                DownloadWorkerInfo.FILE_PATH.name to chapterFile.absolutePath,
+                                DownloadWorkerInfo.PROGRESS.name to 100f
+                        )
+                )
+            } else {
+                sharedPrefsManager.setChapterPath(reciter, chapter)
+
+                setProgress(
+                        DownloadStatus.FINISHED_DOWNLOAD,
+                        chapterAudioFileSize.toLong(),
+                        chapterAudioFileSize,
+                        chapterFile.absolutePath,
+                        100f,
+                        if (singleFileDownload) null else chapter
+                )
+
+                return Result.success(
+                        workDataOf(
+                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FINISHED_DOWNLOAD.name,
+                                DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterAudioFileSize.toLong(),
+                                DownloadWorkerInfo.FILE_SIZE.name to chapterAudioFileSize,
+                                DownloadWorkerInfo.FILE_PATH.name to chapterFile.absolutePath,
+                                DownloadWorkerInfo.PROGRESS.name to 100f
+                        )
+                )
             }
         }
     }

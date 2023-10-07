@@ -23,7 +23,6 @@ import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
-import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.activities.MainActivity
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +40,6 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
 
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private val mediaService by lazy { parentActivity.mediaService }
-    private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(binding.root.context) }
     private var chapters: List<Chapter> = mutableListOf()
     private lateinit var binding: FragmentChaptersListBinding
     private lateinit var chaptersListAdapter: ChaptersListAdapter
@@ -110,31 +108,25 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                 downloadAllChapters.setOnClickListener {
                     val workManager = WorkManager.getInstance(binding.root.context)
                     DownloadWorkManager.chapters = chaptersListAdapter.getChapters()
-                    sharedPrefsManager.lastDownloadRequestID?.let(::observeWorker)
-                        ?: run {
-                            val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
-                                .setInputData(
-                                        workDataOf(
-                                                Constants.IntentDataKeys.SINGLE_DOWNLOAD_TYPE.name to false,
-                                                Constants.IntentDataKeys.RECITER.name to DownloadWorkManager.fromReciter(
-                                                        reciter
-                                                )
+                    val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
+                        .setInputData(
+                                workDataOf(
+                                        Constants.IntentDataKeys.SINGLE_DOWNLOAD_TYPE.name to false,
+                                        Constants.IntentDataKeys.RECITER.name to DownloadWorkManager.fromReciter(
+                                                reciter
                                         )
                                 )
-                                .build()
+                        )
+                        .build()
 
-                            sharedPrefsManager.lastDownloadRequestID = downloadWorkRequest.id.toString()
-                            observeWorker(downloadWorkRequest.id.toString())
+                    observeWorker(downloadWorkRequest.id)
 
-                            workManager.enqueueUniqueWork(
-                                    ChaptersList::class.simpleName.toString(),
-                                    ExistingWorkPolicy.KEEP,
-                                    downloadWorkRequest
-                            )
-                        }
+                    workManager.enqueueUniqueWork(
+                            ChaptersList::class.simpleName.toString(),
+                            ExistingWorkPolicy.REPLACE,
+                            downloadWorkRequest
+                    )
                 }
-
-                sharedPrefsManager.lastDownloadRequestID?.let(::observeWorker)
             }
         }
 
@@ -142,7 +134,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
     }
 
     @SuppressLint("SetTextI18n")
-    private fun observeWorker(lastDownloadRequestID: String) {
+    private fun observeWorker(requestID: UUID) {
         val context = binding.root.context
 
         val (dialog, dialogBinding) = DialogBuilder.prepareDownloadDialog(
@@ -187,13 +179,12 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                 )
         }
         val workManager = WorkManager.getInstance(binding.root.context)
-        workManager.getWorkInfoByIdLiveData(UUID.fromString(lastDownloadRequestID))
+        workManager.getWorkInfoByIdLiveData(requestID)
             .observe(viewLifecycleOwner) { workInfo ->
                 if (workInfo == null) return@observe
                 if (workInfo.state == WorkInfo.State.FAILED) return@observe
                 if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                     dialog.dismiss()
-                    sharedPrefsManager.lastDownloadRequestID = null
                     return@observe
                 }
                 val currentChapterJSON =

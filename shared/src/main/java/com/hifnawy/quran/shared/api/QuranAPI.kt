@@ -25,7 +25,7 @@ class QuranAPI {
 
         private suspend fun sendRESTRequest(url: String, responseHandler: ResponseHandler) {
             val client: OkHttpClient = OkHttpClient().newBuilder()
-                .connectTimeout(5, TimeUnit.SECONDS)
+                .connectTimeout(60, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true).build()
             val request: Request = Request.Builder()
                 .url(url)

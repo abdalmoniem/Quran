@@ -27,10 +27,6 @@ class SharedPreferencesManager(private val context: Context) {
         get() = sharedPrefs.getLong(SharedPrefsKeys.LAST_CHAPTER_POSITION.name, -1L)
         set(value) = sharedPrefs.edit().putLong(SharedPrefsKeys.LAST_CHAPTER_POSITION.name, value)
             .apply()
-    var lastDownloadRequestID: String?
-        get() = sharedPrefs.getString(SharedPrefsKeys.LAST_DOWNLOAD_REQUEST_ID.name, null)
-        set(value) = sharedPrefs.edit()
-            .putString(SharedPrefsKeys.LAST_DOWNLOAD_REQUEST_ID.name, value).apply()
     var areChapterPathsSaved: Boolean
         get() = sharedPrefs.getBoolean(SharedPrefsKeys.MEDIA_PATH_CONSISTENCY.name, false)
         set(value) = sharedPrefs.edit().putBoolean(SharedPrefsKeys.MEDIA_PATH_CONSISTENCY.name, value)
