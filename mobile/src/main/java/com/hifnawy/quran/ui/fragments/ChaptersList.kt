@@ -136,6 +136,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
     @SuppressLint("SetTextI18n")
     private fun observeWorker(requestID: UUID) {
         val context = binding.root.context
+        val workManager = WorkManager.getInstance(binding.root.context)
 
         val (dialog, dialogBinding) = DialogBuilder.prepareDownloadDialog(
                 binding.root.context,
@@ -145,6 +146,11 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
         dialog.show()
 
         with(dialogBinding) {
+            dialogBinding.downloadDialogCancelDownload.setOnClickListener {
+                workManager.cancelWorkById(requestID)
+                dialog.dismiss()
+            }
+            
             downloadDialogChapterProgress.min = 0
             downloadDialogChapterProgress.max = 100
             downloadDialogChapterProgress.progress = 0
@@ -178,7 +184,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                         decimalFormat.format(0)
                 )
         }
-        val workManager = WorkManager.getInstance(binding.root.context)
+
         workManager.getWorkInfoByIdLiveData(requestID)
             .observe(viewLifecycleOwner) { workInfo ->
                 if (workInfo == null) return@observe

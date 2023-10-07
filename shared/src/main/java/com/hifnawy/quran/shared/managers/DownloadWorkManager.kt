@@ -118,6 +118,11 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                             chapterFile.toPath(), BasicFileAttributes::class.java
                     ).size()
 
+                    Log.d(
+                            TAG,
+                            "file ${chapterFile.name} $chapterFileSize \\ $chapterFileSize (100%) exists and is complete, will not download!"
+                    )
+
                     setProgress(
                             DownloadStatus.FILE_EXISTS,
                             chapterFileSize,
@@ -194,10 +199,21 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                         ).size()
 
                         offset = chapterFileSize
+                        val progress = (offset.toFloat() / chapterAudioFileSize.toFloat() * 100)
+
+                        Log.d(
+                                TAG,
+                                "file ${chapterFile.name} $offset \\ $chapterAudioFileSize ($progress%) exists but is not complete, resuming download..."
+                        )
+                    } else {
+                        Log.d(
+                                TAG,
+                                "file ${chapterFile.name} 0 \\ $chapterAudioFileSize (0%) does not exist, starting download..."
+                        )
                     }
 
                     if (offset != chapterAudioFileSize.toLong()) {
-                        Log.d(TAG, "skipping $offset bytes in the input stream...")
+                        Log.d(TAG, "skipping $offset bytes from $url...")
                         disconnect()
                         return executeDownload(
                                 url,
@@ -321,7 +337,6 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 return Result.failure(workDataOf(DownloadWorkerInfo.DOWNLOAD_STATUS.name to "connection to $url returned a $responseCode response code"))
 
             }
-            Log.d(TAG, "Starting Download...")
             while (!isStopped && (bytes >= 0)) {
                 bytesDownloaded += bytes
                 progress = (bytesDownloaded.toFloat() / chapterAudioFileSize.toFloat() * 100)
