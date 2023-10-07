@@ -215,10 +215,16 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                                             downloadDialogAllChaptersProgress.progress =
                                                 chaptersDownloadProgress.toInt()
                                             downloadDialogAllChaptersDownloadMessage.text =
-                                                context.getString(
-                                                        com.hifnawy.quran.shared.R.string.loading_all_chapters,
-                                                        decimalFormat.format(chaptersDownloadProgress)
-                                                )
+                                                "${
+                                                    context.getString(
+                                                            com.hifnawy.quran.shared.R.string.loading_all_chapters,
+                                                            decimalFormat.format(chaptersDownloadProgress)
+                                                    )
+                                                }\n${decimalFormat.format(chaptersDownloaded + 1)} \\ ${
+                                                    decimalFormat.format(
+                                                            114
+                                                    )
+                                                }"
                                         }
 
                                         Utilities.Companion.DownloadStatus.DOWNLOAD_ERROR -> Unit
