@@ -6,7 +6,7 @@ import java.io.Serializable
 
 class SharedPreferencesExt {
     companion object {
-        inline fun <reified GenericType : Serializable> SharedPreferences.getSerializable(key: String): GenericType? =
+        inline fun <reified GenericType : Serializable> SharedPreferences.getSerializable(key: String): GenericType =
             Gson().fromJson(getString(key, null), GenericType::class.java)
 
         inline fun <reified GenericType : Serializable> SharedPreferences.Editor.putSerializable(

@@ -63,6 +63,9 @@ dependencies {
     implementation 'io.github.hokofly:hoko-blur:1.5.0'
     implementation 'androidx.palette:palette-ktx:1.0.0'
 
+    // Kotlin + coroutines WorkManager dependency
+    implementation("androidx.work:work-runtime-ktx:2.8.1")
+
     // Import the BoM for the Firebase platform
     implementation(platform('com.google.firebase:firebase-bom:32.3.1'))
 

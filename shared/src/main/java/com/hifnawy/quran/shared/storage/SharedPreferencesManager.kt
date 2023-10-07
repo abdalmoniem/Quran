@@ -9,28 +9,28 @@ import com.hifnawy.quran.shared.model.Reciter
 
 class SharedPreferencesManager(private val context: Context) {
     private enum class SharedPrefsKeys {
-        LAST_RECITER, LAST_CHAPTER, LAST_CHAPTER_POSITION, MEDIA_PATH_CONSISTENCY
+        LAST_RECITER, LAST_CHAPTER, LAST_CHAPTER_POSITION, LAST_DOWNLOAD_REQUEST_ID, MEDIA_PATH_CONSISTENCY
     }
 
     private var sharedPrefs: SharedPreferences = context.getSharedPreferences(
-        "${context.packageName}_preferences", Context.MODE_PRIVATE
+            "${context.packageName}_preferences", Context.MODE_PRIVATE
     )
-
     var lastReciter: Reciter?
         get() = sharedPrefs.getSerializable(SharedPrefsKeys.LAST_RECITER.name)
         set(value) = sharedPrefs.edit().putSerializable(SharedPrefsKeys.LAST_RECITER.name, value!!)
             .apply()
-
     var lastChapter: Chapter?
         get() = sharedPrefs.getSerializable(SharedPrefsKeys.LAST_CHAPTER.name)
         set(value) = sharedPrefs.edit().putSerializable(SharedPrefsKeys.LAST_CHAPTER.name, value!!)
             .apply()
-
     var lastChapterPosition: Long
         get() = sharedPrefs.getLong(SharedPrefsKeys.LAST_CHAPTER_POSITION.name, -1L)
         set(value) = sharedPrefs.edit().putLong(SharedPrefsKeys.LAST_CHAPTER_POSITION.name, value)
             .apply()
-
+    var lastDownloadRequestID: String?
+        get() = sharedPrefs.getString(SharedPrefsKeys.LAST_DOWNLOAD_REQUEST_ID.name, null)
+        set(value) = sharedPrefs.edit()
+            .putString(SharedPrefsKeys.LAST_DOWNLOAD_REQUEST_ID.name, value).apply()
     var areChapterPathsSaved: Boolean
         get() = sharedPrefs.getBoolean(SharedPrefsKeys.MEDIA_PATH_CONSISTENCY.name, false)
         set(value) = sharedPrefs.edit().putBoolean(SharedPrefsKeys.MEDIA_PATH_CONSISTENCY.name, value)

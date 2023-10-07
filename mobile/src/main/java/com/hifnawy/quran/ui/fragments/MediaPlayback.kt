@@ -113,10 +113,6 @@ class MediaPlayback(
             }
         }
 
-        return binding.root
-    }
-
-    override fun onResume() {
         with(parentActivity) {
             supportActionBar?.hide()
 
@@ -128,7 +124,7 @@ class MediaPlayback(
 
         playChapter(chapter)
 
-        super.onResume()
+        return binding.root
     }
 
     override fun onDestroy() {
