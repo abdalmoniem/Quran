@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="64dp"
+        android:height="64dp"
+        android:gravity="center">
+        <shape android:shape="oval">
+            <solid android:color="#0000a651" />
+        </shape>
+    </item>
+
+    <item
+        android:height="60dp"
+        android:width="60dp"
+        android:gravity="center"
+        android:drawable="@drawable/quran_icon_mobile">
+    </item>
+</layer-list>

@@ -2,16 +2,12 @@ package com.hifnawy.quran.ui.activities
 
 import android.Manifest
 import android.content.ActivityNotFoundException
-import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
@@ -27,11 +23,9 @@ import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSer
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
-import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
-import com.hifnawy.quran.ui.fragments.ChaptersList
 import com.hifnawy.quran.ui.fragments.MediaPlayback
 import com.hifnawy.quran.ui.fragments.RecitersList
 import com.hifnawy.quran.ui.widgets.NowPlaying
@@ -44,33 +38,7 @@ import kotlin.concurrent.fixedRateTimer
 class MainActivity : AppCompatActivity() {
 
     lateinit var binding: ActivityMainBinding
-    lateinit var mediaService: MediaService
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(this) }
-    private val serviceConnection: ServiceConnection = object : ServiceConnection {
-        override fun onServiceConnected(componentName: ComponentName, iBinder: IBinder) {
-            synchronized(this@MainActivity) {
-                mediaService = (iBinder as MediaService.ServiceBinder).instance
-                val fragment = let {
-                    getIntentFragment(intent) ?: mediaService.run {
-                        if (isMediaPlaying) sharedPrefsManager.lastReciter?.run {
-                            ChaptersList(
-                                    this
-                            )
-                        } ?: RecitersList()
-                        else RecitersList()
-                    }
-                }
-
-                launchFragment(fragment)
-            }
-        }
-
-        override fun onServiceDisconnected(componentName: ComponentName) {
-            synchronized(this@MainActivity) {
-                // mediaService = null
-            }
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,18 +64,14 @@ class MainActivity : AppCompatActivity() {
             setHomeButtonEnabled(false)
             setDisplayHomeAsUpEnabled(false)
             // adding icon in the ActionBar
-            setIcon(R.mipmap.ic_quran_mobile_round)
+            setIcon(R.drawable.circular_app_icon)
             // providing title for the ActionBar
             title = "   ${getString(R.string.quran)}"
             // providing subtitle for the ActionBar
             subtitle = "   ${getString(R.string.reciters)}"
         }
-
-        startService(Intent(this, MediaService::class.java).apply {
-            action = Constants.Actions.START_SERVICE.name
-        })
-
-        bindService(Intent(this, MediaService::class.java), serviceConnection, Context.BIND_IMPORTANT)
+        val fragment = getIntentFragment(intent) ?: RecitersList()
+        launchFragment(fragment)
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -116,7 +80,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getIntentFragment(intent: Intent?): Fragment? {
-        Log.d(this::class.simpleName, "Intent: $intent ${intent?.extras}")
         if (intent == null) return null
         if (!intent.hasCategory(NowPlaying::class.simpleName)) return null
         val fragment = let {

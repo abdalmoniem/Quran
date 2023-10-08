@@ -51,10 +51,12 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         }
     }
 
-    enum class DownloadStatus { FILE_EXISTS, STARTING_DOWNLOAD, DOWNLOADING, FINISHED_DOWNLOAD, DOWNLOAD_ERROR, DOWNLOAD_INTERRUPTED
+    enum class DownloadStatus {
+        FILE_EXISTS, STARTING_DOWNLOAD, DOWNLOADING, FINISHED_DOWNLOAD, DOWNLOAD_ERROR, DOWNLOAD_INTERRUPTED
     }
 
-    enum class DownloadWorkerInfo { CURRENT_CHAPTER_NUMBER, DOWNLOAD_STATUS, BYTES_DOWNLOADED, FILE_SIZE, FILE_PATH, PROGRESS
+    enum class DownloadWorkerInfo {
+        CURRENT_CHAPTER_NUMBER, DOWNLOAD_STATUS, BYTES_DOWNLOADED, FILE_SIZE, FILE_PATH, PROGRESS
     }
 
     @Suppress("PrivatePropertyName")
@@ -181,7 +183,6 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
     private suspend fun downloadFile(
             url: URL, reciter: Reciter, chapter: Chapter, singleFileDownload: Boolean = true
     ): Result {
-        val decimalFormat = DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
         val chapterFile = getChapterPath(context, reciter, chapter)
 
         chapterFile.parentFile?.run {
@@ -242,24 +243,6 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                             100f,
                             if (singleFileDownload) null else chapter
                     )
-                    val serviceForegroundNotification = NotificationCompat.Builder(
-                            context,
-                            "${context.getString(R.string.quran_recitation_notification_name)} Service"
-                    ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
-                        .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
-                        .setContentTitle(
-                                context.getString(R.string.loading_chapter, chapter.name_arabic)
-                        ).setContentText(
-                                "${decimalFormat.format(chapterAudioFileSize.toLong() / (1024 * 1024))} مب. \\ ${
-                                    decimalFormat.format(
-                                            chapterAudioFileSize / (1024 * 1024)
-                                    )
-                                } مب. (${
-                                    decimalFormat.format(100f)
-                                }٪)"
-                        ).setSubText(reciter.name_ar).build()
-
-                    setForeground(ForegroundInfo(230893, serviceForegroundNotification))
 
                     return Result.success(
                             workDataOf(
@@ -384,7 +367,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                             }٪)"
                     ).setSubText(reciter.name_ar).build()
 
-                setForeground(ForegroundInfo(230893, notification))
+                setForeground(ForegroundInfo(R.integer.quran_chapter_recitation_notification_channel_id, notification))
 
                 outputStream.write(buffer, 0, bytes)
                 bytes = inputStream.read(buffer)

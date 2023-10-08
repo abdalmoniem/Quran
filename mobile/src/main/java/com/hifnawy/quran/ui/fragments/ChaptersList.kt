@@ -39,7 +39,8 @@ import java.util.UUID
 class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? = null) : Fragment() {
 
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
-    private val mediaService by lazy { parentActivity.mediaService }
+    private val workManager by lazy { WorkManager.getInstance(binding.root.context) }
+
     private var chapters: List<Chapter> = mutableListOf()
     private lateinit var binding: FragmentChaptersListBinding
     private lateinit var chaptersListAdapter: ChaptersListAdapter
@@ -81,8 +82,6 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                         add(parentActivity.binding.fragmentContainer.id, MediaPlayback(reciter, chapter))
                         commit()
                     }
-
-                    mediaService.prepareMedia(reciter, chapter)
                 }
 
                 chaptersList.layoutManager =
@@ -106,7 +105,6 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                 })
 
                 downloadAllChapters.setOnClickListener {
-                    val workManager = WorkManager.getInstance(binding.root.context)
                     DownloadWorkManager.chapters = chaptersListAdapter.getChapters()
                     val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
                         .setInputData(
@@ -117,6 +115,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                                         )
                                 )
                         )
+                        .addTag(getString(com.hifnawy.quran.shared.R.string.downloadWorkManagerUniqueWorkName))
                         .build()
 
                     observeWorker(downloadWorkRequest.id)
@@ -136,7 +135,6 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
     @SuppressLint("SetTextI18n")
     private fun observeWorker(requestID: UUID) {
         val context = binding.root.context
-        val workManager = WorkManager.getInstance(binding.root.context)
 
         val (dialog, dialogBinding) = DialogBuilder.prepareDownloadDialog(
                 binding.root.context,
@@ -147,7 +145,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
 
         with(dialogBinding) {
             dialogBinding.downloadDialogCancelDownload.setOnClickListener {
-                workManager.cancelWorkById(requestID)
+                workManager.cancelUniqueWork(getString(com.hifnawy.quran.shared.R.string.downloadWorkManagerUniqueWorkName))
                 dialog.dismiss()
             }
 

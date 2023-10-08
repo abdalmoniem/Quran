@@ -20,8 +20,9 @@ import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
-import com.hifnawy.quran.shared.tools.Utilities.Companion.DownloadStatus.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -149,6 +150,7 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                             )
                     )
             )
+            .addTag(context.getString(R.string.downloadWorkManagerUniqueWorkName))
             .build()
 
         observeWorker(downloadWorkRequest.id, reciter, chapter)
@@ -164,10 +166,12 @@ class MediaManager(private var context: Context) : LifecycleOwner {
         val workManager = WorkManager.getInstance(context)
         workManager.getWorkInfoByIdLiveData(requestID)
             .observe(this) { workInfo ->
-                Log.d(TAG, workInfo?.progress?.toString() ?: "workInfo: null")
                 if (workInfo == null) return@observe
                 if (workInfo.state == WorkInfo.State.FAILED) return@observe
                 if (workInfo.state == WorkInfo.State.SUCCEEDED) return@observe
+
+                Log.d(TAG, "${workInfo.state} - ${workInfo.progress}")
+
                 val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
                         workInfo.progress.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
                             ?: return@observe
@@ -186,6 +190,11 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                         DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name,
                         -1f
                 )
+
+                if (workInfo.state == WorkInfo.State.CANCELLED) {
+                    CoroutineScope(Dispatchers.IO).launch { processPreviousChapter() }
+                }
+
                 @SuppressLint("DiscouragedApi") val drawableId = context.resources.getIdentifier(
                         "chapter_${chapter.id.toString().padStart(3, '0')}",
                         "drawable",
@@ -193,6 +202,7 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                 )
                 when (downloadStatus) {
                     DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD,
+                    DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED,
                     DownloadWorkManager.DownloadStatus.DOWNLOADING -> downloadListener?.onProgressChanged(
                             reciter,
                             chapter,
@@ -212,7 +222,6 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                     )
 
                     DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR -> Unit
-                    DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED -> Unit
                 }
             }
     }
