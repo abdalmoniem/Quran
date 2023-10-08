@@ -103,7 +103,7 @@ class MainActivity : AppCompatActivity() {
             subtitle = "   ${getString(R.string.reciters)}"
         }
 
-        startForegroundService(Intent(this, MediaService::class.java).apply {
+        startService(Intent(this, MediaService::class.java).apply {
             action = Constants.Actions.START_SERVICE.name
         })
 

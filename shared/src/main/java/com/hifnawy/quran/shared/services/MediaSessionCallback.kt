@@ -44,6 +44,7 @@ class MediaSessionCallback(
     }
 
     override fun onStop() {
+        mediaService.stop()
         // mediaService.stopSelf()
     }
 

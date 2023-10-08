@@ -122,7 +122,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                     observeWorker(downloadWorkRequest.id)
 
                     workManager.enqueueUniqueWork(
-                            ChaptersList::class.simpleName.toString(),
+                            getString(com.hifnawy.quran.shared.R.string.downloadWorkManagerUniqueWorkName),
                             ExistingWorkPolicy.REPLACE,
                             downloadWorkRequest
                     )
@@ -150,7 +150,7 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                 workManager.cancelWorkById(requestID)
                 dialog.dismiss()
             }
-            
+
             downloadDialogChapterProgress.min = 0
             downloadDialogChapterProgress.max = 100
             downloadDialogChapterProgress.progress = 0
