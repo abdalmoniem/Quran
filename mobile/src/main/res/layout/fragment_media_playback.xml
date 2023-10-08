@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.motion.widget.MotionLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    app:layoutDescription="@xml/fragment_media_playback_scene"
     tools:context=".ui.fragments.MediaPlayback">
 
     <FrameLayout
+        android:id="@+id/chapter_background_image_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -34,6 +36,10 @@
         android:text="@string/reciter_name"
         android:textColor="@color/white"
         android:textSize="25sp"
+        android:autoSizeTextType="uniform"
+        android:autoSizeMinTextSize="5sp"
+        android:autoSizeMaxTextSize="25sp"
+        android:autoSizeStepGranularity="10dp"
         app:layout_constraintBottom_toTopOf="@id/chapter_duration"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -67,6 +73,10 @@
         android:text="@string/chapter_name"
         android:textColor="@color/white"
         android:textSize="80sp"
+        android:autoSizeTextType="uniform"
+        android:autoSizeMinTextSize="20sp"
+        android:autoSizeMaxTextSize="80sp"
+        android:autoSizeStepGranularity="10dp"
         app:layout_constraintBottom_toTopOf="@id/reciter_name"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -137,7 +147,7 @@
         android:layout_marginEnd="50dp"
         android:layout_marginBottom="50dp"
         app:cardBackgroundColor="#0c5147"
-        app:cardCornerRadius="50dp"
+        app:cardCornerRadius="10dp"
         app:cardElevation="150dp"
         app:layout_constraintBottom_toTopOf="@id/chapter_name"
         app:layout_constraintEnd_toEndOf="parent"
@@ -168,4 +178,4 @@
         app:thumbRadius="4dp"
         app:tickVisible="false"
         app:trackHeight="20dp" />
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.constraintlayout.motion.widget.MotionLayout>
