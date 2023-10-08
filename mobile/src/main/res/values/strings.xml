@@ -19,8 +19,6 @@
     <string name="connection_error_title">عذراً، لقد حدث خطأّ!</string>
     <string name="connection_error_message">تعذر الوصول لملفات صوت هذا القارئ، من فضلك أعد المحاولة فى وقت لاحق أو قم باختيار قارئ آخر</string>
     <string name="connection_error_action">اختيار قارئ آخر</string>
-    <string name="nav_graph_reciter_argument">reciter</string>
-    <string name="nav_graph_chapter_argument">chapter</string>
     <string name="updating_data">جارٍ تحديث البيانات، من فضلك انتظر قليلاً…</string>
     <string name="initial_quote">لا خير في صحبة تحجب عن ذكر الله.</string>
 

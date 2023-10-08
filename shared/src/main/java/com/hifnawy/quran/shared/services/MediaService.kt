@@ -28,6 +28,9 @@ import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.audio.AudioAttributes
+import com.google.firebase.crashlytics.ktx.crashlytics
+import com.google.firebase.ktx.Firebase
+import com.hifnawy.quran.shared.BuildConfig
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.api.QuranAPI.Companion.getChaptersList
 import com.hifnawy.quran.shared.api.QuranAPI.Companion.getReciterChaptersAudioFiles
@@ -157,6 +160,8 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         }
 
         exoPlayer.addListener(this)
+
+        Firebase.crashlytics.setCrashlyticsCollectionEnabled(BuildConfig.DEBUG)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -630,7 +635,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", packageName
         )
         val chapterDrawable = AppCompatResources.getDrawable(this@MediaService, chapterDrawableId)
-
         val pendingIntent = PendingIntent.getActivity(
                 this@MediaService, 0, Intent(
                 this@MediaService, Class.forName("com.hifnawy.quran.ui.activities.MainActivity")
@@ -651,7 +655,8 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                         // .setShowActionsInCompactView(1 /* #1: pause button \*/)
                         .setMediaSession(mediaSession.sessionToken)
             ).setContentTitle(currentChapter!!.name_arabic).setContentText(currentReciter!!.name_ar)
-            .setContentIntent(pendingIntent).setLargeIcon((chapterDrawable as BitmapDrawable).bitmap).build()
+            .setContentIntent(pendingIntent).setLargeIcon((chapterDrawable as BitmapDrawable).bitmap)
+            .build()
         val channel = NotificationChannel(
                 getString(R.string.quran_recitation_notification_name),
                 getString(R.string.quran_recitation_notification_name),

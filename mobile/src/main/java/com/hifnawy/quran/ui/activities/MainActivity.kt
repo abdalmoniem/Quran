@@ -17,6 +17,9 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.crashlytics.ktx.crashlytics
+import com.google.firebase.ktx.Firebase
+import com.hifnawy.quran.BuildConfig
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.ActivityMainBinding
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
@@ -70,6 +73,8 @@ class MainActivity : AppCompatActivity() {
             // providing subtitle for the ActionBar
             subtitle = "   ${getString(R.string.reciters)}"
         }
+
+        Firebase.crashlytics.setCrashlyticsCollectionEnabled(BuildConfig.DEBUG)
         val fragment = getIntentFragment(intent) ?: RecitersList()
         launchFragment(fragment)
     }

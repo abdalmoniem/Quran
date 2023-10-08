@@ -6,13 +6,28 @@ plugins {
 }
 android {
     namespace 'com.hifnawy.quran.shared'
-    compileSdkVersion 34
+    compileSdk 34
 
     defaultConfig {
         minSdkVersion 28
         targetSdkVersion 34
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            aaptOptions {
+                cruncherEnabled = false
+            }
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     kotlinOptions {
