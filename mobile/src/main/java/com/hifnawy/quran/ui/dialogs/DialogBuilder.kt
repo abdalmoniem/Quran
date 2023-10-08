@@ -19,19 +19,6 @@ class DialogBuilder {
 
     companion object {
 
-        fun prepareUpdateDialog(context: Context): AlertDialog {
-            val dialogBinding =
-                UpdatingDataDialogBinding.inflate(LayoutInflater.from(context), null, false)
-            val dialog = MaterialAlertDialogBuilder(context)
-                .setView(dialogBinding.root)
-                .setCancelable(false)
-                .create()
-
-            dialog.window?.decorView?.setBackgroundColor(Color.TRANSPARENT)
-
-            return dialog
-        }
-
         fun showErrorDialog(
                 context: Context,
                 title: String,
@@ -49,6 +36,19 @@ class DialogBuilder {
                     window?.decorView?.layoutDirection = View.LAYOUT_DIRECTION_RTL
                     show()
                 }
+        }
+
+        fun prepareUpdateDialog(context: Context): Pair<AlertDialog, UpdatingDataDialogBinding> {
+            val dialogBinding =
+                UpdatingDataDialogBinding.inflate(LayoutInflater.from(context), null, false)
+            val dialog = MaterialAlertDialogBuilder(context)
+                .setView(dialogBinding.root)
+                .setCancelable(false)
+                .create()
+
+            dialog.window?.decorView?.setBackgroundColor(Color.TRANSPARENT)
+
+            return dialog to dialogBinding
         }
 
         @SuppressLint("SetTextI18n")

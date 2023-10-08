@@ -14,7 +14,6 @@ import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -40,6 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.concurrent.fixedRateTimer
 
 class MainActivity : AppCompatActivity() {
 
@@ -200,14 +200,42 @@ class MainActivity : AppCompatActivity() {
 
     private suspend fun checkDataConsistency() {
         if (sharedPrefsManager.areChapterPathsSaved) return
-        lateinit var dialog: AlertDialog
 
         withContext(Dispatchers.Main) {
-            dialog = DialogBuilder.prepareUpdateDialog(binding.root.context)
+            val (dialog, dialogBinding) = DialogBuilder.prepareUpdateDialog(binding.root.context)
+            val quotes = resources.getStringArray(R.array.quotes)
+            val periodicity = 50L
+            val timeMs = 10000L
+            val counterThreshold = timeMs / periodicity
+            var counter = 0L
+
             dialog.show()
+            dialogBinding.quote.text = quotes.random()
+
+            fixedRateTimer("quotes", true, 0, periodicity) {
+                counter++
+
+                runOnUiThread {
+                    dialogBinding.linearProgressBar.progress =
+                        ((counter.toFloat() / counterThreshold.toFloat()) * 100f).toInt()
+                }
+
+                if (counter % counterThreshold == 0L) {
+                    runOnUiThread {
+                        dialogBinding.quote.text = quotes.random()
+
+                        Log.d(MainActivity::class.simpleName, dialogBinding.quote.text.toString())
+                    }
+                    counter = 0L
+                }
+
+                if (sharedPrefsManager.areChapterPathsSaved) cancel()
+            }
+
+            withContext(Dispatchers.IO) { Utilities.updateChapterPaths(this@MainActivity) }
+
+            dialog.dismiss()
         }
-        Utilities.updateChapterPaths(this)
-        withContext(Dispatchers.Main) { dialog.dismiss() }
 
         sharedPrefsManager.areChapterPathsSaved = true
     }
