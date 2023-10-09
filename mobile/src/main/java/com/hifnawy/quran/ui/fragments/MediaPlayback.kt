@@ -13,13 +13,17 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver.OnGlobalLayoutListener
+import android.widget.FrameLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.constraintlayout.motion.widget.MotionLayout
 import androidx.core.graphics.drawable.toDrawable
 import androidx.fragment.app.Fragment
 import androidx.palette.graphics.Palette
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.google.android.material.appbar.AppBarLayout
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.DownloadDialogBinding
 import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
@@ -54,6 +58,8 @@ class MediaPlayback(
     private val mediaUpdatesReceiver = MediaUpdatesReceiver()
     private lateinit var binding: FragmentMediaPlaybackBinding
     private lateinit var sharedPrefsManager: SharedPreferencesManager
+    private var rootHeight: Int = 0
+    private var toolbarHeight: Int = 0
 
     @SuppressLint("DiscouragedApi", "SetTextI18n")
     override fun onCreateView(
@@ -107,17 +113,31 @@ class MediaPlayback(
                     })
                 }
             }
+
+            root.isInteractionEnabled = false
+            root.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    root.isInteractionEnabled = true
+                    root.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    rootHeight = root.height
+
+                    with(parentActivity.binding) {
+                        toolbarHeight = appToolbar.height
+                        val toolbarLayoutParams = appToolbar.layoutParams as AppBarLayout.LayoutParams
+                        toolbarLayoutParams.height = 0
+                        appToolbar.layoutParams = toolbarLayoutParams
+                    }
+
+                    root.setTransitionListener(MotionLayoutTransitionListener())
+                    Log.d(TAG, "rootHeight is ready! it's value is $rootHeight")
+                }
+            })
         }
 
-        with(parentActivity) {
-            supportActionBar?.hide()
-
-            registerReceiver(mediaUpdatesReceiver,
-                             IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)).apply {
-                                 addCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)
-                             })
-        }
-
+        parentActivity.registerReceiver(mediaUpdatesReceiver,
+                                        IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)).apply {
+                                            addCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)
+                                        })
 
         playChapter(
                 chapter,
@@ -140,14 +160,16 @@ class MediaPlayback(
                         "Could not unregister ${::mediaUpdatesReceiver.name}, it was probably unregistered in an earlier stage!!!"
                 )
             }
-
-            supportActionBar?.show()
         }
 
         super.onDestroy()
     }
 
-    private fun playChapter(chapter: Chapter, startPosition: Long = chapterPosition, duration: Long = 100L) {
+    private fun playChapter(
+            chapter: Chapter,
+            startPosition: Long = chapterPosition,
+            duration: Long = 100L
+    ) {
         updateUI(reciter, chapter, chapterPosition, duration)
         val workManager = WorkManager.getInstance(binding.root.context)
         val (dialog, dialogBinding) = DialogBuilder.prepareDownloadDialog(
@@ -367,5 +389,62 @@ class MediaPlayback(
                 chapterSeek.value = currentPosition.toFloat()
             }
         }
+    }
+
+    private inner class MotionLayoutTransitionListener : MotionLayout.TransitionListener {
+        var rootMinimizedHeight: Int = 0
+        override fun onTransitionStarted(motionLayout: MotionLayout?, startId: Int, endId: Int) {
+
+        }
+
+        override fun onTransitionChange(
+                motionLayout: MotionLayout?,
+                startId: Int,
+                endId: Int,
+                progress: Float
+        ) {
+            val rootLayoutParams = binding.root.layoutParams as FrameLayout.LayoutParams
+            val minimizing = (startId == R.id.maximized) && (endId == R.id.minimized)
+            val toolbarLayoutParams =
+                parentActivity.binding.appToolbar.layoutParams as AppBarLayout.LayoutParams
+
+            if (minimizing) {
+                toolbarLayoutParams.height = lerp(0.dp, toolbarHeight, progress).toInt()
+                rootLayoutParams.height = lerp(rootHeight, 200.dp, progress).toInt()
+                // Log.d(TAG, "shrinking, setting bottom margin to: $bottomMargin")
+            } else {
+                toolbarLayoutParams.height = lerp(toolbarHeight, 0.dp, progress).toInt()
+                rootLayoutParams.height = lerp(rootMinimizedHeight, rootHeight, progress).toInt()
+                // Log.d(TAG, "expanding, setting bottom margin to: $bottomMargin")
+            }
+
+            Log.d(
+                    TAG,
+                    "minimizing: $minimizing toolbarHeight: $toolbarHeight targetHeight: ${0.dp} , toolbarCurrentHeight: ${toolbarLayoutParams.height}"
+            )
+
+            parentActivity.binding.appToolbar.layoutParams = toolbarLayoutParams
+            binding.root.layoutParams = rootLayoutParams
+        }
+
+        override fun onTransitionCompleted(motionLayout: MotionLayout?, currentState: Int) {
+            rootMinimizedHeight = binding.root.height
+        }
+
+        override fun onTransitionTrigger(
+                motionLayout: MotionLayout?,
+                triggerId: Int,
+                positive: Boolean,
+                progress: Float
+        ) {
+
+        }
+
+        fun lerp(valueFrom: Int, valueTo: Int, delta: Float): Float =
+            (valueFrom * (1f - delta)) + (valueTo * delta)
+
+        val Int.dp: Int
+            get() = (this * resources.displayMetrics.density + 0.5f).toInt()
+
     }
 }

@@ -3,22 +3,104 @@
     xmlns:motion="http://schemas.android.com/apk/res-auto">
 
     <Transition
-        motion:constraintSetEnd="@+id/end"
-        motion:constraintSetStart="@id/start"
+        motion:constraintSetEnd="@+id/minimized"
+        motion:constraintSetStart="@id/maximized"
         motion:duration="500">
         <OnSwipe
             motion:dragDirection="dragDown"
-            motion:touchAnchorId="@id/chapter_image_card" />
+            motion:touchAnchorId="@id/chapter_image_card"
+            motion:touchAnchorSide="middle" />
+        <!--<OnClick-->
+        <!--    motion:clickAction="transitionToEnd"-->
+        <!--    motion:targetId="@id/chapter_image_card" />-->
+        <KeyFrameSet>
+            <KeyAttribute
+                android:alpha="0"
+                motion:framePosition="30"
+                motion:motionTarget="@+id/chapter_seek" />
+            <KeyAttribute
+                android:alpha="0"
+                motion:framePosition="30"
+                motion:motionTarget="@+id/chapter_duration" />
+        </KeyFrameSet>
     </Transition>
 
-    <ConstraintSet android:id="@+id/start" />
+    <Transition
+        motion:constraintSetEnd="@+id/maximized"
+        motion:constraintSetStart="@+id/minimized"
+        motion:duration="500">
+        <OnSwipe
+            motion:dragDirection="dragUp"
+            motion:touchAnchorId="@id/chapter_image_card"
+            motion:touchAnchorSide="middle" />
+    </Transition>
 
-    <ConstraintSet android:id="@+id/end">
+    <ConstraintSet android:id="@+id/maximized">
+        <Constraint
+            android:id="@+id/reciter_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            motion:layout_constraintBottom_toTopOf="@id/chapter_duration"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@id/chapter_name">
+            <CustomAttribute
+                motion:attributeName="textSize"
+                motion:customFloatValue="25" />
+        </Constraint>
+        <Constraint
+            android:id="@+id/chapter_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            motion:layout_constraintBottom_toTopOf="@id/reciter_name"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@id/chapter_image_card">
+            <CustomAttribute
+                motion:attributeName="textSize"
+                motion:customFloatValue="80" />
+        </Constraint>
+        <Constraint
+            android:id="@+id/chapter_image_card"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginStart="50dp"
+            android:layout_marginTop="150dp"
+            android:layout_marginEnd="50dp"
+            android:layout_marginBottom="50dp"
+            motion:layout_constraintBottom_toTopOf="@id/chapter_name"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toTopOf="parent">
+            <CustomAttribute
+                motion:attributeName="radius"
+                motion:customFloatValue="100" />
+        </Constraint>
+        <Constraint
+            android:id="@+id/chapter_previous"
+            android:elevation="250dp"
+            motion:layout_constraintEnd_toEndOf="parent"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            motion:layout_constraintTop_toTopOf="@id/chapter_play_pause"
+            motion:layout_constraintStart_toEndOf="@id/chapter_play_pause"
+            motion:layout_constraintBottom_toBottomOf="@id/chapter_play_pause" />
+        <Constraint
+            android:id="@+id/chapter_next"
+            android:elevation="250dp"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            motion:layout_constraintTop_toTopOf="@id/chapter_play_pause"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintEnd_toStartOf="@id/chapter_play_pause"
+            motion:layout_constraintBottom_toBottomOf="@id/chapter_play_pause" />
+    </ConstraintSet>
+
+    <ConstraintSet android:id="@+id/minimized">
         <Constraint
             android:id="@+id/chapter_background_image_container"
             android:layout_width="match_parent"
             android:layout_height="100dp"
-            android:layout_marginBottom="20dp"
             motion:layout_constraintBottom_toBottomOf="parent"
             motion:layout_constraintEnd_toEndOf="parent"
             motion:layout_constraintStart_toStartOf="parent" />
@@ -27,7 +109,11 @@
             android:layout_width="100dp"
             android:layout_height="100dp"
             motion:layout_constraintEnd_toEndOf="@id/chapter_background_image_container"
-            motion:layout_constraintTop_toTopOf="@id/chapter_background_image_container" />
+            motion:layout_constraintTop_toTopOf="@id/chapter_background_image_container">
+            <CustomAttribute
+                motion:attributeName="radius"
+                motion:customFloatValue="50" />
+        </Constraint>
         <Constraint
             android:id="@+id/chapter_name"
             android:layout_width="wrap_content"
@@ -35,7 +121,11 @@
             android:layout_marginEnd="10dp"
             motion:layout_constraintBottom_toTopOf="@id/reciter_name"
             motion:layout_constraintEnd_toStartOf="@id/chapter_image_card"
-            motion:layout_constraintTop_toTopOf="@id/chapter_image_card" />
+            motion:layout_constraintTop_toTopOf="@id/chapter_image_card">
+            <CustomAttribute
+                motion:attributeName="textSize"
+                motion:customFloatValue="25" />
+        </Constraint>
         <Constraint
             android:id="@+id/reciter_name"
             android:layout_width="wrap_content"
@@ -43,7 +133,11 @@
             android:layout_marginEnd="10dp"
             motion:layout_constraintBottom_toBottomOf="@id/chapter_image_card"
             motion:layout_constraintEnd_toStartOf="@id/chapter_image_card"
-            motion:layout_constraintTop_toBottomOf="@id/chapter_name" />
+            motion:layout_constraintTop_toBottomOf="@id/chapter_name">
+            <CustomAttribute
+                motion:attributeName="textSize"
+                motion:customFloatValue="15" />
+        </Constraint>
         <Constraint
             android:id="@+id/chapter_duration"
             android:layout_width="wrap_content"
@@ -60,6 +154,7 @@
             android:layout_height="wrap_content"
             android:alpha="0"
             android:scaleX="-1"
+            android:visibility="gone"
             motion:layout_constraintBottom_toTopOf="@id/chapter_play_pause"
             motion:layout_constraintEnd_toEndOf="parent"
             motion:layout_constraintStart_toStartOf="parent"
@@ -100,12 +195,4 @@
             motion:layout_constraintStart_toEndOf="@id/chapter_play_pause"
             motion:layout_constraintTop_toTopOf="@id/chapter_image_card" />
     </ConstraintSet>
-    <Transition
-        motion:constraintSetEnd="@+id/start"
-        motion:constraintSetStart="@+id/end"
-        motion:duration="500">
-        <OnSwipe
-            motion:dragDirection="dragUp"
-            motion:touchAnchorId="@id/chapter_image_card" />
-    </Transition>
 </MotionScene>
