@@ -1,8 +1,6 @@
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
-    id 'com.google.gms.google-services'
-    id 'com.google.firebase.crashlytics'
 }
 android {
     namespace 'com.hifnawy.quran.shared'
@@ -12,7 +10,11 @@ android {
         minSdkVersion 28
         targetSdkVersion 34
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     buildTypes {
@@ -26,29 +28,40 @@ android {
         }
     }
 
-    buildFeatures {
-        buildConfig true
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_20
+        targetCompatibility JavaVersion.VERSION_20
     }
 
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = JavaVersion.VERSION_20
     }
 }
 
 dependencies {
     implementation 'androidx.media:media:1.6.0'
-
-    implementation 'com.google.android.material:material:1.9.0'
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'com.google.android.material:material:1.10.0'
     implementation 'ru.gildor.coroutines:kotlin-coroutines-okhttp:1.0'
+
+    // Kotlin + coroutines WorkManager dependency
+    implementation 'androidx.work:work-runtime-ktx:2.8.1'
+
+    // Import the BoM for the Firebase platform
+    implementation platform('com.google.firebase:firebase-bom:32.3.1')
+
+    // Add the dependencies for the Crashlytics and Analytics libraries
+    // When using the BoM, you don't specify versions in Firebase library dependencies
+    implementation 'com.google.firebase:firebase-crashlytics-ktx'
+    implementation 'com.google.firebase:firebase-analytics-ktx'
+
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     implementation 'com.google.code.gson:gson:2.10.1'
-    implementation 'androidx.core:core-ktx:1.12.0'
 
     // ExoPlayer dependencies
-
     // This allows Quran to utilize a local version of ExoPlayer, which is particularly
     // useful for extending the MediaSession extension, as well as for testing and
-    // customization. If the ":exoplayer-library-core" project is included, we assume
+    // customization. If the ':exoplayer-library-core' project is included, we assume
     // the others are included as well.
     if (findProject(':exoplayer-library-core') != null) {
         api project(':exoplayer-library-core')
@@ -56,20 +69,9 @@ dependencies {
         api project(':exoplayer-extension-mediasession')
         api project(':exoplayer-extension-cast')
     } else {
-        api "com.google.android.exoplayer:exoplayer-core:$exoplayer_version"
-        api "com.google.android.exoplayer:exoplayer-ui:$exoplayer_version"
-        api "com.google.android.exoplayer:extension-mediasession:$exoplayer_version"
-        api "com.google.android.exoplayer:extension-cast:$exoplayer_version"
+        api 'com.google.android.exoplayer:exoplayer-core:2.16.0'
+        api 'com.google.android.exoplayer:exoplayer-ui:2.16.0'
+        api 'com.google.android.exoplayer:extension-mediasession:2.16.0'
+        api 'com.google.android.exoplayer:extension-cast:2.16.0'
     }
-
-    // Kotlin + coroutines WorkManager dependency
-    implementation("androidx.work:work-runtime-ktx:2.8.1")
-
-    // Import the BoM for the Firebase platform
-    implementation(platform('com.google.firebase:firebase-bom:32.3.1'))
-
-    // Add the dependencies for the Crashlytics and Analytics libraries
-    // When using the BoM, you don't specify versions in Firebase library dependencies
-    implementation 'com.google.firebase:firebase-crashlytics-ktx'
-    implementation 'com.google.firebase:firebase-analytics-ktx'
 }

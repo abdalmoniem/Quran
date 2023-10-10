@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/navigation_graph"
+    app:startDestination="@id/reciters_list">
+
+    <activity
+        android:id="@+id/main_activity"
+        android:name="com.hifnawy.quran.ui.activities.MainActivity"
+        android:label="Main Activity"
+        tools:layout="@layout/activity_main">
+        <argument
+            android:name="reciter"
+            app:argType="com.hifnawy.quran.shared.model.Reciter" />
+
+        <argument
+            android:name="chapter"
+            app:argType="com.hifnawy.quran.shared.model.Chapter" />
+    </activity>
+
+    <action
+        android:id="@+id/toMediaPlayback"
+        app:destination="@id/media_playback" />
+
+    <fragment
+        android:id="@+id/reciters_list"
+        android:name="com.hifnawy.quran.ui.fragments.RecitersList"
+        android:label="Reciters List"
+        tools:layout="@layout/fragment_reciters_list">
+        <action
+            android:id="@+id/toChaptersList"
+            app:destination="@id/chapters_list" />
+    </fragment>
+
+
+    <fragment
+        android:id="@+id/chapters_list"
+        android:name="com.hifnawy.quran.ui.fragments.ChaptersList"
+        android:label="Chapters List"
+        tools:layout="@layout/fragment_chapters_list">
+        <argument
+            android:name="reciter"
+            app:argType="com.hifnawy.quran.shared.model.Reciter" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/media_playback"
+        android:name="com.hifnawy.quran.ui.fragments.MediaPlayback"
+        android:label="Media Playback"
+        tools:layout="@layout/fragment_media_playback">
+        <argument
+            android:name="reciter"
+            app:argType="com.hifnawy.quran.shared.model.Reciter" />
+
+        <argument
+            android:name="chapter"
+            app:argType="com.hifnawy.quran.shared.model.Chapter" />
+
+        <argument
+            android:name="chapter_position"
+            android:defaultValue="0L"
+            app:argType="long" />
+    </fragment>
+</navigation>

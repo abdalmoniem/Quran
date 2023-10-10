@@ -1,13 +1,15 @@
 package com.hifnawy.quran.ui.fragments
 
+import android.app.Activity
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.RecitersListAdapter
@@ -34,15 +36,6 @@ class RecitersList : Fragment() {
             inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         var recitersListAdapter: RecitersListAdapter
-
-        parentActivity.supportActionBar?.apply {
-            // providing title for the ActionBar
-            title = "   ${getString(R.string.quran)}"
-            // providing subtitle for the ActionBar
-            subtitle = "   ${getString(R.string.reciters)}"
-
-            show()
-        }
         // Inflate the layout for this fragment
         binding = FragmentRecitersListBinding.inflate(inflater, container, false)
 
@@ -53,20 +46,15 @@ class RecitersList : Fragment() {
             with(binding) {
                 recitersListAdapter = RecitersListAdapter(
                         root.context, ArrayList(reciters)
-                ) { position, reciter, itemView ->
-                    Log.d(
-                            RecitersList::class.simpleName,
-                            "clicked on $position: ${reciter.name_ar} ${itemView.recitationStyle.text}"
-                    )
-
+                ) { _, reciter, _ ->
                     reciterSearch.text = null
+                    reciterSearch.clearFocus()
+                    val inputMethodManager =
+                        requireContext().getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+                    // Hide:
+                    inputMethodManager.hideSoftInputFromWindow(root.windowToken, 0)
 
-                    with(parentFragmentManager.beginTransaction()) {
-                        hide(this@RecitersList)
-                        addToBackStack(RecitersList::class.qualifiedName)
-                        add(parentActivity.binding.fragmentContainer.id, ChaptersList(reciter))
-                        commit()
-                    }
+                    findNavController().navigate(RecitersListDirections.toChaptersList(reciter))
                 }
 
                 recitersList.layoutManager = LinearLayoutManager(root.context)
@@ -91,5 +79,18 @@ class RecitersList : Fragment() {
         }
 
         return binding.root
+    }
+
+    override fun onResume() {
+        parentActivity.supportActionBar?.apply {
+            // providing title for the ActionBar
+            title = "   ${getString(R.string.quran)}"
+            // providing subtitle for the ActionBar
+            subtitle = "   ${getString(R.string.reciters)}"
+
+            show()
+        }
+
+        super.onResume()
     }
 }

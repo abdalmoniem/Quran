@@ -102,7 +102,10 @@ import java.util.TimerTask
  */
 class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
-    var isMediaPlaying = false
+    companion object {
+
+        var isMediaPlaying = false
+    }
 
     private enum class MediaSessionState {
         PLAYING, PAUSED, SKIPPING_TO_NEXT, SKIPPING_TO_PREVIOUS, BUFFERING, CONNECTING, STOPPED

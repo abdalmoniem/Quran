@@ -15,6 +15,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.constraintlayout.motion.widget.MotionLayout
@@ -46,16 +47,15 @@ import com.hoko.blur.HokoBlur as Blur
 /**
  * A simple [Fragment] subclass.
  */
-class MediaPlayback(
-        private var reciter: Reciter,
-        private var chapter: Chapter,
-        private var chapterPosition: Long = 0L
-) : Fragment() {
+class MediaPlayback : Fragment() {
 
     @Suppress("PrivatePropertyName")
     private val TAG = MediaPlayback::class.simpleName
-    private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private val mediaUpdatesReceiver = MediaUpdatesReceiver()
+    private lateinit var reciter: Reciter
+    private lateinit var chapter: Chapter
+    private var chapterPosition: Long = 0L
+    private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private lateinit var binding: FragmentMediaPlaybackBinding
     private lateinit var sharedPrefsManager: SharedPreferencesManager
     private var appBarHeight: Int = 0
@@ -66,6 +66,10 @@ class MediaPlayback(
     ): View {
         binding = FragmentMediaPlaybackBinding.inflate(layoutInflater, container, false)
         sharedPrefsManager = SharedPreferencesManager(binding.root.context)
+
+        reciter = MediaPlaybackArgs.fromBundle(requireArguments()).reciter
+        chapter = MediaPlaybackArgs.fromBundle(requireArguments()).chapter
+        chapterPosition = MediaPlaybackArgs.fromBundle(requireArguments()).chapterPosition
 
         with(parentActivity.binding) {
             appBarHeight = appBar.height
@@ -120,18 +124,33 @@ class MediaPlayback(
                 }
             }
 
+            chapterBackgroundImageContainer.setOnTouchListener { _, motionEvent ->
+                if (motionEvent.action == MotionEvent.ACTION_DOWN) root.isInteractionEnabled = true
+                false
+            }
+
             root.isInteractionEnabled = false
             root.setTransitionListener(MotionLayoutTransitionListener())
             root.transitionToStart()
-            chapterBackgroundImageContainer.setOnTouchListener { _, motionEvent ->
-                when (motionEvent.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        Log.d(TAG, "Touch Down!")
-                        root.isInteractionEnabled = true
-                    }
-                }
-                false
-            }
+
+            parentActivity.onBackPressedDispatcher.addCallback(
+                    viewLifecycleOwner,
+                    object : OnBackPressedCallback(true) {
+                        override
+                        fun handleOnBackPressed() {
+                            Log.d(
+                                    TAG,
+                                    "maxID: ${R.id.maximized}, minID: ${R.id.minimized}, current: ${binding.root.currentState}"
+                            )
+                            if (binding.root.currentState == R.id.maximized) {
+                                binding.root.transitionToState(R.id.minimized)
+                                // binding.root.jumpToState(R.id.minimized)
+                                // binding.root.updateState()
+                            } else {
+                                parentActivity.onSupportNavigateUp()
+                            }
+                        }
+                    })
         }
 
         parentActivity.registerReceiver(mediaUpdatesReceiver,
@@ -408,15 +427,19 @@ class MediaPlayback(
                 endId: Int,
                 progress: Float
         ) {
-            Log.d(
-                    TAG,
-                    "${100.dp} - ${R.dimen.media_player_minimized_height} - ${R.dimen.media_player_minimized_height.dp}"
-            )
             val minimizing = (startId == R.id.maximized) && (endId == R.id.minimized)
             fragmentContainerLayoutParams.bottomMargin = if (minimizing) {
-                lerp(100.dp, 0.dp, progress).toInt()
+                lerp(
+                        resources.getDimension(R.dimen.media_player_minimized_height).toInt(),
+                        0.dp,
+                        progress
+                ).toInt()
             } else {
-                lerp(0.dp, 100.dp, progress).toInt()
+                lerp(
+                        0.dp,
+                        resources.getDimension(R.dimen.media_player_minimized_height).toInt(),
+                        progress
+                ).toInt()
             }
 
             appBarLayoutParams.height = if (minimizing) {
@@ -438,7 +461,7 @@ class MediaPlayback(
                 1.dp
             }
             fragmentContainerLayoutParams.bottomMargin = if (currentState == R.id.minimized) {
-                100.dp
+                resources.getDimension(R.dimen.media_player_minimized_height).toInt()
             } else {
                 0.dp
             }

@@ -7,20 +7,21 @@
     android:fitsSystemWindows="true"
     android:layoutDirection="rtl">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/chapters_list"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginBottom="5dp"
-        android:layoutDirection="rtl"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/chapter_search"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:drawableEnd="@drawable/baseline_search_24"
+        android:drawableTint="@color/design_default_color_secondary"
+        android:hint="@string/chapter_search"
+        android:importantForAutofill="no"
+        android:inputType="textFilter"
+        android:maxLines="1"
+        android:textSize="25sp"
+        app:layout_constraintBottom_toTopOf="@id/chapters_list"
+        app:layout_constraintEnd_toStartOf="@id/download_all_chapters"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/chapter_search"
-        app:spanCount="3"
-        tools:itemCount="13"
-        tools:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
-        tools:listitem="@layout/chapter_item" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/download_all_chapters"
@@ -38,19 +39,18 @@
         app:layout_constraintStart_toEndOf="@id/chapter_search"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/chapter_search"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:drawableEnd="@drawable/baseline_search_24"
-        android:drawableTint="@color/design_default_color_secondary"
-        android:hint="@string/chapter_search"
-        android:importantForAutofill="no"
-        android:inputType="textFilter"
-        android:maxLines="1"
-        android:textSize="25sp"
-        app:layout_constraintBottom_toTopOf="@id/chapters_list"
-        app:layout_constraintEnd_toStartOf="@id/download_all_chapters"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/chapters_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginBottom="5dp"
+        android:layoutDirection="rtl"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/chapter_search"
+        app:spanCount="3"
+        tools:itemCount="13"
+        tools:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
+        tools:listitem="@layout/chapter_item" />
 </androidx.constraintlayout.widget.ConstraintLayout>

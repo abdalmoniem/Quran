@@ -19,7 +19,6 @@
             android:id="@+id/app_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:elevation="4dp"
             android:layoutDirection="rtl"
             android:textDirection="rtl"
             android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
@@ -38,15 +37,20 @@
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/fragment_container"
+            android:name="androidx.navigation.fragment.NavHostFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            app:defaultNavHost="true"
+            app:navGraph="@navigation/navigation_graph"
             tools:layout="@layout/fragment_reciters_list" />
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/media_playback_fragment_container"
+            android:name="androidx.navigation.fragment.NavHostFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="gone"
+            app:navGraph="@navigation/navigation_graph"
             tools:layout="@layout/fragment_media_playback" />
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

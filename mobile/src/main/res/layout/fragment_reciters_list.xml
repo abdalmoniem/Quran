@@ -8,17 +8,6 @@
     android:layoutDirection="rtl"
     tools:context=".ui.fragments.RecitersList">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/reciters_list"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/reciter_search"
-        tools:itemCount="13"
-        tools:listitem="@layout/reciter_item" />
-
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/reciter_search"
         android:layout_width="0dp"
@@ -34,5 +23,16 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/reciters_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/reciter_search"
+        tools:itemCount="13"
+        tools:listitem="@layout/reciter_item" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

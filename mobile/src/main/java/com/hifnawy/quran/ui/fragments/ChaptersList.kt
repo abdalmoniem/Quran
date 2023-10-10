@@ -1,11 +1,13 @@
 package com.hifnawy.quran.ui.fragments
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -22,7 +24,6 @@ import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
-import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.ui.activities.MainActivity
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import kotlinx.coroutines.Dispatchers
@@ -36,9 +37,10 @@ import java.util.UUID
 /**
  * A simple [Fragment] subclass.
  */
-class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? = null) : Fragment() {
+class ChaptersList : Fragment() {
 
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
+    private val reciter by lazy { ChaptersListArgs.fromBundle(requireArguments()).reciter }
     private val workManager by lazy { WorkManager.getInstance(binding.root.context) }
     private var chapters: List<Chapter> = mutableListOf()
     private lateinit var binding: FragmentChaptersListBinding
@@ -48,15 +50,6 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
     override fun onCreateView(
             inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        parentActivity.supportActionBar?.apply {
-            // providing title for the ActionBar
-            title = "   ${getString(R.string.quran)}"
-            // providing subtitle for the ActionBar
-            subtitle =
-                "   ${getString(R.string.chapters)}: ${reciter.name_ar} ${if (reciter.style?.style != null) "(${reciter.style?.style})" else ""}"
-
-            show()
-        }
         // Inflate the layout for this fragment
         binding = FragmentChaptersListBinding.inflate(inflater, container, false)
 
@@ -72,17 +65,20 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
                             ChaptersList::class.simpleName,
                             "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
                     )
-
                     chapterSearch.text = null
+                    chapterSearch.clearFocus()
+                    val inputMethodManager =
+                        requireContext().getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+                    // Hide:
+                    inputMethodManager.hideSoftInputFromWindow(root.windowToken, 0)
 
                     parentActivity.binding.mediaPlaybackFragmentContainer.visibility = View.VISIBLE
-                    with(parentFragmentManager.beginTransaction()) {
-                        replace(
-                                parentActivity.binding.mediaPlaybackFragmentContainer.id,
-                                MediaPlayback(reciter, chapter)
-                        )
-                        commit()
-                    }
+                    parentActivity.mediaPlaybackNavController.navigate(
+                            MediaPlaybackDirections.toMediaPlayback(
+                                    reciter,
+                                    chapter
+                            )
+                    )
                 }
 
                 chaptersList.layoutManager =
@@ -131,6 +127,20 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
         }
 
         return binding.root
+    }
+
+    override fun onResume() {
+        parentActivity.supportActionBar?.apply {
+            // providing title for the ActionBar
+            title = "   ${getString(R.string.quran)}"
+            // providing subtitle for the ActionBar
+            subtitle =
+                "   ${getString(R.string.chapters)}: ${reciter.name_ar} ${if (reciter.style?.style != null) "(${reciter.style?.style})" else ""}"
+
+            show()
+        }
+
+        super.onResume()
     }
 
     @SuppressLint("SetTextI18n")

@@ -14,8 +14,9 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.NavController
+import androidx.navigation.fragment.NavHostFragment
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.crashlytics.ktx.crashlytics
@@ -27,12 +28,12 @@ import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSer
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
+import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
-import com.hifnawy.quran.ui.fragments.ChaptersList
-import com.hifnawy.quran.ui.fragments.MediaPlayback
-import com.hifnawy.quran.ui.fragments.RecitersList
+import com.hifnawy.quran.ui.fragments.MediaPlaybackDirections
+import com.hifnawy.quran.ui.fragments.RecitersListDirections
 import com.hifnawy.quran.ui.widgets.NowPlaying
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -44,6 +45,8 @@ class MainActivity : AppCompatActivity() {
 
     lateinit var binding: ActivityMainBinding
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(this) }
+    private lateinit var navController: NavController
+    lateinit var mediaPlaybackNavController: NavController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,6 +60,11 @@ class MainActivity : AppCompatActivity() {
         window.statusBarColor = Color.TRANSPARENT
 
         setSupportActionBar(binding.appToolbar)
+
+        navController =
+            (supportFragmentManager.findFragmentById(binding.fragmentContainer.id) as NavHostFragment).navController
+        mediaPlaybackNavController =
+            (supportFragmentManager.findFragmentById(binding.mediaPlaybackFragmentContainer.id) as NavHostFragment).navController
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -77,42 +85,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         Firebase.crashlytics.setCrashlyticsCollectionEnabled(BuildConfig.DEBUG)
-        checkIntent(intent)
-    }
-
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        checkIntent(intent)
-    }
-
-    private fun checkIntent(intent: Intent?) {
-        if ((intent != null) && intent.hasCategory(NowPlaying::class.simpleName)) {
-            val reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
-            val chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
-            val chapterPosition = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L)
-
-            Log.d(
-                    this::class.simpleName,
-                    "Reciter: $reciter\nChapter: $chapter\n chapterPosition: $chapterPosition"
-            )
-
-            if ((reciter == null) || (chapter == null)) {
-                launchFragment(RecitersList())
-            } else {
-                val fragment = RecitersList()
-                launchFragment(fragment)
-                supportFragmentManager.beginTransaction().hide(fragment).commit()
-                launchFragment(ChaptersList(reciter, chapter))
-
-                binding.mediaPlaybackFragmentContainer.visibility = View.VISIBLE
-                supportFragmentManager.beginTransaction().replace(
-                        binding.mediaPlaybackFragmentContainer.id,
-                        MediaPlayback(reciter, chapter, chapterPosition)
-                ).commit()
-            }
-        } else {
-            launchFragment(RecitersList())
+        lifecycleScope.launch {
+            lifecycleScope.async(context = Dispatchers.IO) { checkDataConsistency() }.await()
         }
+
+        checkIntent(intent)
     }
 
     override fun onRequestPermissionsResult(
@@ -147,34 +124,50 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (supportFragmentManager.fragments.isEmpty()) return super.onBackPressed()
-        if (supportFragmentManager.backStackEntryCount == 0) return super.onBackPressed()
+    override fun onSupportNavigateUp(): Boolean {
+        val stackPopped = navController.navigateUp()
 
-        Log.d(
-                this::class.simpleName,
-                "showing ${supportFragmentManager.fragments.dropLast(1).last()}..."
-        )
-        supportFragmentManager.beginTransaction()
-            .show(supportFragmentManager.fragments.dropLast(1).last()).commit()
+        if (!stackPopped) finish()
 
-        Log.d(this::class.simpleName, "popping ${supportFragmentManager.fragments.last()}...")
-        supportFragmentManager.popBackStackImmediate()
-
+        return stackPopped || super.onSupportNavigateUp()
     }
 
-    private fun launchFragment(fragment: Fragment) {
-        lifecycleScope.launch {
-            lifecycleScope.async(context = Dispatchers.IO) { checkDataConsistency() }.await()
-            withContext(Dispatchers.Main) {
-                with(supportFragmentManager.beginTransaction()) {
-                    addToBackStack(fragment::class.simpleName)
-                    add(binding.fragmentContainer.id, fragment)
-                    commit()
-                }
-            }
+    private fun checkIntent(intent: Intent?) {
+        if ((intent != null) && intent.hasCategory(NowPlaying::class.simpleName)) {
+            val reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
+            val chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
+            val chapterPosition = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L)
+
+            if ((reciter != null) && (chapter != null)) showMediaPlayer(
+                    reciter,
+                    chapter,
+                    chapterPosition
+            )
+        } else if (MediaService.isMediaPlaying) {
+            showMediaPlayer()
+        } else {
+            // ??????
         }
+    }
+
+    private fun showMediaPlayer(
+            reciter: Reciter? = null,
+            chapter: Chapter? = null,
+            chapterPosition: Long? = null
+    ) {
+        binding.mediaPlaybackFragmentContainer.visibility = View.VISIBLE
+        navController.navigate(
+                RecitersListDirections.toChaptersList(
+                        reciter ?: sharedPrefsManager.lastReciter!!
+                )
+        )
+        mediaPlaybackNavController.navigate(
+                MediaPlaybackDirections.toMediaPlayback(
+                        reciter ?: sharedPrefsManager.lastReciter!!,
+                        chapter ?: sharedPrefsManager.lastChapter!!,
+                        chapterPosition ?: sharedPrefsManager.lastChapterPosition
+                )
+        )
     }
 
     private suspend fun checkDataConsistency() {

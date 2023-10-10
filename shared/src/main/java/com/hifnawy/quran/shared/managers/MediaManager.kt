@@ -66,6 +66,8 @@ class MediaManager(private var context: Context) : LifecycleOwner {
     var mediaStateListener: MediaStateListener? = null
     var reciters: List<Reciter> = mutableListOf()
     var chapters: List<Chapter> = mutableListOf()
+    override val lifecycle: Lifecycle
+        get() = lifecycleRegistry
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
     private var sharedPrefsManager: SharedPreferencesManager = SharedPreferencesManager(context)
@@ -171,7 +173,6 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                 if (workInfo.state == WorkInfo.State.SUCCEEDED) return@observe
 
                 Log.d(TAG, "${workInfo.state} - ${workInfo.progress}")
-
                 val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
                         workInfo.progress.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
                             ?: return@observe
@@ -194,7 +195,6 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                 if (workInfo.state == WorkInfo.State.CANCELLED) {
                     CoroutineScope(Dispatchers.IO).launch { processPreviousChapter() }
                 }
-
                 @SuppressLint("DiscouragedApi") val drawableId = context.resources.getIdentifier(
                         "chapter_${chapter.id.toString().padStart(3, '0')}",
                         "drawable",
@@ -225,6 +225,4 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                 }
             }
     }
-
-    override fun getLifecycle(): Lifecycle = lifecycleRegistry
 }
