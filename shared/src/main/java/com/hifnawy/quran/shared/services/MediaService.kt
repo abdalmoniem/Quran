@@ -28,6 +28,7 @@ import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.audio.AudioAttributes
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.crashlytics.ktx.crashlytics
 import com.google.firebase.ktx.Firebase
 import com.hifnawy.quran.shared.BuildConfig
@@ -164,7 +165,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
         exoPlayer.addListener(this)
 
-        Firebase.crashlytics.setCrashlyticsCollectionEnabled(BuildConfig.DEBUG)
+        Firebase.crashlytics.setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

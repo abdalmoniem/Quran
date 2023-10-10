@@ -83,7 +83,7 @@ class MainActivity : AppCompatActivity() {
             subtitle = "   ${getString(R.string.reciters)}"
         }
 
-        Firebase.crashlytics.setCrashlyticsCollectionEnabled(BuildConfig.DEBUG)
+        Firebase.crashlytics.setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG)
         lifecycleScope.launch {
             lifecycleScope.async(context = Dispatchers.IO) { checkDataConsistency() }.await()
         }
