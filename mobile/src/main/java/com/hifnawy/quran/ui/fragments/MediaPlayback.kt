@@ -11,19 +11,19 @@ import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver.OnGlobalLayoutListener
 import android.widget.FrameLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.constraintlayout.motion.widget.MotionLayout
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.graphics.drawable.toDrawable
 import androidx.fragment.app.Fragment
 import androidx.palette.graphics.Palette
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import com.google.android.material.appbar.AppBarLayout
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.DownloadDialogBinding
 import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
@@ -58,15 +58,21 @@ class MediaPlayback(
     private val mediaUpdatesReceiver = MediaUpdatesReceiver()
     private lateinit var binding: FragmentMediaPlaybackBinding
     private lateinit var sharedPrefsManager: SharedPreferencesManager
-    private var rootHeight: Int = 0
-    private var toolbarHeight: Int = 0
+    private var appBarHeight: Int = 0
 
-    @SuppressLint("DiscouragedApi", "SetTextI18n")
+    @SuppressLint("DiscouragedApi", "SetTextI18n", "ClickableViewAccessibility")
     override fun onCreateView(
             inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         binding = FragmentMediaPlaybackBinding.inflate(layoutInflater, container, false)
         sharedPrefsManager = SharedPreferencesManager(binding.root.context)
+
+        with(parentActivity.binding) {
+            appBarHeight = appBar.height
+            val appBarLayoutParams = appBar.layoutParams as ConstraintLayout.LayoutParams
+            appBarLayoutParams.height = 1
+            appBar.layoutParams = appBarLayoutParams
+        }
 
         with(binding) {
             chapterPlayPause.setOnClickListener {
@@ -115,23 +121,17 @@ class MediaPlayback(
             }
 
             root.isInteractionEnabled = false
-            root.viewTreeObserver.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
-                override fun onGlobalLayout() {
-                    root.isInteractionEnabled = true
-                    root.viewTreeObserver.removeOnGlobalLayoutListener(this)
-                    rootHeight = root.height
-
-                    with(parentActivity.binding) {
-                        toolbarHeight = appToolbar.height
-                        val toolbarLayoutParams = appToolbar.layoutParams as AppBarLayout.LayoutParams
-                        toolbarLayoutParams.height = 0
-                        appToolbar.layoutParams = toolbarLayoutParams
+            root.setTransitionListener(MotionLayoutTransitionListener())
+            root.transitionToStart()
+            chapterBackgroundImageContainer.setOnTouchListener { _, motionEvent ->
+                when (motionEvent.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        Log.d(TAG, "Touch Down!")
+                        root.isInteractionEnabled = true
                     }
-
-                    root.setTransitionListener(MotionLayoutTransitionListener())
-                    Log.d(TAG, "rootHeight is ready! it's value is $rootHeight")
                 }
-            })
+                false
+            }
         }
 
         parentActivity.registerReceiver(mediaUpdatesReceiver,
@@ -392,7 +392,12 @@ class MediaPlayback(
     }
 
     private inner class MotionLayoutTransitionListener : MotionLayout.TransitionListener {
-        var rootMinimizedHeight: Int = 0
+
+        val fragmentContainerLayoutParams =
+            parentActivity.binding.fragmentContainer.layoutParams as FrameLayout.LayoutParams
+        val appBarLayoutParams =
+            parentActivity.binding.appBar.layoutParams as ConstraintLayout.LayoutParams
+
         override fun onTransitionStarted(motionLayout: MotionLayout?, startId: Int, endId: Int) {
 
         }
@@ -403,32 +408,41 @@ class MediaPlayback(
                 endId: Int,
                 progress: Float
         ) {
-            val rootLayoutParams = binding.root.layoutParams as FrameLayout.LayoutParams
-            val minimizing = (startId == R.id.maximized) && (endId == R.id.minimized)
-            val toolbarLayoutParams =
-                parentActivity.binding.appToolbar.layoutParams as AppBarLayout.LayoutParams
-
-            if (minimizing) {
-                toolbarLayoutParams.height = lerp(0.dp, toolbarHeight, progress).toInt()
-                rootLayoutParams.height = lerp(rootHeight, 200.dp, progress).toInt()
-                // Log.d(TAG, "shrinking, setting bottom margin to: $bottomMargin")
-            } else {
-                toolbarLayoutParams.height = lerp(toolbarHeight, 0.dp, progress).toInt()
-                rootLayoutParams.height = lerp(rootMinimizedHeight, rootHeight, progress).toInt()
-                // Log.d(TAG, "expanding, setting bottom margin to: $bottomMargin")
-            }
-
             Log.d(
                     TAG,
-                    "minimizing: $minimizing toolbarHeight: $toolbarHeight targetHeight: ${0.dp} , toolbarCurrentHeight: ${toolbarLayoutParams.height}"
+                    "${100.dp} - ${R.dimen.media_player_minimized_height} - ${R.dimen.media_player_minimized_height.dp}"
             )
+            val minimizing = (startId == R.id.maximized) && (endId == R.id.minimized)
+            fragmentContainerLayoutParams.bottomMargin = if (minimizing) {
+                lerp(100.dp, 0.dp, progress).toInt()
+            } else {
+                lerp(0.dp, 100.dp, progress).toInt()
+            }
 
-            parentActivity.binding.appToolbar.layoutParams = toolbarLayoutParams
-            binding.root.layoutParams = rootLayoutParams
+            appBarLayoutParams.height = if (minimizing) {
+                lerp(1.dp, appBarHeight, progress).toInt()
+            } else {
+                lerp(appBarHeight, 1.dp, progress).toInt()
+            }
+
+            parentActivity.binding.appBar.layoutParams = appBarLayoutParams
+            parentActivity.binding.fragmentContainer.layoutParams = fragmentContainerLayoutParams
         }
 
         override fun onTransitionCompleted(motionLayout: MotionLayout?, currentState: Int) {
-            rootMinimizedHeight = binding.root.height
+            binding.root.isInteractionEnabled = false
+
+            appBarLayoutParams.height = if (currentState == R.id.minimized) {
+                appBarHeight
+            } else {
+                1.dp
+            }
+            fragmentContainerLayoutParams.bottomMargin = if (currentState == R.id.minimized) {
+                100.dp
+            } else {
+                0.dp
+            }
+            parentActivity.binding.appBar.layoutParams = appBarLayoutParams
         }
 
         override fun onTransitionTrigger(
@@ -440,6 +454,7 @@ class MediaPlayback(
 
         }
 
+        @Suppress("SpellCheckingInspection")
         fun lerp(valueFrom: Int, valueTo: Int, delta: Float): Float =
             (valueFrom * (1f - delta)) + (valueTo * delta)
 

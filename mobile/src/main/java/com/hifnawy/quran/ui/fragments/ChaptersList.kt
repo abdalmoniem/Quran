@@ -75,9 +75,13 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
 
                     chapterSearch.text = null
 
+                    parentActivity.binding.mediaPlaybackFragmentContainer.visibility = View.VISIBLE
                     with(parentFragmentManager.beginTransaction()) {
                         addToBackStack(ChaptersList::class.simpleName)
-                        add(parentActivity.binding.fragmentContainer.id, MediaPlayback(reciter, chapter))
+                        add(
+                                parentActivity.binding.mediaPlaybackFragmentContainer.id,
+                                MediaPlayback(reciter, chapter)
+                        )
                         commit()
                     }
                 }
