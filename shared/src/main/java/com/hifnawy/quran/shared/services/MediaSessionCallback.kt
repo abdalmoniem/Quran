@@ -10,17 +10,13 @@ import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 
 class MediaSessionCallback(
-    private val mediaService: MediaService, private val sharedPrefsManager: SharedPreferencesManager
+        private val mediaService: MediaService, private val sharedPrefsManager: SharedPreferencesManager
 ) : MediaSessionCompat.Callback() {
 
     override fun onPlay() {
         Log.d("AndroidAuto", "Playing...")
 
-        sharedPrefsManager.apply {
-            if ((lastReciter == null) || (lastChapter == null)) return@apply
-
-            mediaService.prepareMedia(lastReciter, lastChapter, lastChapterPosition)
-        }
+        mediaService.resumeMedia()
     }
 
     override fun onPlayFromMediaId(mediaId: String?, extras: Bundle?) {

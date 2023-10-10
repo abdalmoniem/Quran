@@ -191,10 +191,7 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                         DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name,
                         -1f
                 )
-
-                if (workInfo.state == WorkInfo.State.CANCELLED) {
-                    CoroutineScope(Dispatchers.IO).launch { processPreviousChapter() }
-                }
+                
                 @SuppressLint("DiscouragedApi") val drawableId = context.resources.getIdentifier(
                         "chapter_${chapter.id.toString().padStart(3, '0')}",
                         "drawable",

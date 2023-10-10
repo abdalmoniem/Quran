@@ -44,10 +44,7 @@ import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Timer
@@ -132,12 +129,15 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private lateinit var mediaSession: MediaSessionCompat
     private lateinit var sharedPrefsManager: SharedPreferencesManager
     private val mediaManager: MediaManager by lazy { MediaManager.getInstance(this) }
+    private val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
+    private val mainCoroutineScope = CoroutineScope(Dispatchers.Main)
 
     @Suppress("PrivatePropertyName")
     private val TAG = MediaService::class.simpleName
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
     private var currentChapterPosition: Long = -1L
+    private var isMediaReady = false
     private var mediaState = MediaState.RECITER_BROWSE
 
     override fun onCreate() {
@@ -194,20 +194,18 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 val notification = NotificationCompat.Builder(
                         this@MediaService,
                         "${getString(R.string.quran_recitation_notification_name)} Service"
-                ).setOngoing(true).setPriority(NotificationManager.IMPORTANCE_MAX)
-                    .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
+                )
+                    .setSilent(true)
+                    .setOngoing(true)
+                    .setPriority(NotificationManager.IMPORTANCE_MAX)
+                    .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
                     .setContentTitle(getString(R.string.app_name))
-                    .setContentText(reciter.name_ar)
-                    .setContentTitle(
-                            chapter.name_arabic
-                    )
+                    .setContentText(chapter.name_arabic)
+                    .setSubText(reciter.name_ar)
                     .build()
 
                 notificationManager.createNotificationChannel(notificationChannel)
-                startForeground(
-                        R.integer.quran_chapter_recitation_notification_channel_id,
-                        notification
-                )
+                startForeground(R.integer.quran_chapter_recitation_notification_channel_id, notification)
 
                 prepareMedia(reciter, chapter, chapterPosition)
             }
@@ -244,30 +242,23 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     override fun onGetRoot(clientPackageName: String, clientUid: Int, rootHints: Bundle?): BrowserRoot =
         BrowserRoot(MEDIA_ROOT_ID, null)
 
-    @OptIn(DelicateCoroutinesApi::class)
     override fun onLoadChildren(
             parentId: String, result: Result<MutableList<MediaBrowserCompat.MediaItem>>
     ) {
         val mediaItems: MutableList<MediaBrowserCompat.MediaItem> = mutableListOf()
 
-        GlobalScope.launch {
+        ioCoroutineScope.launch {
             // Check whether this is the root menu:
             if (parentId == MEDIA_ROOT_ID) {
                 // Build the MediaItem objects for the top level
                 // and put them in the mediaItems list.
-                mediaManager.reciters = GlobalScope.async(Dispatchers.IO) { getRecitersList() }.await()
-                mediaManager.chapters = GlobalScope.async(Dispatchers.IO) { getChaptersList() }.await()
+                mediaManager.reciters = getRecitersList()
+                mediaManager.chapters = getChaptersList()
 
-                mediaItems.add(
-                        createBrowsableMediaItem(
-                                "quran_reciters", getString(R.string.quran)
-                        )
-                )
+                mediaItems.add(createBrowsableMediaItem("quran_reciters", getString(R.string.quran)))
             } else {
-                if (mediaManager.reciters.isEmpty()) mediaManager.reciters =
-                    GlobalScope.async(Dispatchers.IO) { getRecitersList() }.await()
-                if (mediaManager.chapters.isEmpty()) mediaManager.chapters =
-                    GlobalScope.async(Dispatchers.IO) { getChaptersList() }.await()
+                if (mediaManager.reciters.isEmpty()) mediaManager.reciters = getRecitersList()
+                if (mediaManager.chapters.isEmpty()) mediaManager.chapters = getChaptersList()
 
                 mediaState = if (parentId.startsWith("reciter_")) {
                     MediaState.CHAPTER_BROWSE
@@ -347,8 +338,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     }
 
     private fun startPlaybackMonitoring() {
-        val mainCoroutineScope = CoroutineScope(Dispatchers.Main)
-
         playbackMonitorTimer.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
                 mainCoroutineScope.launch {
@@ -492,52 +481,56 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         mediaSession.setPlaybackState(playbackState)
     }
 
+    @SuppressLint("DiscouragedApi")
     private fun updateMediaSession(
             reciter: Reciter,
             chapter: Chapter,
-            audioFile: File,
-            drawable: Drawable?
+            chapterAudioFile: File? = null,
+            chapterDrawable: Drawable? = null
     ) {
         currentReciter = reciter
         currentChapter = chapter
-
-        Log.d(TAG, "playing ${audioFile.name} from $currentChapterPosition...")
-        val mediaMetadataRetriever = MediaMetadataRetriever().apply {
-            setDataSource(this@MediaService, audioFile.toUri())
-        }
-        val durationStr =
+        val chapterDrawableId = resources.getIdentifier(
+                "chapter_${currentChapter!!.id.toString().padStart(3, '0')}",
+                "drawable",
+                packageName
+        )
+        val chapterDrawableBitmap = if (chapterDrawable == null) (AppCompatResources.getDrawable(
+                this,
+                chapterDrawableId
+        ) as BitmapDrawable).bitmap
+        else (chapterDrawable as BitmapDrawable).bitmap
+        val durationMs = if (chapterAudioFile != null) {
+            Log.d(TAG, "playing ${chapterAudioFile.name} from $currentChapterPosition...")
+            val mediaMetadataRetriever = MediaMetadataRetriever().apply {
+                setDataSource(this@MediaService, chapterAudioFile.toUri())
+            }
             mediaMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-        val durationMs = durationStr!!.toInt()
+                ?.toLong() ?: -1L
+        } else {
+            -1L
+        }
 
         mediaSession.setMetadata(
-                MediaMetadataCompat.Builder().putText(
-                        MediaMetadataCompat.METADATA_KEY_TITLE, currentChapter!!.name_arabic
-                ).putText(
-                        MediaMetadataCompat.METADATA_KEY_ARTIST,
-                        (currentReciter!!.name_ar) + if (currentReciter!!.style != null) " (${currentReciter!!.style!!.style})" else ""
-                ).putText(
-                        MediaMetadataCompat.METADATA_KEY_GENRE,
-                        getString(R.string.quran)
-                ).putLong(
-                        MediaMetadataCompat.METADATA_KEY_DURATION, durationMs.toLong()
-                ).putBitmap(
-                        MediaMetadataCompat.METADATA_KEY_ALBUM_ART, (drawable as BitmapDrawable).bitmap
-                ).build()
+                MediaMetadataCompat.Builder()
+                    .putText(
+                            MediaMetadataCompat.METADATA_KEY_TITLE,
+                            if (chapterAudioFile == null) getString(
+                                    R.string.loading_chapter,
+                                    currentChapter!!.name_arabic
+                            )
+                            else chapter.name_arabic
+                    )
+                    .putText(
+                            MediaMetadataCompat.METADATA_KEY_ARTIST,
+                            "${reciter.name_ar} ${if (reciter.style != null) "(${reciter.style.style})" else ""}"
+                    )
+                    .putText(MediaMetadataCompat.METADATA_KEY_GENRE, getString(R.string.quran))
+                    .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs)
+                    .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, chapterDrawableBitmap).build()
         )
 
-        showMediaNotification(chapter)
-
-        if (exoPlayer.isPlaying || (currentChapterPosition == 0L)) {
-            exoPlayer.stop()
-        }
-        val mediaItem = com.google.android.exoplayer2.MediaItem.fromUri(audioFile.toUri())
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-        exoPlayer.playWhenReady = true
-        Log.d(TAG, "seeking to $currentChapterPosition...")
-        exoPlayer.seekTo(currentChapterPosition)
-
-        setMediaPlaybackState(MediaSessionState.PLAYING)
+        if (chapterAudioFile != null) playMedia(chapter, chapterAudioFile)
     }
 
     private fun updateMediaPlayer(
@@ -572,8 +565,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         }
     }
 
-    @SuppressLint("DiscouragedApi")
-    @Suppress("UNUSED_PARAMETER")
     private fun processDownloadProgress(
             reciter: Reciter,
             chapter: Chapter,
@@ -581,11 +572,12 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             bytesDownloaded: Long,
             audioFileSize: Int,
             progress: Float,
-            audioFile: File?
+            @Suppress("UNUSED_PARAMETER")
+            chapterAudioFile: File?
     ) {
         Log.d(
                 TAG,
-                "$downloadStatus ${currentChapter?.name_simple} $bytesDownloaded / $audioFileSize (${progress}%)"
+                "$downloadStatus ${chapter.name_simple} $bytesDownloaded / $audioFileSize (${progress}%)"
         )
 
         updateMediaPlayer(reciter, chapter)
@@ -593,33 +585,12 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
         when (downloadStatus) {
             DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD -> {
+                isMediaReady = false
                 currentReciter = reciter
                 currentChapter = chapter
-                val drawableId = resources.getIdentifier(
-                        "chapter_${currentChapter!!.id.toString().padStart(3, '0')}",
-                        "drawable",
-                        packageName
-                )
-
                 setMediaPlaybackState(MediaSessionState.BUFFERING)
 
-                mediaSession.setMetadata(
-                        MediaMetadataCompat.Builder().putText(
-                                MediaMetadataCompat.METADATA_KEY_TITLE,
-                                getString(R.string.loading_chapter, currentChapter!!.name_arabic)
-                        ).putText(
-                                MediaMetadataCompat.METADATA_KEY_ARTIST,
-                                (currentReciter!!.name_ar) + if (currentReciter!!.style != null) " (${currentReciter!!.style?.style})" else ""
-                        ).putText(
-                                MediaMetadataCompat.METADATA_KEY_GENRE,
-                                getString(R.string.quran)
-                        ).putBitmap(
-                                MediaMetadataCompat.METADATA_KEY_ALBUM_ART,
-                                (AppCompatResources.getDrawable(
-                                        this@MediaService, drawableId
-                                ) as BitmapDrawable).bitmap
-                        ).build()
-                )
+                updateMediaSession(reciter, chapter)
             }
 
             DownloadWorkManager.DownloadStatus.DOWNLOADING -> Unit
@@ -672,23 +643,51 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         )
     }
 
-    private fun playMedia(reciter: Reciter, chapter: Chapter, chapterPosition: Long) {
+    private fun processChapter(reciter: Reciter, chapter: Chapter, chapterPosition: Long) {
         if (exoPlayer.isPlaying) {
             exoPlayer.stop()
         }
 
         setMediaPlaybackState(MediaSessionState.BUFFERING)
 
+        updateMediaSession(reciter, chapter)
         updateMediaPlayer(reciter, chapter, chapterPosition)
         updateWidget(reciter, chapter)
-        CoroutineScope(Dispatchers.IO).launch { mediaManager.processChapter(reciter, chapter) }
+        ioCoroutineScope.launch { mediaManager.processChapter(reciter, chapter) }
 
         showMediaNotification(chapter)
     }
 
-    private fun resumeMedia() {
-        exoPlayer.play()
+    private fun playMedia(chapter: Chapter, chapterAudioFile: File) {
+        isMediaReady = true
+
+        showMediaNotification(chapter)
+
+        if (exoPlayer.isPlaying || (currentChapterPosition == 0L)) {
+            exoPlayer.stop()
+        }
+        val mediaItem = com.google.android.exoplayer2.MediaItem.fromUri(chapterAudioFile.toUri())
+        exoPlayer.setMediaItem(mediaItem)
+        exoPlayer.prepare()
+        exoPlayer.playWhenReady = true
+        Log.d(TAG, "seeking to $currentChapterPosition...")
+        exoPlayer.seekTo(currentChapterPosition)
+
         setMediaPlaybackState(MediaSessionState.PLAYING)
+    }
+
+    fun resumeMedia() {
+        if (isMediaReady) {
+            exoPlayer.play()
+            setMediaPlaybackState(MediaSessionState.PLAYING)
+        } else {
+            prepareMedia(
+                    currentReciter ?: sharedPrefsManager.lastReciter,
+                    currentChapter ?: sharedPrefsManager.lastChapter,
+                    if (currentReciter != null) currentChapterPosition
+                    else sharedPrefsManager.lastChapterPosition
+            )
+        }
     }
 
     fun pauseMedia() {
@@ -697,7 +696,13 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     }
 
     fun stop() {
-        exoPlayer.stop()
+        if (exoPlayer.isPlaying) {
+            exoPlayer.stop()
+        } else {
+            isMediaReady = false
+            updateMediaSession(currentReciter!!, currentChapter!!)
+        }
+
         mediaManager.cancelPendingDownloads()
         setMediaPlaybackState(MediaSessionState.STOPPED)
     }
@@ -717,7 +722,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             currentReciter = reciter
             currentChapter = chapter
 
-            playMedia(reciter, chapter, chapterPosition)
+            processChapter(reciter, chapter, chapterPosition)
             return
         }
 
@@ -727,14 +732,20 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             playbackMonitorTimer.cancel()
             playbackMonitorTimer.purge()
 
-            playMedia(reciter, chapter, chapterPosition)
+            processChapter(reciter, chapter, chapterPosition)
             return
         }
+
+        if (!isMediaReady) {
+            processChapter(reciter, chapter, chapterPosition)
+            return
+        }
+
+        isMediaReady = true
 
         showMediaNotification(chapter)
         if (!exoPlayer.isPlaying) exoPlayer.play()
         setMediaPlaybackState(MediaSessionState.PLAYING)
-        // playMedia(reciter, chapter, chapterPosition)
     }
 
     fun skipToNextChapter() {
@@ -742,7 +753,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         currentChapterPosition = -1L
         playbackMonitorTimer.cancel()
         playbackMonitorTimer.purge()
-        CoroutineScope(Dispatchers.IO).launch { mediaManager.processNextChapter() }
+        ioCoroutineScope.launch { mediaManager.processNextChapter() }
     }
 
     fun skipToPreviousChapter() {
@@ -750,7 +761,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         playbackMonitorTimer.cancel()
         playbackMonitorTimer.purge()
         currentChapterPosition = -1L
-        CoroutineScope(Dispatchers.IO).launch { mediaManager.processPreviousChapter() }
+        ioCoroutineScope.launch { mediaManager.processPreviousChapter() }
     }
 
     fun seekChapterToPosition(chapterPosition: Long) {

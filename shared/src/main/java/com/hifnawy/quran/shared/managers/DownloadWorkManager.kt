@@ -167,7 +167,9 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                         )
                     } else {
                         workDataOf(
-                                DownloadWorkerInfo.CURRENT_CHAPTER_NUMBER.name to fromChapter(currentChapter),
+                                DownloadWorkerInfo.CURRENT_CHAPTER_NUMBER.name to fromChapter(
+                                        currentChapter
+                                ),
                                 DownloadWorkerInfo.DOWNLOAD_STATUS.name to downloadStatus.name,
                                 DownloadWorkerInfo.BYTES_DOWNLOADED.name to bytesDownloaded,
                                 DownloadWorkerInfo.FILE_SIZE.name to fileSize,
@@ -293,13 +295,12 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
             setProgress(
                     DownloadStatus.STARTING_DOWNLOAD,
-                    0,
+                    offset,
                     chapterAudioFileSize,
                     null,
-                    0f,
+                    offset.toFloat() / chapterAudioFileSize.toFloat() * 100f,
                     if (singleFileDownload) null else chapter
             )
-
             val outputStream = FileOutputStream(chapterFile, true)
             var bytes = 0
             var bytesDownloaded = offset
@@ -367,7 +368,12 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                             }٪)"
                     ).setSubText(reciter.name_ar).build()
 
-                setForeground(ForegroundInfo(R.integer.quran_chapter_recitation_notification_channel_id, notification))
+                setForeground(
+                        ForegroundInfo(
+                                R.integer.quran_chapter_recitation_notification_channel_id,
+                                notification
+                        )
+                )
 
                 outputStream.write(buffer, 0, bytes)
                 bytes = inputStream.read(buffer)
