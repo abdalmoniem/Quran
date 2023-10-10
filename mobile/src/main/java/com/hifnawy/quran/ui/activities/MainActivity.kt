@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -29,6 +30,7 @@ import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
+import com.hifnawy.quran.ui.fragments.ChaptersList
 import com.hifnawy.quran.ui.fragments.MediaPlayback
 import com.hifnawy.quran.ui.fragments.RecitersList
 import com.hifnawy.quran.ui.widgets.NowPlaying
@@ -75,19 +77,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         Firebase.crashlytics.setCrashlyticsCollectionEnabled(BuildConfig.DEBUG)
-        val fragment = getIntentFragment(intent) ?: RecitersList()
-        launchFragment(fragment)
+        checkIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        getIntentFragment(intent)?.apply { launchFragment(this) }
+        checkIntent(intent)
     }
 
-    private fun getIntentFragment(intent: Intent?): Fragment? {
-        if (intent == null) return null
-        if (!intent.hasCategory(NowPlaying::class.simpleName)) return null
-        val fragment = let {
+    private fun checkIntent(intent: Intent?) {
+        if ((intent != null) && intent.hasCategory(NowPlaying::class.simpleName)) {
             val reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
             val chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
             val chapterPosition = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L)
@@ -97,14 +96,23 @@ class MainActivity : AppCompatActivity() {
                     "Reciter: $reciter\nChapter: $chapter\n chapterPosition: $chapterPosition"
             )
 
-            if ((reciter == null) || (chapter == null)) RecitersList() else MediaPlayback(
-                    reciter, chapter, chapterPosition
-            )
+            if ((reciter == null) || (chapter == null)) {
+                launchFragment(RecitersList())
+            } else {
+                val fragment = RecitersList()
+                launchFragment(fragment)
+                supportFragmentManager.beginTransaction().hide(fragment).commit()
+                launchFragment(ChaptersList(reciter, chapter))
+
+                binding.mediaPlaybackFragmentContainer.visibility = View.VISIBLE
+                supportFragmentManager.beginTransaction().replace(
+                        binding.mediaPlaybackFragmentContainer.id,
+                        MediaPlayback(reciter, chapter, chapterPosition)
+                ).commit()
+            }
+        } else {
+            launchFragment(RecitersList())
         }
-
-        Log.d(this::class.simpleName, "fragment: $fragment")
-
-        return fragment
     }
 
     override fun onRequestPermissionsResult(
@@ -160,8 +168,11 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             lifecycleScope.async(context = Dispatchers.IO) { checkDataConsistency() }.await()
             withContext(Dispatchers.Main) {
-                supportFragmentManager.beginTransaction().add(binding.fragmentContainer.id, fragment)
-                    .commit()
+                with(supportFragmentManager.beginTransaction()) {
+                    addToBackStack(fragment::class.simpleName)
+                    add(binding.fragmentContainer.id, fragment)
+                    commit()
+                }
             }
         }
     }
