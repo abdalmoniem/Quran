@@ -21,20 +21,32 @@
             android:layout_height="wrap_content"
             android:elevation="4dp"
             android:layoutDirection="rtl"
-            android:padding="10dp"
             android:textDirection="rtl"
-            android:theme="@style/ThemeOverlay.AppCompat.ActionBar" />
-
+            android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
+            app:navigationIcon="@drawable/circular_app_icon"
+            app:subtitle="@string/reciters"
+            app:title="@string/app_name" />
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/fragment_container"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/app_bar"
-        tools:layout="@layout/fragment_reciters_list" />
+        app:layout_constraintTop_toBottomOf="@id/app_bar">
 
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/fragment_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            tools:layout="@layout/fragment_reciters_list" />
+
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/media_playback_fragment_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            tools:layout="@layout/fragment_media_playback" />
+    </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -40,7 +40,6 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
 
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private val workManager by lazy { WorkManager.getInstance(binding.root.context) }
-
     private var chapters: List<Chapter> = mutableListOf()
     private lateinit var binding: FragmentChaptersListBinding
     private lateinit var chaptersListAdapter: ChaptersListAdapter
@@ -76,10 +75,13 @@ class ChaptersList(private val reciter: Reciter, private val chapter: Chapter? =
 
                     chapterSearch.text = null
 
+                    parentActivity.binding.mediaPlaybackFragmentContainer.visibility = View.VISIBLE
                     with(parentFragmentManager.beginTransaction()) {
-                        hide(this@ChaptersList)
-                        addToBackStack(ChaptersList::class.qualifiedName)
-                        add(parentActivity.binding.fragmentContainer.id, MediaPlayback(reciter, chapter))
+                        addToBackStack(ChaptersList::class.simpleName)
+                        add(
+                                parentActivity.binding.mediaPlaybackFragmentContainer.id,
+                                MediaPlayback(reciter, chapter)
+                        )
                         commit()
                     }
                 }
