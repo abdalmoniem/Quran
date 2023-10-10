@@ -42,6 +42,9 @@ class ChaptersList : Fragment() {
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private val reciter by lazy { ChaptersListArgs.fromBundle(requireArguments()).reciter }
     private val workManager by lazy { WorkManager.getInstance(binding.root.context) }
+
+    @Suppress("PrivatePropertyName")
+    private val TAG = ChaptersList::class.simpleName
     private var chapters: List<Chapter> = mutableListOf()
     private lateinit var binding: FragmentChaptersListBinding
     private lateinit var chaptersListAdapter: ChaptersListAdapter
@@ -62,7 +65,7 @@ class ChaptersList : Fragment() {
                         root.context, ArrayList(chapters)
                 ) { position, chapter, itemView ->
                     Log.d(
-                            ChaptersList::class.simpleName,
+                            TAG,
                             "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
                     )
                     chapterSearch.text = null
@@ -197,28 +200,28 @@ class ChaptersList : Fragment() {
         workManager.getWorkInfoByIdLiveData(requestID)
             .observe(viewLifecycleOwner) { workInfo ->
                 if (workInfo == null) return@observe
-                if (workInfo.state == WorkInfo.State.FAILED) return@observe
-                if (workInfo.state == WorkInfo.State.SUCCEEDED) {
-                    dialog.dismiss()
-                    return@observe
-                }
+                if ((workInfo.state != WorkInfo.State.RUNNING) && (workInfo.state != WorkInfo.State.SUCCEEDED)) return@observe
+                if (workInfo.state == WorkInfo.State.SUCCEEDED) dialog.dismiss()
+                val dataSource =
+                    if (workInfo.state == WorkInfo.State.SUCCEEDED) workInfo.outputData else workInfo.progress
+
+                Log.d(TAG, "${workInfo.state} - $dataSource")
                 val currentChapterJSON =
-                    workInfo.progress.getString(DownloadWorkManager.DownloadWorkerInfo.CURRENT_CHAPTER_NUMBER.name)
-                        ?: return@observe
+                    dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.CURRENT_CHAPTER_NUMBER.name)
                 val currentChapter = DownloadWorkManager.toChapter(currentChapterJSON)
                 val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
-                        workInfo.progress.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
+                        dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
                             ?: return@observe
                 )
-                val bytesDownloaded = workInfo.progress.getLong(
+                val bytesDownloaded = dataSource.getLong(
                         DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name,
                         -1L
                 )
-                val fileSize = workInfo.progress.getInt(
+                val fileSize = dataSource.getInt(
                         DownloadWorkManager.DownloadWorkerInfo.FILE_SIZE.name,
                         -1
                 )
-                val progress = workInfo.progress.getFloat(
+                val progress = dataSource.getFloat(
                         DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name,
                         -1f
                 )

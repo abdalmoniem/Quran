@@ -20,9 +20,7 @@ import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -48,7 +46,7 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                 bytesDownloaded: Long,
                 fileSize: Int,
                 percentage: Float,
-                audioFile: File?
+                chapterAudioFile: File?
         )
     }
 
@@ -57,7 +55,7 @@ class MediaManager(private var context: Context) : LifecycleOwner {
         fun onMediaReady(
                 reciter: Reciter,
                 chapter: Chapter,
-                chapterFile: File,
+                chapterAudioFile: File,
                 chapterDrawable: Drawable?
         )
     }
@@ -103,12 +101,12 @@ class MediaManager(private var context: Context) : LifecycleOwner {
         sharedPrefsManager.lastReciter = reciter
         sharedPrefsManager.lastChapter = chapter
 
-        sharedPrefsManager.getChapterPath(reciter, chapter)?.let { chapterFile ->
+        sharedPrefsManager.getChapterPath(reciter, chapter)?.let { chapterAudioFile ->
             withContext(Dispatchers.Main) {
                 mediaStateListener?.onMediaReady(
                         reciter,
                         chapter,
-                        File(chapterFile),
+                        File(chapterAudioFile),
                         AppCompatResources.getDrawable(context, drawableId)
                 )
             }
@@ -169,29 +167,23 @@ class MediaManager(private var context: Context) : LifecycleOwner {
         workManager.getWorkInfoByIdLiveData(requestID)
             .observe(this) { workInfo ->
                 if (workInfo == null) return@observe
-                if (workInfo.state == WorkInfo.State.FAILED) return@observe
-                if (workInfo.state == WorkInfo.State.SUCCEEDED) return@observe
+                if ((workInfo.state != WorkInfo.State.RUNNING) && (workInfo.state != WorkInfo.State.SUCCEEDED)) return@observe
+                val dataSource =
+                    if (workInfo.state == WorkInfo.State.SUCCEEDED) workInfo.outputData else workInfo.progress
 
-                Log.d(TAG, "${workInfo.state} - ${workInfo.progress}")
+                Log.d(TAG, "${workInfo.state} - $dataSource")
                 val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
-                        workInfo.progress.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
+                        (dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name))
                             ?: return@observe
                 )
-                val fileSize = workInfo.progress.getInt(
-                        DownloadWorkManager.DownloadWorkerInfo.FILE_SIZE.name,
-                        -1
-                )
-                val filePath =
-                    workInfo.progress.getString(DownloadWorkManager.DownloadWorkerInfo.FILE_PATH.name)
-                val bytesDownloaded = workInfo.progress.getLong(
-                        DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name,
-                        -1L
-                )
-                val progress = workInfo.progress.getFloat(
-                        DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name,
-                        -1f
-                )
-                
+                val fileSize =
+                    dataSource.getInt(DownloadWorkManager.DownloadWorkerInfo.FILE_SIZE.name, -1)
+                val chapterFilePath =
+                    dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.FILE_PATH.name)
+                val bytesDownloaded =
+                    dataSource.getLong(DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name, -1L)
+                val progress =
+                    dataSource.getFloat(DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name, -1f)
                 @SuppressLint("DiscouragedApi") val drawableId = context.resources.getIdentifier(
                         "chapter_${chapter.id.toString().padStart(3, '0')}",
                         "drawable",
@@ -211,12 +203,24 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                     )
 
                     DownloadWorkManager.DownloadStatus.FILE_EXISTS,
-                    DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> mediaStateListener?.onMediaReady(
-                            reciter,
-                            chapter,
-                            File(filePath!!),
-                            AppCompatResources.getDrawable(context, drawableId)
-                    )
+                    DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> {
+                        downloadListener?.onProgressChanged(
+                                reciter,
+                                chapter,
+                                downloadStatus,
+                                bytesDownloaded,
+                                fileSize,
+                                progress,
+                                File(chapterFilePath!!)
+                        )
+
+                        mediaStateListener?.onMediaReady(
+                                reciter,
+                                chapter,
+                                File(chapterFilePath!!),
+                                AppCompatResources.getDrawable(context, drawableId)
+                        )
+                    }
 
                     DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR -> Unit
                 }

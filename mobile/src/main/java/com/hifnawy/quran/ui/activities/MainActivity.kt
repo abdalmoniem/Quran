@@ -34,7 +34,6 @@ import com.hifnawy.quran.shared.tools.Utilities
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import com.hifnawy.quran.ui.fragments.MediaPlaybackDirections
 import com.hifnawy.quran.ui.fragments.RecitersListDirections
-import com.hifnawy.quran.ui.widgets.NowPlaying
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -133,7 +132,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkIntent(intent: Intent?) {
-        if ((intent != null) && intent.hasCategory(NowPlaying::class.simpleName)) {
+        if ((intent != null) &&
+            (intent.hasCategory(Constants.NowPlayingClass.simpleName) ||
+                    intent.hasCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY))
+        ) {
             val reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
             val chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
             val chapterPosition = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L)

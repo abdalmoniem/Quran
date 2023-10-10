@@ -138,14 +138,8 @@ class MediaPlayback : Fragment() {
                     object : OnBackPressedCallback(true) {
                         override
                         fun handleOnBackPressed() {
-                            Log.d(
-                                    TAG,
-                                    "maxID: ${R.id.maximized}, minID: ${R.id.minimized}, current: ${binding.root.currentState}"
-                            )
                             if (binding.root.currentState == R.id.maximized) {
                                 binding.root.transitionToState(R.id.minimized)
-                                // binding.root.jumpToState(R.id.minimized)
-                                // binding.root.updateState()
                             } else {
                                 parentActivity.onSupportNavigateUp()
                             }
@@ -285,21 +279,22 @@ class MediaPlayback : Fragment() {
                 ?.let { true } ?: false
         } ?: return
 
-        Log.d(TAG, "${workInfo.state} - ${workInfo.progress}")
+        if ((workInfo.state != WorkInfo.State.RUNNING) && (workInfo.state != WorkInfo.State.SUCCEEDED)) return
+        val dataSource =
+            if (workInfo.state == WorkInfo.State.SUCCEEDED) workInfo.outputData else workInfo.progress
 
-        if (workInfo.state == WorkInfo.State.FAILED) return
-        if (workInfo.state == WorkInfo.State.SUCCEEDED) return
+        Log.d(TAG, "${workInfo.state} - $dataSource")
         val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
-                workInfo.progress.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
+                dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
                     ?: return
         )
-        val bytesDownloaded = workInfo.progress.getLong(
+        val bytesDownloaded = dataSource.getLong(
                 DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name, -1L
         )
-        val fileSize = workInfo.progress.getInt(
+        val fileSize = dataSource.getInt(
                 DownloadWorkManager.DownloadWorkerInfo.FILE_SIZE.name, -1
         )
-        val progress = workInfo.progress.getFloat(
+        val progress = dataSource.getFloat(
                 DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name, -1f
         )
 

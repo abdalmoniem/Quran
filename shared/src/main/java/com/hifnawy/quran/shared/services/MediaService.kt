@@ -608,29 +608,31 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         @SuppressLint("DiscouragedApi") val chapterDrawableId = resources.getIdentifier(
                 "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", packageName
         )
-        val chapterDrawable = AppCompatResources.getDrawable(this@MediaService, chapterDrawableId)
+        val chapterDrawable = AppCompatResources.getDrawable(this, chapterDrawableId)
         val pendingIntent = PendingIntent.getActivity(
-                this@MediaService, 0, Intent(
-                this@MediaService, Class.forName("com.hifnawy.quran.ui.activities.MainActivity")
-        ).apply {
-            putExtra(Constants.IntentDataKeys.RECITER.name, currentReciter)
-            putExtra(Constants.IntentDataKeys.CHAPTER.name, currentChapter)
-        }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                this,
+                0,
+                Intent(this, Constants.MainActivityClass).apply {
+                    addCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY)
+                    putExtra(Constants.IntentDataKeys.RECITER.name, currentReciter)
+                    putExtra(Constants.IntentDataKeys.CHAPTER.name, currentChapter)
+                }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notification = NotificationCompat.Builder(
-                this@MediaService, getString(R.string.quran_recitation_notification_name)
-        ).setOngoing(true)
-            // Show controls on lock screen even when user hides sensitive content.
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setSmallIcon(R.drawable.quran_icon_monochrome_black_64).setSilent(true)
-            // Apply the media style template
-            .setStyle(
-                    androidx.media.app.NotificationCompat.MediaStyle()
-                        // .setShowActionsInCompactView(1 /* #1: pause button \*/)
-                        .setMediaSession(mediaSession.sessionToken)
-            ).setContentTitle(currentChapter!!.name_arabic).setContentText(currentReciter!!.name_ar)
-            .setContentIntent(pendingIntent).setLargeIcon((chapterDrawable as BitmapDrawable).bitmap)
-            .build()
+        val notification =
+            NotificationCompat.Builder(this, getString(R.string.quran_recitation_notification_name))
+                .setOngoing(true)
+                .setSilent(true)
+                .setStyle(
+                        androidx.media.app.NotificationCompat.MediaStyle()
+                            .setMediaSession(mediaSession.sessionToken)
+                )
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setContentTitle(currentChapter!!.name_arabic)
+                .setContentText(currentReciter!!.name_ar)
+                .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
+                .setLargeIcon((chapterDrawable as BitmapDrawable).bitmap)
+                .setContentIntent(pendingIntent)
+                .build()
         val channel = NotificationChannel(
                 getString(R.string.quran_recitation_notification_name),
                 getString(R.string.quran_recitation_notification_name),

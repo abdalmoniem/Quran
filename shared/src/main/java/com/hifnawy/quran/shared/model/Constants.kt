@@ -3,7 +3,9 @@ package com.hifnawy.quran.shared.model
 class Constants {
     companion object {
 
+        const val MAIN_ACTIVITY_INTENT_CATEGORY = "com.hifnawy.quran.ui.activities.MainActivity"
         val NowPlayingClass: Class<*> = Class.forName("com.hifnawy.quran.ui.widgets.NowPlaying")
+        val MainActivityClass: Class<*> = Class.forName(MAIN_ACTIVITY_INTENT_CATEGORY)
     }
 
     enum class DownloadType {
