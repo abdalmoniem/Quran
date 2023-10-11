@@ -25,7 +25,11 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
+@Suppress("PrivatePropertyName")
+private val TAG = MediaManager::class.simpleName
+
 class MediaManager(private var context: Context) : LifecycleOwner {
+
     companion object {
 
         @SuppressLint("StaticFieldLeak")
@@ -71,9 +75,6 @@ class MediaManager(private var context: Context) : LifecycleOwner {
     private var sharedPrefsManager: SharedPreferencesManager = SharedPreferencesManager(context)
     private val lifecycleRegistry: LifecycleRegistry by lazy { LifecycleRegistry(this) }
     private val workManager by lazy { WorkManager.getInstance(context) }
-
-    @Suppress("PrivatePropertyName")
-    private val TAG = MediaManager::class.simpleName
 
     init {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)

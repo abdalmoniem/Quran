@@ -14,11 +14,11 @@
         <KeyFrameSet>
             <KeyAttribute
                 android:alpha="0"
-                motion:framePosition="30"
+                motion:framePosition="10"
                 motion:motionTarget="@+id/chapter_seek" />
             <KeyAttribute
                 android:alpha="0"
-                motion:framePosition="30"
+                motion:framePosition="10"
                 motion:motionTarget="@+id/chapter_duration" />
         </KeyFrameSet>
     </Transition>
@@ -162,7 +162,7 @@
             android:id="@+id/chapter_next"
             android:layout_width="50dp"
             android:layout_height="50dp"
-            android:layout_marginStart="5dp"
+            android:layout_marginStart="30dp"
             android:elevation="250dp"
             android:scaleX="0.8"
             android:scaleY="0.8"
@@ -174,7 +174,7 @@
             android:id="@+id/chapter_play_pause"
             android:layout_width="60dp"
             android:layout_height="60dp"
-            android:layout_marginStart="5dp"
+            android:layout_marginStart="30dp"
             android:elevation="250dp"
             android:scaleX="0.8"
             android:scaleY="0.8"
@@ -186,7 +186,7 @@
             android:id="@+id/chapter_previous"
             android:layout_width="50dp"
             android:layout_height="50dp"
-            android:layout_marginStart="5dp"
+            android:layout_marginStart="30dp"
             android:elevation="250dp"
             android:scaleX="0.8"
             android:scaleY="0.8"

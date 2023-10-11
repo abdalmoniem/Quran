@@ -34,6 +34,9 @@ import java.text.DecimalFormatSymbols
 import java.util.Locale
 import java.util.UUID
 
+@Suppress("PrivatePropertyName")
+private val TAG = ChaptersList::class.java.simpleName
+
 /**
  * A simple [Fragment] subclass.
  */
@@ -42,9 +45,6 @@ class ChaptersList : Fragment() {
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private val reciter by lazy { ChaptersListArgs.fromBundle(requireArguments()).reciter }
     private val workManager by lazy { WorkManager.getInstance(binding.root.context) }
-
-    @Suppress("PrivatePropertyName")
-    private val TAG = ChaptersList::class.simpleName
     private var chapters: List<Chapter> = mutableListOf()
     private lateinit var binding: FragmentChaptersListBinding
     private lateinit var chaptersListAdapter: ChaptersListAdapter

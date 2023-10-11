@@ -51,6 +51,9 @@ import java.io.File
 import java.util.Timer
 import java.util.TimerTask
 
+@Suppress("PrivatePropertyName")
+private val TAG = MediaService::class.simpleName
+
 /**
  * This class provides a MediaBrowser through a service. It exposes the media library to a browsing
  * client, through the onGetRoot and onLoadChildren methods. It also creates a MediaSession and
@@ -100,8 +103,8 @@ import java.util.TimerTask
  */
 class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
-    companion object {
 
+    companion object {
         var isMediaPlaying = false
     }
 
@@ -112,7 +115,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private enum class MediaState {
         RECITER_BROWSE, CHAPTER_BROWSE, CHAPTER_PLAY
     }
-
     @Suppress("PrivatePropertyName")
     private val MEDIA_ROOT_ID = "ROOT"
     private val audioAttributes =
@@ -131,10 +133,8 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private lateinit var sharedPrefsManager: SharedPreferencesManager
     private val mediaManager: MediaManager by lazy { MediaManager.getInstance(this) }
     private val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
-    private val mainCoroutineScope = CoroutineScope(Dispatchers.Main)
 
-    @Suppress("PrivatePropertyName")
-    private val TAG = MediaService::class.simpleName
+    private val mainCoroutineScope = CoroutineScope(Dispatchers.Main)
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
     private var currentChapterPosition: Long = -1L

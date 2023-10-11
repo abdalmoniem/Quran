@@ -27,6 +27,9 @@ import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
 
+@Suppress("PrivatePropertyName")
+private var TAG = DownloadWorkManager::class.simpleName
+
 class DownloadWorkManager(private val context: Context, workerParams: WorkerParameters) :
         CoroutineWorker(context, workerParams) {
 
@@ -34,6 +37,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
         var chapters = mutableListOf<Chapter>()
         private val gsonParser = Gson()
+
         fun toReciter(reciterJSON: String?): Reciter {
             return gsonParser.fromJson(reciterJSON ?: "{}", Reciter::class.java)
         }
@@ -59,8 +63,6 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         CURRENT_CHAPTER_NUMBER, DOWNLOAD_STATUS, BYTES_DOWNLOADED, FILE_SIZE, FILE_PATH, PROGRESS
     }
 
-    @Suppress("PrivatePropertyName")
-    private var TAG = DownloadWorkManager::class.simpleName
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(context) }
 
     override suspend fun doWork(): Result {

@@ -13,15 +13,17 @@ import ru.gildor.coroutines.okhttp.await
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
+@Suppress("PrivatePropertyName")
+private val TAG = QuranAPI::class.simpleName
+
 class QuranAPI {
+
     fun interface ResponseHandler {
 
         fun handleResponse(error: Boolean, responseMessage: String)
     }
 
     companion object {
-
-        private val TAG = QuranAPI::class.simpleName
 
         private suspend fun sendRESTRequest(url: String, responseHandler: ResponseHandler) {
             val client: OkHttpClient = OkHttpClient().newBuilder()

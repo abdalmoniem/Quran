@@ -14,6 +14,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
@@ -44,13 +45,14 @@ import java.time.Duration
 import java.util.Locale
 import com.hoko.blur.HokoBlur as Blur
 
+@Suppress("PrivatePropertyName")
+private val TAG = MediaPlayback::class.simpleName
+
 /**
  * A simple [Fragment] subclass.
  */
 class MediaPlayback : Fragment() {
 
-    @Suppress("PrivatePropertyName")
-    private val TAG = MediaPlayback::class.simpleName
     private val mediaUpdatesReceiver = MediaUpdatesReceiver()
     private lateinit var reciter: Reciter
     private lateinit var chapter: Chapter
@@ -72,10 +74,17 @@ class MediaPlayback : Fragment() {
         chapterPosition = MediaPlaybackArgs.fromBundle(requireArguments()).chapterPosition
 
         with(parentActivity.binding) {
-            appBarHeight = appBar.height
-            val appBarLayoutParams = appBar.layoutParams as ConstraintLayout.LayoutParams
-            appBarLayoutParams.height = 1
-            appBar.layoutParams = appBarLayoutParams
+            appBar.viewTreeObserver.addOnGlobalLayoutListener(object :
+                                                                      ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    appBar.viewTreeObserver.removeOnGlobalLayoutListener(this)
+
+                    appBarHeight = appBar.height
+                    val appBarLayoutParams = appBar.layoutParams as ConstraintLayout.LayoutParams
+                    appBarLayoutParams.height = 1
+                    appBar.layoutParams = appBarLayoutParams
+                }
+            })
         }
 
         with(binding) {
@@ -411,10 +420,12 @@ class MediaPlayback : Fragment() {
             parentActivity.binding.fragmentContainer.layoutParams as FrameLayout.LayoutParams
         val appBarLayoutParams =
             parentActivity.binding.appBar.layoutParams as ConstraintLayout.LayoutParams
+        val chapterPreviousIconSize = binding.chapterPrevious.iconSize
+        val chapterPlayPauseIconSize = binding.chapterPlayPause.iconSize
+        val chapterNextIconSize = binding.chapterNext.iconSize
+        val minimizedMediaControlsIconSize = 80.dp
 
-        override fun onTransitionStarted(motionLayout: MotionLayout?, startId: Int, endId: Int) {
-
-        }
+        override fun onTransitionStarted(motionLayout: MotionLayout?, startId: Int, endId: Int) = Unit
 
         override fun onTransitionChange(
                 motionLayout: MotionLayout?,
@@ -428,39 +439,78 @@ class MediaPlayback : Fragment() {
                         resources.getDimension(R.dimen.media_player_minimized_height).toInt(),
                         0.dp,
                         progress
-                ).toInt()
+                )
             } else {
                 lerp(
                         0.dp,
                         resources.getDimension(R.dimen.media_player_minimized_height).toInt(),
                         progress
-                ).toInt()
-            }
+                )
+            }.toInt()
 
             appBarLayoutParams.height = if (minimizing) {
-                lerp(1.dp, appBarHeight, progress).toInt()
+                lerp(1.dp, appBarHeight, progress)
             } else {
-                lerp(appBarHeight, 1.dp, progress).toInt()
+                lerp(appBarHeight, 1.dp, progress)
+            }.toInt()
+
+            with(binding) {
+                chapterPrevious.iconSize = if (minimizing) {
+                    lerp(chapterPreviousIconSize, minimizedMediaControlsIconSize, progress)
+                } else {
+                    lerp(minimizedMediaControlsIconSize, chapterPreviousIconSize, progress)
+                }.toInt()
+                chapterPrevious.background.alpha = if (minimizing) {
+                    lerp(255, 0, progress)
+                } else {
+                    lerp(0, 255, progress)
+                }.toInt()
+
+                chapterPlayPause.iconSize = if (minimizing) {
+                    lerp(chapterPlayPauseIconSize, minimizedMediaControlsIconSize, progress)
+                } else {
+                    lerp(minimizedMediaControlsIconSize, chapterPlayPauseIconSize, progress)
+                }.toInt()
+                chapterPlayPause.background.alpha = if (minimizing) {
+                    lerp(255, 0, progress)
+                } else {
+                    lerp(0, 255, progress)
+                }.toInt()
+
+                chapterNext.iconSize = if (minimizing) {
+                    lerp(chapterNextIconSize, minimizedMediaControlsIconSize, progress)
+                } else {
+                    lerp(minimizedMediaControlsIconSize, chapterNextIconSize, progress)
+                }.toInt()
+                chapterNext.background.alpha = if (minimizing) {
+                    lerp(255, 0, progress)
+                } else {
+                    lerp(0, 255, progress)
+                }.toInt()
             }
 
-            parentActivity.binding.appBar.layoutParams = appBarLayoutParams
-            parentActivity.binding.fragmentContainer.layoutParams = fragmentContainerLayoutParams
+            with(parentActivity.binding) {
+                appBar.layoutParams = appBarLayoutParams
+                fragmentContainer.layoutParams = fragmentContainerLayoutParams
+            }
+
         }
 
         override fun onTransitionCompleted(motionLayout: MotionLayout?, currentState: Int) {
+            val minimized = currentState == R.id.minimized
             binding.root.isInteractionEnabled = false
 
-            appBarLayoutParams.height = if (currentState == R.id.minimized) {
-                appBarHeight
-            } else {
-                1.dp
-            }
-            fragmentContainerLayoutParams.bottomMargin = if (currentState == R.id.minimized) {
-                resources.getDimension(R.dimen.media_player_minimized_height).toInt()
-            } else {
-                0.dp
-            }
+            appBarLayoutParams.height = if (minimized) appBarHeight else 1.dp
+            fragmentContainerLayoutParams.bottomMargin =
+                if (minimized) resources.getDimension(R.dimen.media_player_minimized_height)
+                    .toInt() else 0.dp
             parentActivity.binding.appBar.layoutParams = appBarLayoutParams
+
+            with(binding) {
+                chapterPrevious.background.alpha = if (minimized) 0 else 255
+                chapterPlayPause.background.alpha = if (minimized) 0 else 255
+                chapterNext.background.alpha = if (minimized) 0 else 255
+            }
         }
 
         override fun onTransitionTrigger(
@@ -468,9 +518,7 @@ class MediaPlayback : Fragment() {
                 triggerId: Int,
                 positive: Boolean,
                 progress: Float
-        ) {
-
-        }
+        ) = Unit
 
         @Suppress("SpellCheckingInspection")
         fun lerp(valueFrom: Int, valueTo: Int, delta: Float): Float =
