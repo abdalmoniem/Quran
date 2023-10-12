@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 @Suppress("PrivatePropertyName")
 private val TAG = MediaManager::class.simpleName
@@ -82,7 +83,7 @@ class MediaManager(private var context: Context) : LifecycleOwner {
 
     fun stopLifecycle() {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-        workManager.cancelUniqueWork(context.getString(R.string.downloadWorkManagerUniqueWorkName))
+        workManager.cancelUniqueWork(context.getString(R.string.singleDownloadWorkManagerUniqueWorkName))
     }
 
     suspend fun processChapter(reciter: Reciter, chapter: Chapter) {
@@ -116,7 +117,12 @@ class MediaManager(private var context: Context) : LifecycleOwner {
 
     suspend fun processNextChapter() {
         currentChapter =
-            chapters.find { chapter -> chapter.id == (if (currentChapter!!.id == 114) 1 else currentChapter!!.id + 1) }
+            chapters.find { chapter ->
+                chapter.id == (if (currentChapter!!.id == context.resources.getInteger(
+                            R.integer.quran_chapter_count
+                    )
+                ) 1 else currentChapter!!.id + 1)
+            }
                 ?: sharedPrefsManager.lastChapter
 
         Log.d(TAG, "Skipping to next Chapter...")
@@ -126,7 +132,11 @@ class MediaManager(private var context: Context) : LifecycleOwner {
 
     suspend fun processPreviousChapter() {
         currentChapter =
-            chapters.find { chapter -> chapter.id == (if (currentChapter!!.id == 1) 114 else currentChapter!!.id - 1) }
+            chapters.find { chapter ->
+                chapter.id == (if (currentChapter!!.id == 1) context.resources.getInteger(
+                        R.integer.quran_chapter_count
+                ) else currentChapter!!.id - 1)
+            }
                 ?: sharedPrefsManager.lastChapter
 
         Log.d(TAG, "Skipping to previous Chapter...")
@@ -135,7 +145,7 @@ class MediaManager(private var context: Context) : LifecycleOwner {
     }
 
     fun cancelPendingDownloads() {
-        workManager.cancelUniqueWork(context.getString(R.string.downloadWorkManagerUniqueWorkName))
+        workManager.cancelUniqueWork(context.getString(R.string.singleDownloadWorkManagerUniqueWorkName))
     }
 
     private fun downloadChapter(reciter: Reciter, chapter: Chapter) {
@@ -151,13 +161,14 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                             )
                     )
             )
-            .addTag(context.getString(R.string.downloadWorkManagerUniqueWorkName))
+            .keepResultsForAtLeast(0, TimeUnit.SECONDS)
+            .addTag(context.getString(R.string.singleDownloadWorkManagerUniqueWorkName))
             .build()
 
         observeWorker(downloadWorkRequest.id, reciter, chapter)
 
         workManager.enqueueUniqueWork(
-                context.getString(R.string.downloadWorkManagerUniqueWorkName),
+                context.getString(R.string.singleDownloadWorkManagerUniqueWorkName),
                 ExistingWorkPolicy.REPLACE,
                 downloadWorkRequest
         )

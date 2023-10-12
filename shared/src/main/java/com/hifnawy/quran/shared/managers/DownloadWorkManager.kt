@@ -7,6 +7,7 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
+import androidx.work.Data
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -60,7 +61,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
     }
 
     enum class DownloadWorkerInfo {
-        CURRENT_CHAPTER_NUMBER, DOWNLOAD_STATUS, BYTES_DOWNLOADED, FILE_SIZE, FILE_PATH, PROGRESS
+        DOWNLOADED_CHAPTER_COUNT, DOWNLOAD_CHAPTER, DOWNLOAD_STATUS, BYTES_DOWNLOADED, FILE_SIZE, FILE_PATH, PROGRESS, ERROR_MESSAGE
     }
 
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(context) }
@@ -68,7 +69,10 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
     override suspend fun doWork(): Result {
         val reciterJSON =
             inputData.getString(Constants.IntentDataKeys.RECITER.name) ?: return Result.failure(
-                    workDataOf(DownloadStatus.DOWNLOAD_ERROR.name to "invalid reciter")
+                    workDataOf(
+                            DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                            DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid reciter"
+                    )
             )
         val singleFileDownload =
             inputData.getBoolean(Constants.IntentDataKeys.SINGLE_DOWNLOAD_TYPE.name, false)
@@ -77,14 +81,20 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         if (singleFileDownload) {
             val chapterJSON =
                 inputData.getString(Constants.IntentDataKeys.CHAPTER.name) ?: return Result.failure(
-                        workDataOf(DownloadStatus.DOWNLOAD_ERROR.name to "invalid chapter")
+                        workDataOf(
+                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                                DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid chapter"
+                        )
                 )
             val chapter = toChapter(chapterJSON)
             val urlString =
                 inputData.getString(Constants.IntentDataKeys.CHAPTER_URL.name)
                     ?: QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url
                     ?: return Result.failure(
-                            workDataOf(DownloadStatus.DOWNLOAD_ERROR.name to "invalid url")
+                            workDataOf(
+                                    DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                                    DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid URL"
+                            )
                     )
             val url = URL(urlString)
 
@@ -106,9 +116,14 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             } ?: return downloadFile(url, reciter, chapter, true)
         }
 
-        if (chapters.isEmpty()) return Result.failure(workDataOf(DownloadStatus.DOWNLOAD_ERROR.name to "invalid chapters list"))
+        if (chapters.isEmpty()) return Result.failure(
+                workDataOf(
+                        DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                        DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid chapters list"
+                )
+        )
         val chapterAudioFiles = QuranAPI.getReciterChaptersAudioFiles(reciter.id)
-
+        var downloadedChapterCount = 0
         for (currentChapter in chapters) {
             sharedPrefsManager.getChapterPath(reciter, currentChapter)
                 ?.let { chapterFilePath ->
@@ -123,57 +138,63 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                     )
 
                     setProgress(
-                            DownloadStatus.FILE_EXISTS,
-                            chapterFileSize,
-                            chapterFileSize.toInt(),
-                            chapterFile.absolutePath,
-                            100f,
-                            currentChapter
+                            getWorkData(
+                                    DownloadStatus.FILE_EXISTS,
+                                    chapterFileSize,
+                                    chapterFileSize.toInt(),
+                                    chapterFile.absolutePath,
+                                    100f,
+                                    currentChapter
+                            )
                     )
                 } ?: chapterAudioFiles.find { chapterAudioFile ->
                 chapterAudioFile.chapter_id == currentChapter.id
             }?.let { chapterAudioFile ->
-                downloadFile(URL(chapterAudioFile.audio_url), reciter, currentChapter, false)
+                val result =
+                    downloadFile(URL(chapterAudioFile.audio_url), reciter, currentChapter, false)
+                if (result.outputData.getString(DownloadWorkerInfo.DOWNLOAD_STATUS.name) == DownloadStatus.DOWNLOAD_ERROR.name) {
+                    downloadedChapterCount--
+                }
             }
+
+            downloadedChapterCount++
         }
 
+        if (downloadedChapterCount < context.resources.getInteger(R.integer.quran_chapter_count)) {
+            return Result.failure(
+                    workDataOf(
+                            DownloadWorkerInfo.DOWNLOADED_CHAPTER_COUNT.name to downloadedChapterCount,
+                            DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FINISHED_DOWNLOAD.name,
+                            DownloadWorkerInfo.PROGRESS.name to 100f
+                    )
+            )
+        }
         return Result.success(
                 workDataOf(
+                        DownloadWorkerInfo.DOWNLOADED_CHAPTER_COUNT.name to downloadedChapterCount,
                         DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FINISHED_DOWNLOAD.name,
                         DownloadWorkerInfo.PROGRESS.name to 100f
                 )
         )
     }
 
-    private suspend fun setProgress(
+    private fun getWorkData(
             downloadStatus: DownloadStatus,
             bytesDownloaded: Long,
             fileSize: Int,
             filePath: String?,
             progress: Float,
             currentChapter: Chapter? = null
-    ) {
-        setProgress(
-                if (currentChapter == null) {
-                    workDataOf(
-                            DownloadWorkerInfo.DOWNLOAD_STATUS.name to downloadStatus.name,
-                            DownloadWorkerInfo.BYTES_DOWNLOADED.name to bytesDownloaded,
-                            DownloadWorkerInfo.FILE_SIZE.name to fileSize,
-                            DownloadWorkerInfo.FILE_PATH.name to filePath,
-                            DownloadWorkerInfo.PROGRESS.name to progress
-                    )
-                } else {
-                    workDataOf(
-                            DownloadWorkerInfo.CURRENT_CHAPTER_NUMBER.name to fromChapter(
-                                    currentChapter
-                            ),
-                            DownloadWorkerInfo.DOWNLOAD_STATUS.name to downloadStatus.name,
-                            DownloadWorkerInfo.BYTES_DOWNLOADED.name to bytesDownloaded,
-                            DownloadWorkerInfo.FILE_SIZE.name to fileSize,
-                            DownloadWorkerInfo.FILE_PATH.name to filePath,
-                            DownloadWorkerInfo.PROGRESS.name to progress
-                    )
-                }
+    ): Data {
+        return workDataOf(
+                DownloadWorkerInfo.DOWNLOAD_CHAPTER.name to if (currentChapter != null) fromChapter(
+                        currentChapter
+                ) else null,
+                DownloadWorkerInfo.DOWNLOAD_STATUS.name to downloadStatus.name,
+                DownloadWorkerInfo.BYTES_DOWNLOADED.name to bytesDownloaded,
+                DownloadWorkerInfo.FILE_SIZE.name to fileSize,
+                DownloadWorkerInfo.FILE_PATH.name to filePath,
+                DownloadWorkerInfo.PROGRESS.name to progress
         )
     }
 
@@ -192,6 +213,17 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             requestMethod = "GET"
             setRequestProperty("Accept-Encoding", "identity")
             connect()
+
+            setProgress(
+                    getWorkData(
+                            DownloadStatus.STARTING_DOWNLOAD,
+                            0L,
+                            0,
+                            null,
+                            0f,
+                            if (singleFileDownload) null else chapter
+                    )
+            )
 
             when (responseCode) {
                 in 200..299 -> {
@@ -222,12 +254,14 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                         disconnect()
 
                         setProgress(
-                                DownloadStatus.STARTING_DOWNLOAD,
-                                offset,
-                                chapterAudioFileSize,
-                                null,
-                                offset.toFloat() / chapterAudioFileSize.toFloat() * 100f,
-                                if (singleFileDownload) null else chapter
+                                getWorkData(
+                                        DownloadStatus.STARTING_DOWNLOAD,
+                                        offset,
+                                        chapterAudioFileSize,
+                                        null,
+                                        offset.toFloat() / chapterAudioFileSize.toFloat() * 100f,
+                                        if (singleFileDownload) null else chapter
+                                )
                         )
                         return executeDownload(
                                 url,
@@ -242,21 +276,41 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
                     sharedPrefsManager.setChapterPath(reciter, chapter)
 
+                    setProgress(
+                            getWorkData(
+                                    DownloadStatus.FILE_EXISTS,
+                                    chapterAudioFileSize.toLong(),
+                                    chapterAudioFileSize,
+                                    chapterFile.absolutePath,
+                                    100f,
+                                    if (singleFileDownload) null else chapter
+                            )
+                    )
                     return Result.success(
-                            workDataOf(
-                                    DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FILE_EXISTS.name,
-                                    DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterAudioFileSize.toLong(),
-                                    DownloadWorkerInfo.FILE_SIZE.name to chapterAudioFileSize,
-                                    DownloadWorkerInfo.FILE_PATH.name to chapterFile.absolutePath,
-                                    DownloadWorkerInfo.PROGRESS.name to 100f
+                            getWorkData(
+                                    DownloadStatus.FILE_EXISTS,
+                                    chapterAudioFileSize.toLong(),
+                                    chapterAudioFileSize,
+                                    chapterFile.absolutePath,
+                                    100f,
+                                    if (singleFileDownload) null else chapter
                             )
                     )
                 }
 
                 else -> {
+                    setProgress(
+                            workDataOf(
+                                    DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                                    DownloadWorkerInfo.ERROR_MESSAGE.name to "connection to $url returned a $responseCode response code",
+                                    DownloadWorkerInfo.DOWNLOAD_CHAPTER.name to fromChapter(chapter)
+                            )
+                    )
                     return Result.failure(
                             workDataOf(
-                                    DownloadWorkerInfo.DOWNLOAD_STATUS.name to "connection to $url returned a $responseCode response code"
+                                    DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                                    DownloadWorkerInfo.ERROR_MESSAGE.name to "connection to $url returned a $responseCode response code",
+                                    DownloadWorkerInfo.DOWNLOAD_CHAPTER.name to fromChapter(chapter)
                             )
                     )
                 }
@@ -288,25 +342,36 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             var progress = (bytesDownloaded.toFloat() / chapterAudioFileSize.toFloat() * 100)
 
             setProgress(
-                    DownloadStatus.DOWNLOADING,
-                    bytesDownloaded,
-                    chapterAudioFileSize,
-                    null,
-                    progress,
-                    if (singleFileDownload) null else chapter
+                    getWorkData(
+                            DownloadStatus.DOWNLOADING,
+                            bytesDownloaded,
+                            chapterAudioFileSize,
+                            null,
+                            progress,
+                            if (singleFileDownload) null else chapter
+                    )
             )
 
             if (responseCode !in 200..299) {
                 setProgress(
-                        DownloadStatus.DOWNLOAD_ERROR,
-                        -1L,
-                        -1,
-                        null,
-                        0f,
-                        if (singleFileDownload) null else chapter
+                        getWorkData(
+                                DownloadStatus.DOWNLOAD_ERROR,
+                                -1L,
+                                -1,
+                                null,
+                                0f,
+                                if (singleFileDownload) null else chapter
+                        )
                 )
-
-                return Result.failure(workDataOf(DownloadWorkerInfo.DOWNLOAD_STATUS.name to "connection to $url returned a $responseCode response code"))
+                return Result.failure(
+                        workDataOf(
+                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                                DownloadWorkerInfo.ERROR_MESSAGE.name to "connection to $url returned a $responseCode response code",
+                                DownloadWorkerInfo.DOWNLOAD_CHAPTER.name to if (singleFileDownload) null else fromChapter(
+                                        chapter
+                                )
+                        )
+                )
             }
 
             while (!isStopped && (bytes >= 0)) {
@@ -319,12 +384,14 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 )
 
                 setProgress(
-                        DownloadStatus.DOWNLOADING,
-                        bytesDownloaded,
-                        chapterAudioFileSize,
-                        null,
-                        progress,
-                        if (singleFileDownload) null else chapter
+                        getWorkData(
+                                DownloadStatus.DOWNLOADING,
+                                bytesDownloaded,
+                                chapterAudioFileSize,
+                                null,
+                                progress,
+                                if (singleFileDownload) null else chapter
+                        )
                 )
                 val pendingIntent = PendingIntent.getActivity(
                         context,
@@ -338,7 +405,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 )
                 val notification = NotificationCompat.Builder(
                         context,
-                        "${context.getString(R.string.quran_recitation_notification_name)} Service"
+                        context.getString(R.string.quran_recitation_notification_name)
                 )
                     .setSilent(true)
                     .setOngoing(true)
@@ -359,7 +426,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
                 setForegroundAsync(
                         ForegroundInfo(
-                                R.integer.quran_chapter_recitation_notification_channel_id,
+                                R.integer.quran_chapter_download_notification_channel_id,
                                 notification
                         )
                 )
@@ -373,33 +440,37 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
             if (isStopped) {
                 setProgress(
-                        DownloadStatus.DOWNLOAD_INTERRUPTED,
-                        chapterAudioFileSize.toLong(),
-                        chapterAudioFileSize,
-                        chapterFile.absolutePath,
-                        100f,
-                        if (singleFileDownload) null else chapter
+                        getWorkData(
+                                DownloadStatus.DOWNLOAD_INTERRUPTED,
+                                chapterAudioFileSize.toLong(),
+                                chapterAudioFileSize,
+                                chapterFile.absolutePath,
+                                100f,
+                                if (singleFileDownload) null else chapter
+                        )
                 )
 
                 return Result.failure(
-                        workDataOf(
-                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_INTERRUPTED.name,
-                                DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterAudioFileSize.toLong(),
-                                DownloadWorkerInfo.FILE_SIZE.name to chapterAudioFileSize,
-                                DownloadWorkerInfo.FILE_PATH.name to chapterFile.absolutePath,
-                                DownloadWorkerInfo.PROGRESS.name to 100f
+                        getWorkData(
+                                DownloadStatus.DOWNLOAD_INTERRUPTED,
+                                chapterAudioFileSize.toLong(),
+                                chapterAudioFileSize,
+                                chapterFile.absolutePath,
+                                100f,
+                                if (singleFileDownload) null else chapter
                         )
                 )
             } else {
                 sharedPrefsManager.setChapterPath(reciter, chapter)
 
                 return Result.success(
-                        workDataOf(
-                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FINISHED_DOWNLOAD.name,
-                                DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterAudioFileSize.toLong(),
-                                DownloadWorkerInfo.FILE_SIZE.name to chapterAudioFileSize,
-                                DownloadWorkerInfo.FILE_PATH.name to chapterFile.absolutePath,
-                                DownloadWorkerInfo.PROGRESS.name to 100f
+                        getWorkData(
+                                DownloadStatus.FINISHED_DOWNLOAD,
+                                chapterAudioFileSize.toLong(),
+                                chapterAudioFileSize,
+                                chapterFile.absolutePath,
+                                100f,
+                                if (singleFileDownload) null else chapter
                         )
                 )
             }

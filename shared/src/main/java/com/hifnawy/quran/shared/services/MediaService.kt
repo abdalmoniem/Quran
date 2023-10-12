@@ -28,7 +28,6 @@ import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.audio.AudioAttributes
-import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.crashlytics.ktx.crashlytics
 import com.google.firebase.ktx.Firebase
 import com.hifnawy.quran.shared.BuildConfig
@@ -103,8 +102,8 @@ private val TAG = MediaService::class.simpleName
  */
 class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
-
     companion object {
+
         var isMediaPlaying = false
     }
 
@@ -115,6 +114,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private enum class MediaState {
         RECITER_BROWSE, CHAPTER_BROWSE, CHAPTER_PLAY
     }
+
     @Suppress("PrivatePropertyName")
     private val MEDIA_ROOT_ID = "ROOT"
     private val audioAttributes =
@@ -133,7 +133,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private lateinit var sharedPrefsManager: SharedPreferencesManager
     private val mediaManager: MediaManager by lazy { MediaManager.getInstance(this) }
     private val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
-
     private val mainCoroutineScope = CoroutineScope(Dispatchers.Main)
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
@@ -186,15 +185,15 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
                 Log.d(TAG, "onStartCommand with position: $chapterPosition")
                 val notificationChannel = NotificationChannel(
-                        "${getString(R.string.quran_recitation_notification_name)} Service",
-                        "${getString(R.string.quran_recitation_notification_name)} Service",
+                        getString(R.string.quran_recitation_notification_name),
+                        getString(R.string.quran_recitation_notification_name),
                         NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = chapter.name_arabic
                 }
                 val notification = NotificationCompat.Builder(
                         this@MediaService,
-                        "${getString(R.string.quran_recitation_notification_name)} Service"
+                        getString(R.string.quran_recitation_notification_name)
                 )
                     .setSilent(true)
                     .setOngoing(true)

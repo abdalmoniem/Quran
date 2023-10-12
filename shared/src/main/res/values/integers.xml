@@ -2,6 +2,7 @@
 <resources>
     <integer name="animation_duration">150</integer>
     <integer name="list_animation_duration">150</integer>
-    <integer name="quran_ongoing_media_service_notification_channel_id">301142308</integer>
     <integer name="quran_chapter_recitation_notification_channel_id">301140893</integer>
+    <integer name="quran_chapter_download_notification_channel_id">301142393</integer>
+    <integer name="quran_chapter_count">114</integer>
 </resources>

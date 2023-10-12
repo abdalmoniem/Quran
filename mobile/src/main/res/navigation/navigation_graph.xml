@@ -20,6 +20,10 @@
     </activity>
 
     <action
+        android:id="@+id/toRecitersList"
+        app:destination="@id/reciters_list" />
+
+    <action
         android:id="@+id/toMediaPlayback"
         app:destination="@id/media_playback" />
 

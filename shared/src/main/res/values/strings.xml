@@ -19,5 +19,6 @@
     <string name="quran_media_player_controls">MEDIA_PLAYER_CONTROLS</string>
     <string name="quran_media_service_file_download_updates">FILE_DOWNLOAD_UPDATES</string>
     <string name="quran_media_service_download_commands">DOWNLOAD_COMMANDS</string>
-    <string name="downloadWorkManagerUniqueWorkName">DOWNLOAD_WORK_MANAGER</string>
+    <string name="bulkDownloadWorkManagerUniqueWorkName">BULK_DOWNLOAD_WORK_MANAGER</string>
+    <string name="singleDownloadWorkManagerUniqueWorkName">SINGLE_DOWNLOAD_WORK_MANAGER</string>
 </resources>

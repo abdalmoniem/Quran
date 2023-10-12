@@ -24,7 +24,7 @@ class DialogBuilder {
                 title: String,
                 message: String,
                 buttonText: String,
-                buttonListener: DialogInterface.OnClickListener
+                buttonListener: DialogInterface.OnClickListener? = null
         ) {
             MaterialAlertDialogBuilder(context)
                 .setTitle(title)

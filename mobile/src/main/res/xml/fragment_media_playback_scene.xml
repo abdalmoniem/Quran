@@ -15,11 +15,17 @@
             <KeyAttribute
                 android:alpha="0"
                 motion:framePosition="10"
-                motion:motionTarget="@+id/chapter_seek" />
+                motion:motionTarget="@+id/chapter_duration" />
+
             <KeyAttribute
                 android:alpha="0"
                 motion:framePosition="10"
-                motion:motionTarget="@+id/chapter_duration" />
+                motion:motionTarget="@+id/chapter_seek" />
+
+            <KeyAttribute
+                android:alpha="1"
+                motion:framePosition="250"
+                motion:motionTarget="@+id/chapter_seek" />
         </KeyFrameSet>
     </Transition>
 
@@ -32,6 +38,12 @@
             motion:limitBoundsTo="@id/chapter_background_image_container"
             motion:onTouchUp="autoCompleteToEnd"
             motion:touchRegionId="@id/chapter_background_image_container" />
+        <KeyFrameSet>
+            <KeyAttribute
+                android:alpha="0"
+                motion:framePosition="50"
+                motion:motionTarget="@+id/chapter_duration" />
+        </KeyFrameSet>
     </Transition>
 
     <ConstraintSet android:id="@+id/maximized">
@@ -149,15 +161,13 @@
             motion:layout_constraintTop_toBottomOf="@id/reciter_name" />
         <Constraint
             android:id="@+id/chapter_seek"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:alpha="0"
             android:scaleX="-1"
-            android:visibility="gone"
-            motion:layout_constraintBottom_toTopOf="@id/chapter_play_pause"
-            motion:layout_constraintEnd_toEndOf="parent"
-            motion:layout_constraintStart_toStartOf="parent"
-            motion:layout_constraintTop_toBottomOf="@id/chapter_duration" />
+            android:layout_marginBottom="-20dp"
+            motion:layout_constraintBottom_toBottomOf="@id/chapter_background_image_container"
+            motion:layout_constraintEnd_toStartOf="@id/chapter_image_card"
+            motion:layout_constraintStart_toStartOf="parent" />
         <Constraint
             android:id="@+id/chapter_next"
             android:layout_width="50dp"

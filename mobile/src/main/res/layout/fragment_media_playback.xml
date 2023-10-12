@@ -174,5 +174,9 @@
         app:thumbColor="@color/white"
         app:thumbRadius="4dp"
         app:tickVisible="false"
+        app:trackColorActive="#18554c"
+        android:value="23"
+        android:valueFrom="0"
+        android:valueTo="100"
         app:trackHeight="20dp" />
 </androidx.constraintlayout.motion.widget.MotionLayout>

@@ -21,6 +21,7 @@
     <string name="connection_error_action">اختيار قارئ آخر</string>
     <string name="updating_data">جارٍ تحديث البيانات، من فضلك انتظر قليلاً…</string>
     <string name="initial_quote">لا خير في صحبة تحجب عن ذكر الله.</string>
+    <string name="downloading_chapters_error_message">لقد تعذر تحميل %1$s سورة، من فضلك أعد المحاولة فى وقتٍ لاحقٍ</string>
 
     <array name="quotes">
         <item>عليكم بذكر الله تعالى فإنّه دواء، وإياكم وذكر الناس فإنّه داء.</item>

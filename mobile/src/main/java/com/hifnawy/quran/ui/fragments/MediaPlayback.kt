@@ -37,12 +37,14 @@ import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.activities.MainActivity
+import com.hifnawy.quran.ui.activities.MainActivityDirections
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.text.NumberFormat
 import java.time.Duration
 import java.util.Locale
+import java.util.UUID
 import com.hoko.blur.HokoBlur as Blur
 
 @Suppress("PrivatePropertyName")
@@ -199,11 +201,11 @@ class MediaPlayback : Fragment() {
         )
 
         dialogBinding.downloadDialogCancelDownload.setOnClickListener {
-            workManager.cancelUniqueWork(getString(com.hifnawy.quran.shared.R.string.downloadWorkManagerUniqueWorkName))
+            workManager.cancelUniqueWork(getString(com.hifnawy.quran.shared.R.string.singleDownloadWorkManagerUniqueWorkName))
             dialog.dismiss()
         }
 
-        workManager.getWorkInfosByTagLiveData(getString(com.hifnawy.quran.shared.R.string.downloadWorkManagerUniqueWorkName))
+        workManager.getWorkInfosByTagLiveData(getString(com.hifnawy.quran.shared.R.string.singleDownloadWorkManagerUniqueWorkName))
             .observe(viewLifecycleOwner) { workInfos ->
                 observeWorker(workInfos, dialog, dialogBinding)
             }
@@ -276,6 +278,8 @@ class MediaPlayback : Fragment() {
         }
     }
 
+    private var lastWorkInfoId: UUID = UUID.randomUUID()
+
     @SuppressLint("SetTextI18n")
     private fun observeWorker(
             workInfos: MutableList<WorkInfo>?, dialog: AlertDialog, dialogBinding: DownloadDialogBinding
@@ -284,15 +288,42 @@ class MediaPlayback : Fragment() {
 
         if (workInfos == null) return
         val workInfo = workInfos.find { workInfo ->
-            workInfo.tags.find { tag -> tag == getString(com.hifnawy.quran.shared.R.string.downloadWorkManagerUniqueWorkName) }
+            workInfo.tags.find { tag -> tag == getString(com.hifnawy.quran.shared.R.string.singleDownloadWorkManagerUniqueWorkName) }
                 ?.let { true } ?: false
         } ?: return
 
-        if ((workInfo.state != WorkInfo.State.RUNNING) && (workInfo.state != WorkInfo.State.SUCCEEDED)) return
+        if ((workInfo.state != WorkInfo.State.RUNNING) &&
+            (workInfo.state != WorkInfo.State.SUCCEEDED) &&
+            (workInfo.state != WorkInfo.State.FAILED)
+        ) return
         val dataSource =
-            if (workInfo.state == WorkInfo.State.SUCCEEDED) workInfo.outputData else workInfo.progress
+            if ((workInfo.state == WorkInfo.State.SUCCEEDED) ||
+                (workInfo.state == WorkInfo.State.FAILED)
+            ) workInfo.outputData
+            else workInfo.progress
 
-        Log.d(TAG, "${workInfo.state} - $dataSource")
+        if (dataSource.keyValueMap.isEmpty()) return
+
+        Log.d(TAG, workInfo.toString())
+
+        if (workInfo.state == WorkInfo.State.FAILED) {
+            dialog.dismiss()
+
+            if (workInfo.id == lastWorkInfoId) {
+                DialogBuilder.showErrorDialog(
+                        this@MediaPlayback.binding.root.context,
+                        getString(R.string.connection_error_title),
+                        getString(R.string.connection_error_message),
+                        getString(R.string.connection_error_action)
+                ) { _, _ ->
+                    parentActivity.navController.navigate(MainActivityDirections.toRecitersList())
+                }
+
+                binding.root.transitionToEnd()
+            }
+            return
+        }
+        // Log.d(TAG, "${workInfo.state} - $dataSource")
         val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
                 dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
                     ?: return
@@ -310,6 +341,7 @@ class MediaPlayback : Fragment() {
         with(dialogBinding) {
             when (downloadStatus) {
                 DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD -> {
+                    lastWorkInfoId = workInfo.id
                     dialog.show()
                     downloadDialogChapterProgress.min = 0
                     downloadDialogChapterProgress.max = 100
@@ -343,21 +375,7 @@ class MediaPlayback : Fragment() {
                 DownloadWorkManager.DownloadStatus.FILE_EXISTS,
                 DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> dialog.dismiss()
 
-                DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR -> {
-                    dialog.dismiss()
-
-                    DialogBuilder.showErrorDialog(
-                            this@MediaPlayback.binding.root.context,
-                            getString(R.string.connection_error_title),
-                            getString(R.string.connection_error_message),
-                            getString(R.string.connection_error_action)
-                    ) { _, _ ->
-                        parentFragmentManager.beginTransaction().replace(
-                                parentActivity.binding.fragmentContainer.id, RecitersList()
-                        ).commit()
-                    }
-                }
-
+                DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR,
                 DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED -> Unit
             }
         }
@@ -414,6 +432,7 @@ class MediaPlayback : Fragment() {
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private inner class MotionLayoutTransitionListener : MotionLayout.TransitionListener {
 
         val fragmentContainerLayoutParams =
@@ -424,6 +443,11 @@ class MediaPlayback : Fragment() {
         val chapterPlayPauseIconSize = binding.chapterPlayPause.iconSize
         val chapterNextIconSize = binding.chapterNext.iconSize
         val minimizedMediaControlsIconSize = 80.dp
+        var disableSliderTouch: Boolean = true
+
+        init {
+            binding.chapterSeek.setOnTouchListener { _, _ -> disableSliderTouch }
+        }
 
         override fun onTransitionStarted(motionLayout: MotionLayout?, startId: Int, endId: Int) = Unit
 
@@ -455,6 +479,28 @@ class MediaPlayback : Fragment() {
             }.toInt()
 
             with(binding) {
+                disableSliderTouch = minimizing
+
+                chapterSeek.trackInactiveTintList = chapterSeek.trackInactiveTintList.withAlpha(
+                        if (minimizing) {
+                            lerp(255, 0, progress)
+                        } else {
+                            lerp(0, 255, progress)
+                        }.toInt()
+                )
+                chapterSeek.thumbTintList = chapterSeek.thumbTintList.withAlpha(
+                        if (minimizing) {
+                            lerp(255, 0, progress)
+                        } else {
+                            lerp(0, 255, progress)
+                        }.toInt()
+                )
+                chapterSeek.trackHeight = if (minimizing) {
+                    lerp(20.dp, 10.dp, progress)
+                } else {
+                    lerp(10.dp, 20.dp, progress)
+                }.toInt()
+
                 chapterPrevious.iconSize = if (minimizing) {
                     lerp(chapterPreviousIconSize, minimizedMediaControlsIconSize, progress)
                 } else {
@@ -528,4 +574,5 @@ class MediaPlayback : Fragment() {
             get() = (this * resources.displayMetrics.density + 0.5f).toInt()
 
     }
+
 }

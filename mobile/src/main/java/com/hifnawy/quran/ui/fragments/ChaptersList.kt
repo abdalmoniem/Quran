@@ -2,6 +2,7 @@ package com.hifnawy.quran.ui.fragments
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -115,13 +116,13 @@ class ChaptersList : Fragment() {
                                         )
                                 )
                         )
-                        .addTag(getString(com.hifnawy.quran.shared.R.string.downloadWorkManagerUniqueWorkName))
+                        .addTag(getString(com.hifnawy.quran.shared.R.string.bulkDownloadWorkManagerUniqueWorkName))
                         .build()
 
                     observeWorker(downloadWorkRequest.id)
 
                     workManager.enqueueUniqueWork(
-                            getString(com.hifnawy.quran.shared.R.string.downloadWorkManagerUniqueWorkName),
+                            getString(com.hifnawy.quran.shared.R.string.bulkDownloadWorkManagerUniqueWorkName),
                             ExistingWorkPolicy.REPLACE,
                             downloadWorkRequest
                     )
@@ -159,7 +160,7 @@ class ChaptersList : Fragment() {
 
         with(dialogBinding) {
             dialogBinding.downloadDialogCancelDownload.setOnClickListener {
-                workManager.cancelUniqueWork(getString(com.hifnawy.quran.shared.R.string.downloadWorkManagerUniqueWorkName))
+                workManager.cancelUniqueWork(getString(com.hifnawy.quran.shared.R.string.bulkDownloadWorkManagerUniqueWorkName))
                 dialog.dismiss()
             }
 
@@ -200,14 +201,44 @@ class ChaptersList : Fragment() {
         workManager.getWorkInfoByIdLiveData(requestID)
             .observe(viewLifecycleOwner) { workInfo ->
                 if (workInfo == null) return@observe
-                if ((workInfo.state != WorkInfo.State.RUNNING) && (workInfo.state != WorkInfo.State.SUCCEEDED)) return@observe
-                if (workInfo.state == WorkInfo.State.SUCCEEDED) dialog.dismiss()
+                if ((workInfo.state != WorkInfo.State.RUNNING) &&
+                    (workInfo.state != WorkInfo.State.SUCCEEDED) &&
+                    (workInfo.state != WorkInfo.State.FAILED)
+                ) return@observe
+                val decimalFormat =
+                    DecimalFormat(
+                            "#.#",
+                            DecimalFormatSymbols.getInstance(Locale("ar", "EG"))
+                    )
                 val dataSource =
-                    if (workInfo.state == WorkInfo.State.SUCCEEDED) workInfo.outputData else workInfo.progress
+                    if ((workInfo.state == WorkInfo.State.SUCCEEDED) ||
+                        (workInfo.state == WorkInfo.State.FAILED)
+                    ) workInfo.outputData
+                    else workInfo.progress
+
+                if (workInfo.state == WorkInfo.State.FAILED) {
+                    val downloadedChapterCount = dataSource.getInt(
+                            DownloadWorkManager.DownloadWorkerInfo.DOWNLOADED_CHAPTER_COUNT.name,
+                            0
+                    )
+                    DialogBuilder.showErrorDialog(
+                            binding.root.context, getString(R.string.connection_error_title),
+                            getString(
+                                    R.string.downloading_chapters_error_message,
+                                    decimalFormat.format(context.resources.getInteger(com.hifnawy.quran.shared.R.integer.quran_chapter_count) - downloadedChapterCount)
+                            ), "تمام"
+                    )
+                    dialog.dismiss()
+                    return@observe
+                }
+                if (workInfo.state == WorkInfo.State.SUCCEEDED) {
+                    dialog.dismiss()
+                    return@observe
+                }
 
                 Log.d(TAG, "${workInfo.state} - $dataSource")
                 val currentChapterJSON =
-                    dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.CURRENT_CHAPTER_NUMBER.name)
+                    dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_CHAPTER.name)
                 val currentChapter = DownloadWorkManager.toChapter(currentChapterJSON)
                 val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
                         dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
@@ -225,11 +256,6 @@ class ChaptersList : Fragment() {
                         DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name,
                         -1f
                 )
-                val decimalFormat =
-                    DecimalFormat(
-                            "#.#",
-                            DecimalFormatSymbols.getInstance(Locale("ar", "EG"))
-                    )
                 val currentChapterIndex = chaptersListAdapter.getChapters()
                     .indexOf(chaptersListAdapter.getChapters().find { chapter ->
                         chapter.id == currentChapter.id
@@ -238,8 +264,8 @@ class ChaptersList : Fragment() {
                 with(dialogBinding) {
                     when (downloadStatus) {
                         DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD -> {
-                            downloadDialogChapterProgress.progress =
-                                progress.toInt()
+                            downloadDialogChapterProgress.progress = progress.toInt()
+                            downloadDialogChapterDownloadMessage.setTextColor(Color.WHITE)
                             downloadDialogChapterDownloadMessage.text = "${
                                 this@ChaptersList.context?.getString(
                                         com.hifnawy.quran.shared.R.string.loading_chapter,
@@ -287,6 +313,37 @@ class ChaptersList : Fragment() {
                                 )
                             } مب. (${decimalFormat.format(progress)}٪)"
 
+                            downloadDialogAllChaptersProgress.progress = chaptersDownloadProgress.toInt()
+                            downloadDialogAllChaptersDownloadMessage.text =
+                                "${
+                                    context.getString(
+                                            com.hifnawy.quran.shared.R.string.loading_all_chapters,
+                                            decimalFormat.format(chaptersDownloadProgress)
+                                    )
+                                }\n${
+                                    decimalFormat.format(currentChapterIndex)
+                                } \\ ${
+                                    decimalFormat.format(
+                                            context.resources.getInteger(com.hifnawy.quran.shared.R.integer.quran_chapter_count)
+                                    )
+                                }"
+                        }
+
+                        DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR -> {
+                            val chaptersDownloadProgress =
+                                (currentChapterIndex.toFloat() / chaptersListAdapter.itemCount.toFloat()) * 100f
+
+                            downloadDialogChapterProgress.progress = 100
+                            downloadDialogChapterDownloadMessage.setTextColor(Color.RED)
+                            downloadDialogChapterDownloadMessage.text = "${
+                                context.getString(
+                                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                                        currentChapter.name_arabic
+                                )
+                            }\n${decimalFormat.format(0)} مب. \\ ${decimalFormat.format(0)} مب. (${
+                                decimalFormat.format(100f)
+                            }٪)"
+
                             downloadDialogAllChaptersProgress.progress =
                                 chaptersDownloadProgress.toInt()
                             downloadDialogAllChaptersDownloadMessage.text =
@@ -299,12 +356,11 @@ class ChaptersList : Fragment() {
                                     decimalFormat.format(currentChapterIndex)
                                 } \\ ${
                                     decimalFormat.format(
-                                            114
+                                            context.resources.getInteger(com.hifnawy.quran.shared.R.integer.quran_chapter_count)
                                     )
                                 }"
                         }
 
-                        DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR -> Unit
                         else -> Unit
                     }
                 }

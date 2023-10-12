@@ -44,7 +44,7 @@ class MainActivity : AppCompatActivity() {
 
     lateinit var binding: ActivityMainBinding
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(this) }
-    private lateinit var navController: NavController
+    lateinit var navController: NavController
     lateinit var mediaPlaybackNavController: NavController
 
     override fun onCreate(savedInstanceState: Bundle?) {
