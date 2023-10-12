@@ -1,5 +1,6 @@
 package com.hifnawy.quran.shared.managers
 
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -8,7 +9,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.Data
-import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.google.gson.Gson
@@ -26,6 +26,7 @@ import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
+import java.text.NumberFormat
 import java.util.Locale
 
 @Suppress("PrivatePropertyName")
@@ -65,6 +66,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
     }
 
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(context) }
+    private val numberFormat = NumberFormat.getNumberInstance(Locale.ENGLISH)
 
     override suspend fun doWork(): Result {
         val reciterJSON =
@@ -134,7 +136,9 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
                     Log.d(
                             TAG,
-                            "file ${chapterFile.name} $chapterFileSize \\ $chapterFileSize (100%) exists and is complete, will not download!"
+                            "file ${chapterFile.name} ${numberFormat.format(chapterFileSize)}B / ${
+                                numberFormat.format(chapterFileSize)
+                            }B (100%) exists and is complete, will not download!"
                     )
 
                     setProgress(
@@ -240,17 +244,19 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
                         Log.d(
                                 TAG,
-                                "file ${chapterFile.name} $offset \\ $chapterAudioFileSize ($progress%) exists but is not complete, resuming download..."
+                                "file ${chapterFile.name} ${numberFormat.format(offset)}B / ${
+                                    numberFormat.format(chapterAudioFileSize)
+                                }B ($progress%) exists but is not complete, resuming download..."
                         )
                     } else {
                         Log.d(
                                 TAG,
-                                "file ${chapterFile.name} 0 \\ $chapterAudioFileSize (0%) does not exist, starting download..."
+                                "file ${chapterFile.name} 0 / ${numberFormat.format(chapterAudioFileSize)}B (0%) does not exist, starting download..."
                         )
                     }
 
                     if (offset != chapterAudioFileSize.toLong()) {
-                        Log.d(TAG, "skipping $offset bytes from $url...")
+                        Log.d(TAG, "skipping ${numberFormat.format(offset)} bytes from $url...")
                         disconnect()
 
                         setProgress(
@@ -336,9 +342,8 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             val decimalFormat =
                 DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
             val outputStream = FileOutputStream(chapterFile, true)
-            var bytes = 0
             var bytesDownloaded = offset
-            val buffer = ByteArray(1024)
+            val buffer = ByteArray(8_192) // 8KB buffer size
             var progress = (bytesDownloaded.toFloat() / chapterAudioFileSize.toFloat() * 100)
 
             setProgress(
@@ -373,15 +378,42 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                         )
                 )
             }
-
-            while (!isStopped && (bytes >= 0)) {
+            val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    0,
+                    Intent(context, Constants.MainActivityClass).apply {
+                        addCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY)
+                        putExtra(Constants.IntentDataKeys.RECITER.name, reciter)
+                        putExtra(Constants.IntentDataKeys.CHAPTER.name, chapter)
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val notificationBuilder = NotificationCompat.Builder(
+                    context,
+                    context.getString(R.string.quran_download_notification_name)
+            )
+                .setSilent(true)
+                .setOngoing(true)
+                .setPriority(NotificationManager.IMPORTANCE_MAX)
+                .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
+                .setContentIntent(pendingIntent)
+                .setContentInfo(context.getString(R.string.app_name))
+                .setSubText("${reciter.name_ar} \\ ${chapter.name_arabic}")
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            val channel = NotificationChannel(
+                    context.getString(R.string.quran_download_notification_name),
+                    context.getString(R.string.quran_download_notification_name),
+                    NotificationManager.IMPORTANCE_HIGH
+            ).apply { description = chapter.name_arabic }
+            val notificationManager: NotificationManager =
+                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+            var bytes: Int
+            do {
+                bytes = inputStream.read(buffer)
                 bytesDownloaded += bytes
                 progress = (bytesDownloaded.toFloat() / chapterAudioFileSize.toFloat() * 100)
-
-                Log.d(
-                        TAG,
-                        "downloading ${chapterFile.name} $bytesDownloaded \\ $chapterAudioFileSize ($progress%)"
-                )
+                outputStream.write(buffer, 0, bytes)
 
                 setProgress(
                         getWorkData(
@@ -393,25 +425,21 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                                 if (singleFileDownload) null else chapter
                         )
                 )
-                val pendingIntent = PendingIntent.getActivity(
-                        context,
-                        0,
-                        Intent(context, Constants.MainActivityClass).apply {
-                            addCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY)
-                            putExtra(Constants.IntentDataKeys.RECITER.name, reciter)
-                            putExtra(Constants.IntentDataKeys.CHAPTER.name, chapter)
-                        },
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+
+                Log.d(
+                        TAG,
+                        "isStopped: $isStopped downloading ${chapterFile.name} ${
+                            numberFormat.format(bytesDownloaded)
+                        }B / ${numberFormat.format(chapterAudioFileSize)}B ($progress%)..."
                 )
-                val notification = NotificationCompat.Builder(
-                        context,
-                        context.getString(R.string.quran_recitation_notification_name)
-                )
-                    .setSilent(true)
-                    .setOngoing(true)
-                    .setPriority(NotificationManager.IMPORTANCE_MAX)
-                    .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
-                    .setContentTitle(context.getString(R.string.loading_chapter, chapter.name_arabic))
+
+                notificationBuilder
+                    .setContentTitle(
+                            context.getString(
+                                    R.string.loading_chapter,
+                                    chapter.name_arabic
+                            )
+                    )
                     .setContentText(
                             "${decimalFormat.format(bytesDownloaded.toFloat() / (1024f * 1024f))} مب. \\ ${
                                 decimalFormat.format(chapterAudioFileSize.toFloat() / (1024f * 1024f))
@@ -419,26 +447,32 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                                 decimalFormat.format(progress)
                             }٪)"
                     )
-                    .setContentInfo(context.getString(R.string.app_name))
-                    .setSubText("${reciter.name_ar} \\ ${chapter.name_arabic}")
-                    .setContentIntent(pendingIntent)
-                    .build()
 
-                setForegroundAsync(
-                        ForegroundInfo(
-                                R.integer.quran_chapter_download_notification_channel_id,
-                                notification
-                        )
+                notificationManager.notify(
+                        R.integer.quran_chapter_download_notification_channel_id,
+                        notificationBuilder.build()
                 )
+            } while (!isStopped && bytesDownloaded < chapterAudioFileSize)
 
-                outputStream.write(buffer, 0, bytes)
-                bytes = inputStream.read(buffer)
-            }
+            Log.d(TAG, "${if (isStopped) "INTERRUPT!!! " else "COMPLETE! "}closing input stream...")
             inputStream.close()
+            Log.d(TAG, "${if (isStopped) "INTERRUPT!!! " else "COMPLETE! "}closing output stream...")
             outputStream.close()
+            Log.d(TAG, "${if (isStopped) "INTERRUPT!!! " else "COMPLETE! "}disconnecting from $url...")
             disconnect()
+            Log.d(
+                    TAG,
+                    "${if (isStopped) "INTERRUPT!!! " else "COMPLETE! "}cancelling download notification ${
+                        notificationManager.getNotificationChannel(context.getString(R.string.quran_download_notification_name)).name
+                    }..."
+            )
+            notificationManager.cancel(R.integer.quran_chapter_download_notification_channel_id)
 
             if (isStopped) {
+                Log.d(
+                        TAG,
+                        "download is interrupted with ${numberFormat.format(chapterAudioFileSize - bytesDownloaded)} bytes left to download!!!"
+                )
                 setProgress(
                         getWorkData(
                                 DownloadStatus.DOWNLOAD_INTERRUPTED,
@@ -461,6 +495,19 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                         )
                 )
             } else {
+                Log.d(
+                        TAG,
+                        "isStopped: $isStopped downloaded ${chapterFile.name} ${
+                            numberFormat.format(bytesDownloaded)
+                        }B / ${numberFormat.format(chapterAudioFileSize)}B ($progress%)"
+                )
+
+                Log.d(
+                        TAG,
+                        "saving ${chapter.name_simple} for ${reciter.reciter_name} in ${chapterFile.absolutePath} with size of ${
+                            numberFormat.format(bytesDownloaded)
+                        } bytes"
+                )
                 sharedPrefsManager.setChapterPath(reciter, chapter)
 
                 return Result.success(

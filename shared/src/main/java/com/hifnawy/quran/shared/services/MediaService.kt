@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Timer
 import java.util.TimerTask
+import com.google.android.exoplayer2.MediaItem as ExoPlayerMediaItem
 
 @Suppress("PrivatePropertyName")
 private val TAG = MediaService::class.simpleName
@@ -196,7 +197,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                         getString(R.string.quran_recitation_notification_name)
                 )
                     .setSilent(true)
-                    .setOngoing(true)
                     .setPriority(NotificationManager.IMPORTANCE_MAX)
                     .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
                     .setContentTitle(getString(R.string.app_name))
@@ -511,6 +511,8 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             -1L
         }
 
+        showMediaNotification(chapter)
+
         mediaSession.setMetadata(
                 MediaMetadataCompat.Builder()
                     .putText(
@@ -572,7 +574,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             bytesDownloaded: Long,
             audioFileSize: Int,
             progress: Float,
-            @Suppress("UNUSED_PARAMETER")
             chapterAudioFile: File?
     ) {
         Log.d(
@@ -593,13 +594,14 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 updateMediaSession(reciter, chapter)
             }
 
-            DownloadWorkManager.DownloadStatus.DOWNLOADING -> Unit
             DownloadWorkManager.DownloadStatus.FILE_EXISTS,
-            DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> setMediaPlaybackState(
-                    MediaSessionState.PLAYING
-            )
+            DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> {
+                setMediaPlaybackState(MediaSessionState.PLAYING)
+                showMediaNotification(chapter)
+            }
 
-            DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR -> Unit
+            DownloadWorkManager.DownloadStatus.DOWNLOADING,
+            DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR,
             DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED -> Unit
         }
     }
@@ -615,19 +617,18 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 Intent(this, Constants.MainActivityClass).apply {
                     addCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY)
                     putExtra(Constants.IntentDataKeys.RECITER.name, currentReciter)
-                    putExtra(Constants.IntentDataKeys.CHAPTER.name, currentChapter)
+                    putExtra(Constants.IntentDataKeys.CHAPTER.name, chapter)
                 }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification =
             NotificationCompat.Builder(this, getString(R.string.quran_recitation_notification_name))
-                .setOngoing(true)
                 .setSilent(true)
                 .setStyle(
                         androidx.media.app.NotificationCompat.MediaStyle()
                             .setMediaSession(mediaSession.sessionToken)
                 )
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setContentTitle(currentChapter!!.name_arabic)
+                .setContentTitle(chapter.name_arabic)
                 .setContentText(currentReciter!!.name_ar)
                 .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
                 .setLargeIcon((chapterDrawable as BitmapDrawable).bitmap)
@@ -637,7 +638,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 getString(R.string.quran_recitation_notification_name),
                 getString(R.string.quran_recitation_notification_name),
                 NotificationManager.IMPORTANCE_HIGH
-        ).apply { description = currentChapter!!.name_arabic }
+        ).apply { description = chapter.name_arabic }
         // Register the channel with the system
         notificationManager.createNotificationChannel(channel)
         notificationManager.notify(
@@ -668,7 +669,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         if (exoPlayer.isPlaying || (currentChapterPosition == 0L)) {
             exoPlayer.stop()
         }
-        val mediaItem = com.google.android.exoplayer2.MediaItem.fromUri(chapterAudioFile.toUri())
+        val mediaItem = ExoPlayerMediaItem.fromUri(chapterAudioFile.toUri())
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
         exoPlayer.playWhenReady = true
