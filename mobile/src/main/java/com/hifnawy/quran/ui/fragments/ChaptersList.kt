@@ -261,6 +261,8 @@ class ChaptersList : Fragment() {
                         chapter.id == currentChapter.id
                     }) + 1
 
+                Log.d(TAG, "$downloadStatus, $currentChapterIndex")
+
                 with(dialogBinding) {
                     when (downloadStatus) {
                         DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD -> {
