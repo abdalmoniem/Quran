@@ -43,6 +43,7 @@ import com.hifnawy.quran.shared.model.ChapterAudioFile
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
+import com.hifnawy.quran.shared.tools.ImageUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -255,7 +256,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 mediaManager.reciters = getRecitersList()
                 mediaManager.chapters = getChaptersList()
 
-                mediaItems.add(createBrowsableMediaItem("quran_reciters", getString(R.string.quran)))
+                mediaItems.add(createBrowsableMediaItem(0, "quran_reciters", getString(R.string.quran)))
             } else {
                 if (mediaManager.reciters.isEmpty()) mediaManager.reciters = getRecitersList()
                 if (mediaManager.chapters.isEmpty()) mediaManager.chapters = getChaptersList()
@@ -274,6 +275,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                         mediaManager.reciters.forEach { reciter ->
                             mediaItems.add(
                                     createBrowsableMediaItem(
+                                            mediaManager.reciters.indexOf(reciter),
                                             "reciter_${reciter.id}",
                                             (reciter.name_ar + if (reciter.style != null) " (${reciter.style.style})" else "")
                                     )
@@ -360,17 +362,20 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     }
 
     private fun createBrowsableMediaItem(
+            id: Int,
             mediaId: String,
             folderName: String,
     ): MediaBrowserCompat.MediaItem {
         val mediaDescriptionBuilder = MediaDescriptionCompat.Builder()
         mediaDescriptionBuilder.setMediaId(mediaId)
-        mediaDescriptionBuilder.setTitle(folderName)
-
+        // mediaDescriptionBuilder.setTitle(folderName)
         mediaDescriptionBuilder.setIconBitmap(
-                (AppCompatResources.getDrawable(
-                        this@MediaService, R.drawable.reciter_name
-                ) as BitmapDrawable).bitmap
+                ImageUtils.drawTextOnBitmap(
+                        this,
+                        if ((id % 2) == 0) R.drawable.reciter_background_2
+                        else R.drawable.reciter_background_3,
+                        folderName
+                )
         )
         val extras = Bundle()
         extras.putInt(
@@ -397,7 +402,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         val mediaDescriptionBuilder = MediaDescriptionCompat.Builder()
         mediaDescriptionBuilder.setMediaId(mediaId)
         mediaDescriptionBuilder.setTitle(chapter.name_arabic)
-
         if (chapterAudioFile != null) {
             mediaDescriptionBuilder.setMediaUri(Uri.parse(chapterAudioFile.audio_url))
         }
