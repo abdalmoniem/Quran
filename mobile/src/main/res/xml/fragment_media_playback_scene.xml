@@ -24,7 +24,7 @@
 
             <KeyAttribute
                 android:alpha="1"
-                motion:framePosition="250"
+                motion:framePosition="350"
                 motion:motionTarget="@+id/chapter_seek" />
         </KeyFrameSet>
     </Transition>
@@ -41,8 +41,13 @@
         <KeyFrameSet>
             <KeyAttribute
                 android:alpha="0"
-                motion:framePosition="50"
-                motion:motionTarget="@+id/chapter_duration" />
+                motion:framePosition="10"
+                motion:motionTarget="@+id/chapter_seek" />
+
+            <KeyAttribute
+                android:alpha="1"
+                motion:framePosition="350"
+                motion:motionTarget="@+id/chapter_seek" />
         </KeyFrameSet>
     </Transition>
 

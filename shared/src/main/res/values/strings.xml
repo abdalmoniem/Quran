@@ -22,4 +22,6 @@
     <string name="quran_media_service_download_commands">DOWNLOAD_COMMANDS</string>
     <string name="bulkDownloadWorkManagerUniqueWorkName">BULK_DOWNLOAD_WORK_MANAGER</string>
     <string name="singleDownloadWorkManagerUniqueWorkName">SINGLE_DOWNLOAD_WORK_MANAGER</string>
+    <string name="SINGLE_DOWNLOAD_WORK_REQUEST_ID">c8b78cf9-1b4f-4d80-805e-1eb1aeae956a</string>
+    <string name="BULK_DOWNLOAD_WORK_REQUEST_ID">1a616129-8fdc-410e-bd86-19c90bcd67db</string>
 </resources>

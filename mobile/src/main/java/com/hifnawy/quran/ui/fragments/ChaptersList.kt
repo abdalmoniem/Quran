@@ -46,6 +46,7 @@ class ChaptersList : Fragment() {
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private val reciter by lazy { ChaptersListArgs.fromBundle(requireArguments()).reciter }
     private val workManager by lazy { WorkManager.getInstance(binding.root.context) }
+    private val downloadRequestID by lazy { UUID.fromString(getString(com.hifnawy.quran.shared.R.string.BULK_DOWNLOAD_WORK_REQUEST_ID)) }
     private var chapters: List<Chapter> = mutableListOf()
     private lateinit var binding: FragmentChaptersListBinding
     private lateinit var chaptersListAdapter: ChaptersListAdapter
@@ -116,10 +117,10 @@ class ChaptersList : Fragment() {
                                         )
                                 )
                         )
-                        .addTag(getString(com.hifnawy.quran.shared.R.string.bulkDownloadWorkManagerUniqueWorkName))
+                        .setId(downloadRequestID)
                         .build()
 
-                    observeWorker(downloadWorkRequest.id)
+                    observeWorker(downloadRequestID)
 
                     workManager.enqueueUniqueWork(
                             getString(com.hifnawy.quran.shared.R.string.bulkDownloadWorkManagerUniqueWorkName),
@@ -160,7 +161,7 @@ class ChaptersList : Fragment() {
 
         with(dialogBinding) {
             dialogBinding.downloadDialogCancelDownload.setOnClickListener {
-                workManager.cancelUniqueWork(getString(com.hifnawy.quran.shared.R.string.bulkDownloadWorkManagerUniqueWorkName))
+                workManager.cancelWorkById(downloadRequestID)
                 dialog.dismiss()
             }
 

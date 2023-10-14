@@ -56,10 +56,11 @@ private val TAG = MediaPlayback::class.simpleName
 class MediaPlayback : Fragment() {
 
     private val mediaUpdatesReceiver = MediaUpdatesReceiver()
-    private lateinit var reciter: Reciter
-    private lateinit var chapter: Chapter
     private var chapterPosition: Long = 0L
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
+    private val downloadRequestID by lazy { UUID.fromString(getString(com.hifnawy.quran.shared.R.string.SINGLE_DOWNLOAD_WORK_REQUEST_ID)) }
+    private lateinit var reciter: Reciter
+    private lateinit var chapter: Chapter
     private lateinit var binding: FragmentMediaPlaybackBinding
     private lateinit var sharedPrefsManager: SharedPreferencesManager
     private var appBarHeight: Int = 0
@@ -201,13 +202,13 @@ class MediaPlayback : Fragment() {
         )
 
         dialogBinding.downloadDialogCancelDownload.setOnClickListener {
-            workManager.cancelUniqueWork(getString(com.hifnawy.quran.shared.R.string.singleDownloadWorkManagerUniqueWorkName))
+            workManager.cancelWorkById(downloadRequestID)
             dialog.dismiss()
         }
 
-        workManager.getWorkInfosByTagLiveData(getString(com.hifnawy.quran.shared.R.string.singleDownloadWorkManagerUniqueWorkName))
-            .observe(viewLifecycleOwner) { workInfos ->
-                observeWorker(workInfos, dialog, dialogBinding)
+        workManager.getWorkInfoByIdLiveData(downloadRequestID)
+            .observe(viewLifecycleOwner) { workInfo ->
+                observeWorker(workInfo, dialog, dialogBinding)
             }
 
         parentActivity.startForegroundService(Intent(
@@ -282,15 +283,9 @@ class MediaPlayback : Fragment() {
 
     @SuppressLint("SetTextI18n")
     private fun observeWorker(
-            workInfos: MutableList<WorkInfo>?, dialog: AlertDialog, dialogBinding: DownloadDialogBinding
+            workInfo: WorkInfo, dialog: AlertDialog, dialogBinding: DownloadDialogBinding
     ) {
         val decimalFormat = DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
-
-        if (workInfos == null) return
-        val workInfo = workInfos.find { workInfo ->
-            workInfo.tags.find { tag -> tag == getString(com.hifnawy.quran.shared.R.string.singleDownloadWorkManagerUniqueWorkName) }
-                ?.let { true } ?: false
-        } ?: return
 
         if ((workInfo.state != WorkInfo.State.RUNNING) &&
             (workInfo.state != WorkInfo.State.SUCCEEDED) &&
@@ -443,7 +438,7 @@ class MediaPlayback : Fragment() {
         val chapterPlayPauseIconSize = binding.chapterPlayPause.iconSize
         val chapterNextIconSize = binding.chapterNext.iconSize
         val minimizedMediaControlsIconSize = 80.dp
-        var disableSliderTouch: Boolean = true
+        var disableSliderTouch: Boolean = false
 
         init {
             binding.chapterSeek.setOnTouchListener { _, _ -> disableSliderTouch }

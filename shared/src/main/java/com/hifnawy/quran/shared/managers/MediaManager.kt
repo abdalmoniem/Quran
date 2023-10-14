@@ -24,23 +24,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 @Suppress("PrivatePropertyName")
 private val TAG = MediaManager::class.simpleName
 
-class MediaManager(private var context: Context) : LifecycleOwner {
-
-    companion object {
-
-        @SuppressLint("StaticFieldLeak")
-        private lateinit var instance: MediaManager
-
-        @Synchronized
-        fun getInstance(context: Context): MediaManager {
-            return if (this::instance.isInitialized) instance else MediaManager(context.applicationContext)
-        }
-    }
+@SuppressLint("StaticFieldLeak")
+object MediaManager : LifecycleOwner {
 
     fun interface DownloadListener {
 
@@ -53,6 +42,7 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                 percentage: Float,
                 chapterAudioFile: File?
         )
+
     }
 
     fun interface MediaStateListener {
@@ -63,27 +53,36 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                 chapterAudioFile: File,
                 chapterDrawable: Drawable?
         )
+
     }
 
     var downloadListener: DownloadListener? = null
     var mediaStateListener: MediaStateListener? = null
     var reciters: List<Reciter> = mutableListOf()
     var chapters: List<Chapter> = mutableListOf()
-    override val lifecycle: Lifecycle
-        get() = lifecycleRegistry
+    private lateinit var context: Context
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
-    private var sharedPrefsManager: SharedPreferencesManager = SharedPreferencesManager(context)
+    private val sharedPrefsManager by lazy { SharedPreferencesManager(context) }
     private val lifecycleRegistry: LifecycleRegistry by lazy { LifecycleRegistry(this) }
     private val workManager by lazy { WorkManager.getInstance(context) }
+    private val downloadRequestID by lazy { UUID.fromString(context.getString(R.string.SINGLE_DOWNLOAD_WORK_REQUEST_ID)) }
+    override val lifecycle: Lifecycle
+        get() = lifecycleRegistry
 
     init {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
     }
 
+    @Synchronized
+    fun getInstance(context: Context): MediaManager {
+        this.context = context
+        return this
+    }
+
     fun stopLifecycle() {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-        workManager.cancelUniqueWork(context.getString(R.string.singleDownloadWorkManagerUniqueWorkName))
+        workManager.cancelWorkById(downloadRequestID)
     }
 
     suspend fun processChapter(reciter: Reciter, chapter: Chapter) {
@@ -145,7 +144,7 @@ class MediaManager(private var context: Context) : LifecycleOwner {
     }
 
     fun cancelPendingDownloads() {
-        workManager.cancelUniqueWork(context.getString(R.string.singleDownloadWorkManagerUniqueWorkName))
+        workManager.cancelWorkById(downloadRequestID)
     }
 
     private fun downloadChapter(reciter: Reciter, chapter: Chapter) {
@@ -161,11 +160,10 @@ class MediaManager(private var context: Context) : LifecycleOwner {
                             )
                     )
             )
-            .keepResultsForAtLeast(0, TimeUnit.SECONDS)
-            .addTag(context.getString(R.string.singleDownloadWorkManagerUniqueWorkName))
+            .setId(downloadRequestID)
             .build()
 
-        observeWorker(downloadWorkRequest.id, reciter, chapter)
+        observeWorker(downloadRequestID, reciter, chapter)
 
         workManager.enqueueUniqueWork(
                 context.getString(R.string.singleDownloadWorkManagerUniqueWorkName),
