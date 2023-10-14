@@ -8,6 +8,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.media.MediaMetadataRetriever
@@ -32,9 +33,8 @@ import com.google.firebase.crashlytics.ktx.crashlytics
 import com.google.firebase.ktx.Firebase
 import com.hifnawy.quran.shared.BuildConfig
 import com.hifnawy.quran.shared.R
-import com.hifnawy.quran.shared.api.QuranAPI.Companion.getChaptersList
 import com.hifnawy.quran.shared.api.QuranAPI.Companion.getReciterChaptersAudioFiles
-import com.hifnawy.quran.shared.api.QuranAPI.Companion.getRecitersList
+import com.hifnawy.quran.shared.extensions.NumberExt.dp
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.managers.MediaManager
@@ -136,6 +136,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private val mediaManager: MediaManager by lazy { MediaManager.getInstance(this) }
     private val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
     private val mainCoroutineScope = CoroutineScope(Dispatchers.Main)
+    private val reciterDrawables = mutableListOf<Bitmap>()
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
     private var currentChapterPosition: Long = -1L
@@ -249,61 +250,68 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         val mediaItems: MutableList<MediaBrowserCompat.MediaItem> = mutableListOf()
 
         ioCoroutineScope.launch {
-            // Check whether this is the root menu:
-            if (parentId == MEDIA_ROOT_ID) {
-                // Build the MediaItem objects for the top level
-                // and put them in the mediaItems list.
-                mediaManager.reciters = getRecitersList()
-                mediaManager.chapters = getChaptersList()
+            mediaManager.initializeData {
+                if (reciterDrawables.isEmpty()) {
+                    mediaManager.reciters.forEachIndexed { index, reciter ->
+                        reciterDrawables.add(
+                                ImageUtils.drawTextOnBitmap(
+                                        context = this@MediaService,
+                                        drawableId =
+                                        if ((index % 2) == 0) R.drawable.reciter_background_2
+                                        else R.drawable.reciter_background_3,
+                                        text = "${reciter.name_ar}${if (reciter.style != null) "\n(${reciter.style.style})" else ""}",
+                                        fontSize = 60.dp(applicationContext).toFloat(),
+                                        fontMargin = 0
+                                )
+                        )
+                    }
+                }
 
-                mediaItems.add(createBrowsableMediaItem(0, "quran_reciters", getString(R.string.quran)))
-            } else {
-                if (mediaManager.reciters.isEmpty()) mediaManager.reciters = getRecitersList()
-                if (mediaManager.chapters.isEmpty()) mediaManager.chapters = getChaptersList()
-
-                mediaState = if (parentId.startsWith("reciter_")) {
-                    MediaState.CHAPTER_BROWSE
-                } else if (parentId.startsWith("chapter_")) {
-                    MediaState.CHAPTER_PLAY
+                // Check whether this is the root menu:
+                if (parentId == MEDIA_ROOT_ID) {
+                    mediaItems.add(createBrowsableMediaItem(0, "quran_reciters"))
                 } else {
-                    MediaState.RECITER_BROWSE
-                }
-                // Examine the passed parentMediaId to see which submenu we're at
-                // and put the children of that menu in the mediaItems list.
-                when (mediaState) {
-                    MediaState.RECITER_BROWSE -> {
-                        mediaManager.reciters.forEach { reciter ->
-                            mediaItems.add(
-                                    createBrowsableMediaItem(
-                                            mediaManager.reciters.indexOf(reciter),
-                                            "reciter_${reciter.id}",
-                                            (reciter.name_ar + if (reciter.style != null) " (${reciter.style.style})" else "")
-                                    )
-                            )
-                        }
+                    mediaState = when {
+                        parentId.startsWith("reciter_") -> MediaState.CHAPTER_BROWSE
+                        parentId.startsWith("chapter_") -> MediaState.CHAPTER_PLAY
+                        else -> MediaState.RECITER_BROWSE
                     }
 
-                    MediaState.CHAPTER_BROWSE -> {
-                        val reciterId = parentId.replace("reciter_", "").toInt()
-                        val reciter = mediaManager.reciters.single { reciter -> reciter.id == reciterId }
-                        val chaptersAudioFiles = getReciterChaptersAudioFiles(reciterId)
-
-                        mediaManager.chapters.forEach { chapter ->
-                            mediaItems.add(
-                                    createMediaItem("chapter_${chapter.id}",
-                                                    reciter,
-                                                    chapter,
-                                                    chaptersAudioFiles.find { chapterAudioFile ->
-                                                        chapterAudioFile.chapter_id == chapter.id
-                                                    })
-                            )
+                    when (mediaState) {
+                        MediaState.RECITER_BROWSE -> {
+                            mediaManager.reciters.forEach { reciter ->
+                                mediaItems.add(
+                                        createBrowsableMediaItem(
+                                                mediaManager.reciters.indexOf(reciter),
+                                                "reciter_${reciter.id}"
+                                        )
+                                )
+                            }
                         }
-                    }
 
-                    MediaState.CHAPTER_PLAY -> Unit
+                        MediaState.CHAPTER_BROWSE -> {
+                            val reciterId = parentId.replace("reciter_", "").toInt()
+                            val reciter =
+                                mediaManager.reciters.single { reciter -> reciter.id == reciterId }
+                            val chaptersAudioFiles = getReciterChaptersAudioFiles(reciterId)
+
+                            mediaManager.chapters.forEach { chapter ->
+                                mediaItems.add(
+                                        createMediaItem("chapter_${chapter.id}",
+                                                        reciter,
+                                                        chapter,
+                                                        chaptersAudioFiles.find { chapterAudioFile ->
+                                                            chapterAudioFile.chapter_id == chapter.id
+                                                        })
+                                )
+                            }
+                        }
+
+                        MediaState.CHAPTER_PLAY -> Unit
+                    }
                 }
+                result.sendResult(mediaItems)
             }
-            result.sendResult(mediaItems)
         }
 
         result.detach()
@@ -362,21 +370,12 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     }
 
     private fun createBrowsableMediaItem(
-            id: Int,
+            reciterIndex: Int,
             mediaId: String,
-            folderName: String,
     ): MediaBrowserCompat.MediaItem {
         val mediaDescriptionBuilder = MediaDescriptionCompat.Builder()
         mediaDescriptionBuilder.setMediaId(mediaId)
-        // mediaDescriptionBuilder.setTitle(folderName)
-        mediaDescriptionBuilder.setIconBitmap(
-                ImageUtils.drawTextOnBitmap(
-                        this,
-                        if ((id % 2) == 0) R.drawable.reciter_background_2
-                        else R.drawable.reciter_background_3,
-                        folderName
-                )
-        )
+        mediaDescriptionBuilder.setIconBitmap(reciterDrawables[reciterIndex])
         val extras = Bundle()
         extras.putInt(
                 MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_SINGLE_ITEM,
@@ -578,6 +577,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             bytesDownloaded: Long,
             audioFileSize: Int,
             progress: Float,
+            @Suppress("UNUSED_PARAMETER")
             chapterAudioFile: File?
     ) {
         Log.d(

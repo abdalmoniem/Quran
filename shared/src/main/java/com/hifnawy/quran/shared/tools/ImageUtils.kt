@@ -17,9 +17,10 @@ object ImageUtils {
     fun drawTextOnBitmap(
             context: Context,
             @DrawableRes drawableId: Int,
-            text: String
-    ): Bitmap? {
-        val dp = context.resources.displayMetrics.density + 0.5f
+            text: String,
+            fontSize: Float,
+            fontMargin: Int
+    ): Bitmap {
         val typeface = context.resources.getFont(R.font.decotype_thuluth_2)
         val paint = TextPaint(Paint.ANTI_ALIAS_FLAG)
         var bitmap = BitmapFactory.decodeResource(context.resources, drawableId)
@@ -29,8 +30,8 @@ object ImageUtils {
 
         paint.typeface = typeface
         paint.color = Color.WHITE
-        paint.textSize = 170 * dp
-        val textWidth = (canvas.width - (16 * dp)).toInt()
+        paint.textSize = fontSize
+        val textWidth = canvas.width - fontMargin
         val textLayout = StaticLayout.Builder
             .obtain(text, 0, text.length, paint, textWidth)
             .setAlignment(Layout.Alignment.ALIGN_CENTER)

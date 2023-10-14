@@ -20,7 +20,9 @@ import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -85,14 +87,15 @@ object MediaManager : LifecycleOwner {
         workManager.cancelWorkById(downloadRequestID)
     }
 
-    suspend fun processChapter(reciter: Reciter, chapter: Chapter) {
-        if (reciters.isEmpty()) {
-            reciters = getRecitersList()
-        }
+    suspend fun initializeData(onDataFetched: (suspend () -> Unit)? = null) {
+        val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
+        if (reciters.isEmpty()) reciters = ioCoroutineScope.async { getRecitersList() }.await()
+        if (chapters.isEmpty()) chapters = ioCoroutineScope.async { getChaptersList() }.await()
 
-        if (chapters.isEmpty()) {
-            chapters = getChaptersList()
-        }
+        onDataFetched?.invoke()
+    }
+
+    suspend fun processChapter(reciter: Reciter, chapter: Chapter) {
         @SuppressLint("DiscouragedApi") val drawableId = context.resources.getIdentifier(
                 "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", context.packageName
         )

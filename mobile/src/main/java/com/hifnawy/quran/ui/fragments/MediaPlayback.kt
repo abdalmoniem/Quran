@@ -29,6 +29,7 @@ import androidx.work.WorkManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.DownloadDialogBinding
 import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
+import com.hifnawy.quran.shared.extensions.NumberExt.dp
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.model.Chapter
@@ -430,6 +431,7 @@ class MediaPlayback : Fragment() {
     @SuppressLint("ClickableViewAccessibility")
     private inner class MotionLayoutTransitionListener : MotionLayout.TransitionListener {
 
+        val context = binding.root.context
         val fragmentContainerLayoutParams =
             parentActivity.binding.fragmentContainer.layoutParams as FrameLayout.LayoutParams
         val appBarLayoutParams =
@@ -437,7 +439,7 @@ class MediaPlayback : Fragment() {
         val chapterPreviousIconSize = binding.chapterPrevious.iconSize
         val chapterPlayPauseIconSize = binding.chapterPlayPause.iconSize
         val chapterNextIconSize = binding.chapterNext.iconSize
-        val minimizedMediaControlsIconSize = 80.dp
+        val minimizedMediaControlsIconSize = 80.dp(context)
         var disableSliderTouch: Boolean = false
 
         init {
@@ -456,21 +458,21 @@ class MediaPlayback : Fragment() {
             fragmentContainerLayoutParams.bottomMargin = if (minimizing) {
                 lerp(
                         resources.getDimension(R.dimen.media_player_minimized_height).toInt(),
-                        0.dp,
+                        0.dp(context),
                         progress
                 )
             } else {
                 lerp(
-                        0.dp,
+                        0.dp(context),
                         resources.getDimension(R.dimen.media_player_minimized_height).toInt(),
                         progress
                 )
             }.toInt()
 
             appBarLayoutParams.height = if (minimizing) {
-                lerp(1.dp, appBarHeight, progress)
+                lerp(1.dp(context), appBarHeight, progress)
             } else {
-                lerp(appBarHeight, 1.dp, progress)
+                lerp(appBarHeight, 1.dp(context), progress)
             }.toInt()
 
             with(binding) {
@@ -491,9 +493,9 @@ class MediaPlayback : Fragment() {
                         }.toInt()
                 )
                 chapterSeek.trackHeight = if (minimizing) {
-                    lerp(20.dp, 10.dp, progress)
+                    lerp(20.dp(context), 10.dp(context), progress)
                 } else {
-                    lerp(10.dp, 20.dp, progress)
+                    lerp(10.dp(context), 20.dp(context), progress)
                 }.toInt()
 
                 chapterPrevious.iconSize = if (minimizing) {
@@ -541,10 +543,10 @@ class MediaPlayback : Fragment() {
             val minimized = currentState == R.id.minimized
             binding.root.isInteractionEnabled = false
 
-            appBarLayoutParams.height = if (minimized) appBarHeight else 1.dp
+            appBarLayoutParams.height = if (minimized) appBarHeight else 1.dp(context)
             fragmentContainerLayoutParams.bottomMargin =
                 if (minimized) resources.getDimension(R.dimen.media_player_minimized_height)
-                    .toInt() else 0.dp
+                    .toInt() else 0.dp(context)
             parentActivity.binding.appBar.layoutParams = appBarLayoutParams
 
             with(binding) {
@@ -564,10 +566,6 @@ class MediaPlayback : Fragment() {
         @Suppress("SpellCheckingInspection")
         fun lerp(valueFrom: Int, valueTo: Int, delta: Float): Float =
             (valueFrom * (1f - delta)) + (valueTo * delta)
-
-        val Int.dp: Int
-            get() = (this * resources.displayMetrics.density + 0.5f).toInt()
-
     }
 
 }
