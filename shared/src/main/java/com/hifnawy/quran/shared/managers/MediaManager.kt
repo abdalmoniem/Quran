@@ -14,8 +14,8 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.hifnawy.quran.shared.R
-import com.hifnawy.quran.shared.api.QuranAPI.Companion.getChaptersList
-import com.hifnawy.quran.shared.api.QuranAPI.Companion.getRecitersList
+import com.hifnawy.quran.shared.api.QuranAPI.getChaptersList
+import com.hifnawy.quran.shared.api.QuranAPI.getRecitersList
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter

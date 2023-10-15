@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -22,14 +23,17 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.constraintlayout.motion.widget.MotionLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.graphics.drawable.toDrawable
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.Fragment
 import androidx.palette.graphics.Palette
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.google.android.material.math.MathUtils.lerp
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.DownloadDialogBinding
 import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
 import com.hifnawy.quran.shared.extensions.NumberExt.dp
+import com.hifnawy.quran.shared.extensions.NumberExt.sp
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.model.Chapter
@@ -431,15 +435,10 @@ class MediaPlayback : Fragment() {
     @SuppressLint("ClickableViewAccessibility")
     private inner class MotionLayoutTransitionListener : MotionLayout.TransitionListener {
 
-        val context = binding.root.context
-        val fragmentContainerLayoutParams =
-            parentActivity.binding.fragmentContainer.layoutParams as FrameLayout.LayoutParams
-        val appBarLayoutParams =
-            parentActivity.binding.appBar.layoutParams as ConstraintLayout.LayoutParams
-        val chapterPreviousIconSize = binding.chapterPrevious.iconSize
-        val chapterPlayPauseIconSize = binding.chapterPlayPause.iconSize
-        val chapterNextIconSize = binding.chapterNext.iconSize
-        val minimizedMediaControlsIconSize = 80.dp(context)
+        val chapterPreviousIconSize = binding.chapterPrevious.iconSize.toFloat()
+        val chapterPlayPauseIconSize = binding.chapterPlayPause.iconSize.toFloat()
+        val chapterNextIconSize = binding.chapterNext.iconSize.toFloat()
+        val minimizedMediaControlsIconSize = 80f.dp
         var disableSliderTouch: Boolean = false
 
         init {
@@ -455,47 +454,69 @@ class MediaPlayback : Fragment() {
                 progress: Float
         ) {
             val minimizing = (startId == R.id.maximized) && (endId == R.id.minimized)
-            fragmentContainerLayoutParams.bottomMargin = if (minimizing) {
-                lerp(
-                        resources.getDimension(R.dimen.media_player_minimized_height).toInt(),
-                        0.dp(context),
-                        progress
-                )
-            } else {
-                lerp(
-                        0.dp(context),
-                        resources.getDimension(R.dimen.media_player_minimized_height).toInt(),
-                        progress
-                )
-            }.toInt()
+            with(parentActivity.binding) {
+                if (!appBar.isInLayout) {
+                    appBar.updateLayoutParams {
+                        height = if (minimizing) {
+                            lerp(1f.dp, appBarHeight.toFloat(), progress)
+                        } else {
+                            lerp(appBarHeight.toFloat(), 1f.dp, progress)
+                        }.toInt()
+                    }
+                }
 
-            appBarLayoutParams.height = if (minimizing) {
-                lerp(1.dp(context), appBarHeight, progress)
-            } else {
-                lerp(appBarHeight, 1.dp(context), progress)
-            }.toInt()
+                if (!fragmentContainer.isInLayout) {
+                    fragmentContainer.updateLayoutParams<FrameLayout.LayoutParams> {
+                        bottomMargin = if (minimizing) {
+                            lerp(
+                                    resources.getDimension(R.dimen.media_player_minimized_height),
+                                    0f.dp,
+                                    progress
+                            )
+                        } else {
+                            lerp(
+                                    0f.dp,
+                                    resources.getDimension(R.dimen.media_player_minimized_height),
+                                    progress
+                            )
+                        }.toInt()
+                    }
+                }
+            }
 
             with(binding) {
                 disableSliderTouch = minimizing
 
+                chapterName.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
+                    lerp(80f, 25f, progress)
+                } else {
+                    lerp(25f, 80f, progress)
+                })
+
+                reciterName.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
+                    lerp(25f, 15f, progress)
+                } else {
+                    lerp(15f, 25f, progress)
+                })
+
                 chapterSeek.trackInactiveTintList = chapterSeek.trackInactiveTintList.withAlpha(
                         if (minimizing) {
-                            lerp(255, 0, progress)
+                            lerp(255f, 0f, progress)
                         } else {
-                            lerp(0, 255, progress)
+                            lerp(0f, 255f, progress)
                         }.toInt()
                 )
                 chapterSeek.thumbTintList = chapterSeek.thumbTintList.withAlpha(
                         if (minimizing) {
-                            lerp(255, 0, progress)
+                            lerp(255f, 0f, progress)
                         } else {
-                            lerp(0, 255, progress)
+                            lerp(0f, 255f, progress)
                         }.toInt()
                 )
                 chapterSeek.trackHeight = if (minimizing) {
-                    lerp(20.dp(context), 10.dp(context), progress)
+                    lerp(20f.dp, 10f.dp, progress)
                 } else {
-                    lerp(10.dp(context), 20.dp(context), progress)
+                    lerp(10f.dp, 20f.dp, progress)
                 }.toInt()
 
                 chapterPrevious.iconSize = if (minimizing) {
@@ -504,9 +525,9 @@ class MediaPlayback : Fragment() {
                     lerp(minimizedMediaControlsIconSize, chapterPreviousIconSize, progress)
                 }.toInt()
                 chapterPrevious.background.alpha = if (minimizing) {
-                    lerp(255, 0, progress)
+                    lerp(255f, 0f, progress)
                 } else {
-                    lerp(0, 255, progress)
+                    lerp(0f, 255f, progress)
                 }.toInt()
 
                 chapterPlayPause.iconSize = if (minimizing) {
@@ -515,9 +536,9 @@ class MediaPlayback : Fragment() {
                     lerp(minimizedMediaControlsIconSize, chapterPlayPauseIconSize, progress)
                 }.toInt()
                 chapterPlayPause.background.alpha = if (minimizing) {
-                    lerp(255, 0, progress)
+                    lerp(255f, 0f, progress)
                 } else {
-                    lerp(0, 255, progress)
+                    lerp(0f, 255f, progress)
                 }.toInt()
 
                 chapterNext.iconSize = if (minimizing) {
@@ -526,15 +547,10 @@ class MediaPlayback : Fragment() {
                     lerp(minimizedMediaControlsIconSize, chapterNextIconSize, progress)
                 }.toInt()
                 chapterNext.background.alpha = if (minimizing) {
-                    lerp(255, 0, progress)
+                    lerp(255f, 0f, progress)
                 } else {
-                    lerp(0, 255, progress)
+                    lerp(0f, 255f, progress)
                 }.toInt()
-            }
-
-            with(parentActivity.binding) {
-                appBar.layoutParams = appBarLayoutParams
-                fragmentContainer.layoutParams = fragmentContainerLayoutParams
             }
 
         }
@@ -543,11 +559,19 @@ class MediaPlayback : Fragment() {
             val minimized = currentState == R.id.minimized
             binding.root.isInteractionEnabled = false
 
-            appBarLayoutParams.height = if (minimized) appBarHeight else 1.dp(context)
-            fragmentContainerLayoutParams.bottomMargin =
-                if (minimized) resources.getDimension(R.dimen.media_player_minimized_height)
-                    .toInt() else 0.dp(context)
-            parentActivity.binding.appBar.layoutParams = appBarLayoutParams
+            with(parentActivity.binding) {
+                if (!appBar.isInLayout) {
+                    appBar.updateLayoutParams { height = if (minimized) appBarHeight else 1.dp }
+                }
+
+                if (!fragmentContainer.isInLayout) {
+                    fragmentContainer.updateLayoutParams<FrameLayout.LayoutParams> {
+                        bottomMargin =
+                            if (minimized) resources.getDimension(R.dimen.media_player_minimized_height)
+                                .toInt() else 0.dp
+                    }
+                }
+            }
 
             with(binding) {
                 chapterPrevious.background.alpha = if (minimized) 0 else 255
@@ -562,10 +586,6 @@ class MediaPlayback : Fragment() {
                 positive: Boolean,
                 progress: Float
         ) = Unit
-
-        @Suppress("SpellCheckingInspection")
-        fun lerp(valueFrom: Int, valueTo: Int, delta: Float): Float =
-            (valueFrom * (1f - delta)) + (valueTo * delta)
     }
 
 }

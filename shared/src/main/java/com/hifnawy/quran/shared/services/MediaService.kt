@@ -33,7 +33,7 @@ import com.google.firebase.crashlytics.ktx.crashlytics
 import com.google.firebase.ktx.Firebase
 import com.hifnawy.quran.shared.BuildConfig
 import com.hifnawy.quran.shared.R
-import com.hifnawy.quran.shared.api.QuranAPI.Companion.getReciterChaptersAudioFiles
+import com.hifnawy.quran.shared.api.QuranAPI.getReciterChaptersAudioFiles
 import com.hifnawy.quran.shared.extensions.NumberExt.dp
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
@@ -43,7 +43,7 @@ import com.hifnawy.quran.shared.model.ChapterAudioFile
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
-import com.hifnawy.quran.shared.tools.ImageUtils
+import com.hifnawy.quran.shared.tools.ImageUtils.drawTextOn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -251,25 +251,24 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
         ioCoroutineScope.launch {
             mediaManager.initializeData {
-                if (reciterDrawables.isEmpty()) {
+                reciterDrawables.ifEmpty {
                     mediaManager.reciters.forEachIndexed { index, reciter ->
                         reciterDrawables.add(
-                                ImageUtils.drawTextOnBitmap(
+                                (if ((index % 2) == 0) R.drawable.reciter_background_2
+                                else R.drawable.reciter_background_3).drawTextOn(
                                         context = this@MediaService,
-                                        drawableId =
-                                        if ((index % 2) == 0) R.drawable.reciter_background_2
-                                        else R.drawable.reciter_background_3,
-                                        text = "${reciter.name_ar}${if (reciter.style != null) "\n(${reciter.style.style})" else ""}",
-                                        fontSize = 60.dp(applicationContext).toFloat(),
+                                        text = reciter.name_ar,
+                                        subText = if (reciter.style != null) "(${reciter.style.style})" else "",
+                                        fontFace = R.font.aref_ruqaa,
+                                        fontSize = 60.dp.toFloat(),
                                         fontMargin = 0
                                 )
                         )
                     }
                 }
 
-                // Check whether this is the root menu:
                 if (parentId == MEDIA_ROOT_ID) {
-                    mediaItems.add(createBrowsableMediaItem(0, "quran_reciters"))
+                    mediaItems.add(createBrowsableMediaItem(-1, "Home"))
                 } else {
                     mediaState = when {
                         parentId.startsWith("reciter_") -> MediaState.CHAPTER_BROWSE
@@ -373,10 +372,11 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             reciterIndex: Int,
             mediaId: String,
     ): MediaBrowserCompat.MediaItem {
+        val extras = Bundle()
         val mediaDescriptionBuilder = MediaDescriptionCompat.Builder()
         mediaDescriptionBuilder.setMediaId(mediaId)
-        mediaDescriptionBuilder.setIconBitmap(reciterDrawables[reciterIndex])
-        val extras = Bundle()
+
+        if (reciterIndex >= 0) mediaDescriptionBuilder.setIconBitmap(reciterDrawables[reciterIndex])
         extras.putInt(
                 MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_SINGLE_ITEM,
                 MediaConstants.DESCRIPTION_EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM

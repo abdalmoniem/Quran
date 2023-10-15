@@ -5,121 +5,121 @@ import com.google.gson.Gson
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.ChapterAudioFile
 import com.hifnawy.quran.shared.model.Reciter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 import org.json.JSONObject
-import ru.gildor.coroutines.okhttp.await
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
 @Suppress("PrivatePropertyName")
 private val TAG = QuranAPI::class.simpleName
 
-class QuranAPI {
+object QuranAPI {
+
+    private val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
 
     fun interface ResponseHandler {
 
         fun handleResponse(error: Boolean, responseMessage: String)
     }
 
-    companion object {
-
-        private suspend fun sendRESTRequest(url: String, responseHandler: ResponseHandler) {
-            val client: OkHttpClient = OkHttpClient().newBuilder()
-                .connectTimeout(60, TimeUnit.SECONDS)
-                .retryOnConnectionFailure(true).build()
-            val request: Request = Request.Builder()
-                .url(url)
-                .method("GET", null)
-                .addHeader("Accept", "application/json")
-                .build()
-            try {
-                val response: Response = client.newCall(request).await()
-                response.body()?.string()?.let { jsonString ->
-                    responseHandler.handleResponse(false, jsonString)
-                } ?: responseHandler.handleResponse(
-                        true,
-                        "Connection failed with error: ${response.code()}"
-                )
-            } catch (ex: SocketTimeoutException) {
-                Log.w(TAG, ex.stackTraceToString())
-                responseHandler.handleResponse(true, "Connection failed with error: $ex")
-            }
-        }
-
-        suspend fun getRecitersList(): List<Reciter> {
-            var reciters: Array<Reciter> = emptyArray()
-
-            sendRESTRequest("https://api.quran.com/api/v4/resources/recitations?language=ar") { error, responseMessage ->
-                if (error) {
-                    Log.w(TAG, responseMessage)
-                    return@sendRESTRequest
+    private suspend fun sendRESTRequest(url: String, responseHandler: ResponseHandler) {
+        val client: OkHttpClient = OkHttpClient().newBuilder()
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true).build()
+        val request: Request = Request.Builder()
+            .url(url)
+            .method("GET", null)
+            .addHeader("Accept", "application/json")
+            .build()
+        try {
+            ioCoroutineScope
+                .async {
+                    client
+                        .newCall(request)
+                        .execute()
                 }
-                val recitersJsonArray =
-                    JSONObject(responseMessage).getJSONArray("recitations").toString()
-
-                Log.d(TAG, recitersJsonArray)
-
-                reciters = Gson().fromJson(recitersJsonArray, Array<Reciter>::class.java)
-            }
-
-            return reciters.toList()
-        }
-
-        suspend fun getChaptersList(): List<Chapter> {
-            var chapters: Array<Chapter> = emptyArray()
-
-            sendRESTRequest("https://api.quran.com/api/v4/chapters?language=ar") { error, responseMessage ->
-                if (error) {
-                    Log.w(TAG, responseMessage)
-                    return@sendRESTRequest
+                .await()
+                .apply {
+                    responseHandler.handleResponse(false, body.string())
                 }
-                val chaptersJsonArray = JSONObject(responseMessage).getJSONArray("chapters").toString()
+        } catch (ex: SocketTimeoutException) {
+            Log.w(TAG, ex.message, ex)
+            responseHandler.handleResponse(true, "Connection failed with error: $ex")
+        }
+    }
 
-                Log.d(TAG, chaptersJsonArray)
+    suspend fun getRecitersList(): List<Reciter> {
+        var reciters: Array<Reciter> = emptyArray()
 
-                chapters = Gson().fromJson(chaptersJsonArray, Array<Chapter>::class.java)
+        sendRESTRequest("https://api.quran.com/api/v4/resources/recitations?language=ar") { error, responseMessage ->
+            if (error) {
+                Log.w(TAG, responseMessage)
+                return@sendRESTRequest
             }
+            val recitersJsonArray =
+                JSONObject(responseMessage).getJSONArray("recitations").toString()
 
-            return chapters.toList()
+            reciters = Gson().fromJson(recitersJsonArray, Array<Reciter>::class.java)
+
+            Log.i(TAG, reciters.joinToString(separator = "\n") { it.toString() })
         }
 
-        suspend fun getChapterAudioFile(reciterID: Int, chapterID: Int): ChapterAudioFile? {
-            var chapterAudioFile: ChapterAudioFile? = null
+        return reciters.toList()
+    }
 
-            sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID/$chapterID") { error, responseMessage ->
-                if (error) {
-                    Log.w(TAG, responseMessage)
-                    return@sendRESTRequest
-                }
-                val chapterJsonObject =
-                    JSONObject(responseMessage).getJSONObject("audio_file").toString()
+    suspend fun getChaptersList(): List<Chapter> {
+        var chapters: Array<Chapter> = emptyArray()
 
-                Log.d(TAG, chapterJsonObject)
-
-                chapterAudioFile = Gson().fromJson(chapterJsonObject, ChapterAudioFile::class.java)
+        sendRESTRequest("https://api.quran.com/api/v4/chapters?language=ar") { error, responseMessage ->
+            if (error) {
+                Log.w(TAG, responseMessage)
+                return@sendRESTRequest
             }
-            return chapterAudioFile
+            val chaptersJsonArray = JSONObject(responseMessage).getJSONArray("chapters").toString()
+            chapters = Gson().fromJson(chaptersJsonArray, Array<Chapter>::class.java)
+
+            Log.i(TAG, chapters.joinToString(separator = "\n") { it.toString() })
         }
 
-        suspend fun getReciterChaptersAudioFiles(reciterID: Int): List<ChapterAudioFile> {
-            var reciterChaptersAudioFiles: Array<ChapterAudioFile> = emptyArray()
+        return chapters.toList()
+    }
 
-            sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID") { error, responseMessage ->
-                if (error) {
-                    Log.w(TAG, responseMessage)
-                    return@sendRESTRequest
-                }
-                val chapterJsonObject =
-                    JSONObject(responseMessage).getJSONArray("audio_files").toString()
+    suspend fun getChapterAudioFile(reciterID: Int, chapterID: Int): ChapterAudioFile? {
+        var chapterAudioFile: ChapterAudioFile? = null
 
-                Log.d(TAG, chapterJsonObject)
-
-                reciterChaptersAudioFiles =
-                    Gson().fromJson(chapterJsonObject, Array<ChapterAudioFile>::class.java)
+        sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID/$chapterID") { error, responseMessage ->
+            if (error) {
+                Log.w(TAG, responseMessage)
+                return@sendRESTRequest
             }
-            return reciterChaptersAudioFiles.toList()
+            val chapterJsonObject =
+                JSONObject(responseMessage).getJSONObject("audio_file").toString()
+            chapterAudioFile = Gson().fromJson(chapterJsonObject, ChapterAudioFile::class.java)
+
+            Log.i(TAG, chapterAudioFile.toString())
         }
+        return chapterAudioFile
+    }
+
+    suspend fun getReciterChaptersAudioFiles(reciterID: Int): List<ChapterAudioFile> {
+        var reciterChaptersAudioFiles: Array<ChapterAudioFile> = emptyArray()
+
+        sendRESTRequest("https://api.quran.com/api/v4/chapter_recitations/$reciterID") { error, responseMessage ->
+            if (error) {
+                Log.w(TAG, responseMessage)
+                return@sendRESTRequest
+            }
+            val chapterJsonObject =
+                JSONObject(responseMessage).getJSONArray("audio_files").toString()
+            reciterChaptersAudioFiles =
+                Gson().fromJson(chapterJsonObject, Array<ChapterAudioFile>::class.java)
+
+            Log.i(TAG, reciterChaptersAudioFiles.joinToString(separator = "\n") { it.toString() })
+        }
+        return reciterChaptersAudioFiles.toList()
     }
 }

@@ -2,6 +2,7 @@ package com.hifnawy.quran.ui.fragments
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
@@ -20,6 +21,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
+import com.hifnawy.quran.databinding.DownloadDialogBinding
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
 import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
@@ -120,8 +122,6 @@ class ChaptersList : Fragment() {
                         .setId(downloadRequestID)
                         .build()
 
-                    observeWorker(downloadRequestID)
-
                     workManager.enqueueUniqueWork(
                             getString(com.hifnawy.quran.shared.R.string.bulkDownloadWorkManagerUniqueWorkName),
                             ExistingWorkPolicy.REPLACE,
@@ -129,6 +129,8 @@ class ChaptersList : Fragment() {
                     )
                 }
             }
+
+            observeWorker(downloadRequestID)
         }
 
         return binding.root
@@ -156,8 +158,6 @@ class ChaptersList : Fragment() {
                 binding.root.context,
                 DialogBuilder.DownloadType.BULK
         )
-
-        dialog.show()
 
         with(dialogBinding) {
             dialogBinding.downloadDialogCancelDownload.setOnClickListener {
@@ -233,6 +233,7 @@ class ChaptersList : Fragment() {
                     return@observe
                 }
                 if (workInfo.state == WorkInfo.State.SUCCEEDED) {
+                    Log.d(TAG, "SUCEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED")
                     dialog.dismiss()
                     return@observe
                 }
@@ -262,11 +263,11 @@ class ChaptersList : Fragment() {
                         chapter.id == currentChapter.id
                     }) + 1
 
-                Log.d(TAG, "$downloadStatus, $currentChapterIndex")
-
                 with(dialogBinding) {
                     when (downloadStatus) {
                         DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD -> {
+                            dialog.show()
+
                             downloadDialogChapterProgress.progress = progress.toInt()
                             downloadDialogChapterDownloadMessage.setTextColor(Color.WHITE)
                             downloadDialogChapterDownloadMessage.text = "${

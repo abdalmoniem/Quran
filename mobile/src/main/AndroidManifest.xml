@@ -5,13 +5,14 @@
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_quran_mobile"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_quran_mobile_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Quran"
-        tools:targetApi="31">
+        tools:targetApi="tiramisu">
         <activity
             android:name=".ui.activities.MainActivity"
             android:exported="true"
@@ -41,5 +42,4 @@
                 android:resource="@xml/now_playing_info" />
         </receiver>
     </application>
-
 </manifest>

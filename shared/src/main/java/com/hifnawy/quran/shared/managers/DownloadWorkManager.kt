@@ -130,6 +130,16 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         )
         val chapterAudioFiles = QuranAPI.getReciterChaptersAudioFiles(reciter.id)
         var downloadedChapterCount = 0
+        setProgress(
+                getWorkData(
+                        DownloadStatus.STARTING_DOWNLOAD,
+                        0,
+                        0,
+                        null,
+                        0f,
+                        null
+                )
+        )
         for (currentChapter in chapters) {
             sharedPrefsManager.getChapterPath(reciter, currentChapter)
                 ?.let { chapterFilePath ->
@@ -405,10 +415,11 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 .setSilent(true)
                 .setOngoing(true)
                 .setPriority(NotificationManager.IMPORTANCE_MAX)
-                .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
                 .setContentIntent(pendingIntent)
                 .setContentInfo(context.getString(R.string.app_name))
                 .setSubText("${reciter.name_ar} \\ ${chapter.name_arabic}")
+                .setProgress(100, progress.toInt(), false)
+                .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
                 .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             val channel = NotificationChannel(
                     context.getString(R.string.quran_download_notification_name),
@@ -461,6 +472,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                                 decimalFormat.format(progress)
                             }٪)"
                     )
+                    .setProgress(100, progress.toInt(), false)
 
                 notificationManager.notify(
                         R.integer.quran_chapter_download_notification_channel_id,
@@ -468,11 +480,20 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 )
             } while (!isStopped && bytesDownloaded < chapterAudioFileSize)
 
-            Log.d(TAG, "${if (isStopped) "DOWNLOAD INTERRUPTED!!! " else "DOWNLOAD COMPLETE! "}closing input stream...")
+            Log.d(
+                    TAG,
+                    "${if (isStopped) "DOWNLOAD INTERRUPTED!!! " else "DOWNLOAD COMPLETE! "}closing input stream..."
+            )
             inputStream.close()
-            Log.d(TAG, "${if (isStopped) "DOWNLOAD INTERRUPTED!!! " else "DOWNLOAD COMPLETE! "}closing output stream...")
+            Log.d(
+                    TAG,
+                    "${if (isStopped) "DOWNLOAD INTERRUPTED!!! " else "DOWNLOAD COMPLETE! "}closing output stream..."
+            )
             outputStream.close()
-            Log.d(TAG, "${if (isStopped) "DOWNLOAD INTERRUPTED!!! " else "DOWNLOAD COMPLETE! "}disconnecting from $url...")
+            Log.d(
+                    TAG,
+                    "${if (isStopped) "DOWNLOAD INTERRUPTED!!! " else "DOWNLOAD COMPLETE! "}disconnecting from $url..."
+            )
             disconnect()
             Log.d(
                     TAG,

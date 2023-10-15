@@ -53,37 +53,9 @@
 
     <ConstraintSet android:id="@+id/maximized">
         <Constraint
-            android:id="@+id/reciter_name"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            motion:layout_constraintBottom_toTopOf="@id/chapter_duration"
-            motion:layout_constraintEnd_toEndOf="parent"
-            motion:layout_constraintStart_toStartOf="parent"
-            motion:layout_constraintTop_toBottomOf="@id/chapter_name">
-            <CustomAttribute
-                motion:attributeName="textSize"
-                motion:customFloatValue="25" />
-        </Constraint>
-        <Constraint
-            android:id="@+id/chapter_name"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            motion:layout_constraintBottom_toTopOf="@id/reciter_name"
-            motion:layout_constraintEnd_toEndOf="parent"
-            motion:layout_constraintStart_toStartOf="parent"
-            motion:layout_constraintTop_toBottomOf="@id/chapter_image_card">
-            <CustomAttribute
-                motion:attributeName="textSize"
-                motion:customFloatValue="80" />
-        </Constraint>
-        <Constraint
             android:id="@+id/chapter_image_card"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_marginStart="50dp"
-            android:layout_marginTop="150dp"
-            android:layout_marginEnd="50dp"
-            android:layout_marginBottom="50dp"
+            android:layout_width="350dp"
+            android:layout_height="350dp"
             motion:layout_constraintBottom_toTopOf="@id/chapter_name"
             motion:layout_constraintEnd_toEndOf="parent"
             motion:layout_constraintStart_toStartOf="parent"
@@ -92,6 +64,24 @@
                 motion:attributeName="radius"
                 motion:customFloatValue="100" />
         </Constraint>
+        <Constraint
+            android:id="@+id/chapter_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            motion:layout_constraintBottom_toTopOf="@+id/reciter_name"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@+id/chapter_image_card"
+            motion:layout_constraintVertical_bias="0.5" />
+        <Constraint
+            android:id="@+id/reciter_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            motion:layout_constraintBottom_toTopOf="@+id/chapter_duration"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@+id/chapter_name"
+            motion:layout_constraintVertical_bias="0.5" />
         <Constraint
             android:id="@+id/chapter_previous"
             android:layout_width="70dp"
@@ -137,11 +127,7 @@
             android:layout_marginEnd="10dp"
             motion:layout_constraintBottom_toTopOf="@id/reciter_name"
             motion:layout_constraintEnd_toStartOf="@id/chapter_image_card"
-            motion:layout_constraintTop_toTopOf="@id/chapter_image_card">
-            <CustomAttribute
-                motion:attributeName="textSize"
-                motion:customFloatValue="25" />
-        </Constraint>
+            motion:layout_constraintTop_toTopOf="@id/chapter_image_card" />
         <Constraint
             android:id="@+id/reciter_name"
             android:layout_width="wrap_content"
@@ -149,11 +135,7 @@
             android:layout_marginEnd="10dp"
             motion:layout_constraintBottom_toBottomOf="@id/chapter_image_card"
             motion:layout_constraintEnd_toStartOf="@id/chapter_image_card"
-            motion:layout_constraintTop_toBottomOf="@id/chapter_name">
-            <CustomAttribute
-                motion:attributeName="textSize"
-                motion:customFloatValue="15" />
-        </Constraint>
+            motion:layout_constraintTop_toBottomOf="@id/chapter_name" />
         <Constraint
             android:id="@+id/chapter_duration"
             android:layout_width="wrap_content"
@@ -168,8 +150,8 @@
             android:id="@+id/chapter_seek"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:scaleX="-1"
             android:layout_marginBottom="-20dp"
+            android:scaleX="-1"
             motion:layout_constraintBottom_toBottomOf="@id/chapter_background_image_container"
             motion:layout_constraintEnd_toStartOf="@id/chapter_image_card"
             motion:layout_constraintStart_toStartOf="parent" />
