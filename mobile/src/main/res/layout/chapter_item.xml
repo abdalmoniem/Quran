@@ -3,9 +3,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginEnd="5dp"
     android:layout_marginStart="5dp"
     android:layout_marginTop="5dp"
+    android:layout_marginEnd="5dp"
     android:layoutDirection="rtl">
 
     <com.google.android.material.card.MaterialCardView
@@ -61,6 +61,15 @@
                 android:textSize="20sp"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/chapter_name" />
+
+            <pl.droidsonroids.gif.GifImageView
+                android:id="@+id/audio_indicator"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:src="@drawable/audio_bars"
+                android:tint="@color/design_default_color_secondary"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
     </com.google.android.material.card.MaterialCardView>
 

@@ -1,6 +1,5 @@
 package com.hifnawy.quran.adapters
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
@@ -11,31 +10,36 @@ import androidx.recyclerview.widget.RecyclerView
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.ReciterItemBinding
 import com.hifnawy.quran.shared.model.Reciter
-
+import com.hifnawy.quran.shared.services.MediaService
+import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 
 class RecitersListAdapter(
-    private val context: Context,
-    private var reciters: ArrayList<Reciter>,
-    private val itemClickListener: ReciterClickListener? = null
+        private val context: Context,
+        private var reciters: ArrayList<Reciter>,
+        private val itemClickListener: ReciterClickListener? = null
 ) : RecyclerView.Adapter<RecitersListAdapter.ReciterViewHolder>() {
 
     private lateinit var recyclerView: RecyclerView
     private var mLastViewHolderPosition = -1
+    private val sharedPrefsManager by lazy { SharedPreferencesManager(context) }
 
     fun interface ReciterClickListener {
+
         fun reciterItemClickListener(position: Int, reciter: Reciter, itemView: ReciterViewHolder)
     }
 
     inner class ReciterViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+
         private val binding = ReciterItemBinding.bind(itemView)
         val reciterName = binding.reciterName
         val recitationStyle = binding.recitationStyle
         val cardHolder = binding.cardHolder
+        val audioIndicator = binding.audioIndicator
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ReciterViewHolder {
         return ReciterViewHolder(
-            LayoutInflater.from(context).inflate(R.layout.reciter_item, parent, false)
+                LayoutInflater.from(context).inflate(R.layout.reciter_item, parent, false)
         )
     }
 
@@ -49,6 +53,11 @@ class RecitersListAdapter(
 
             reciterName.text = reciter.name_ar
             recitationStyle.text = if (reciter.style != null) reciter.style!!.style else "تلاوة"
+
+            sharedPrefsManager.lastReciter?.let {
+                audioIndicator.visibility =
+                    if ((reciter.id == it.id) && MediaService.isMediaPlaying) View.VISIBLE else View.GONE
+            }
 
             cardHolder.setOnClickListener {
                 itemClickListener?.reciterItemClickListener(position, reciter, holder)
@@ -76,15 +85,14 @@ class RecitersListAdapter(
         mLastViewHolderPosition = position
     }
 
-    @SuppressLint("NotifyDataSetChanged")
     fun setReciters(reciters: List<Reciter>) {
         this.reciters = ArrayList(reciters)
 
         notifyDataSetChanged()
-        // notifyItemRangeChanged(0, this.reciters.size)
-        // this.recyclerView.layoutAnimation =
-        //     AnimationUtils.loadLayoutAnimation(context, R.anim.layout_animation_fall_down)
+        // notifyItemInserted(this.reciters.lastIndex)
     }
+
+    fun getReciters(): ArrayList<Reciter> = reciters
 
     fun clear() {
         this.reciters.clear()

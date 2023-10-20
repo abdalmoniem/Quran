@@ -2,7 +2,10 @@ package com.hifnawy.quran.ui.fragments
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.AlertDialog
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
@@ -21,17 +24,21 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
-import com.hifnawy.quran.databinding.DownloadDialogBinding
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
 import com.hifnawy.quran.shared.api.QuranAPI
+import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
+import com.hifnawy.quran.shared.model.Reciter
+import com.hifnawy.quran.shared.services.MediaService
+import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.activities.MainActivity
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
@@ -45,7 +52,9 @@ private val TAG = ChaptersList::class.java.simpleName
  */
 class ChaptersList : Fragment() {
 
+    private val mediaUpdatesReceiver = MediaUpdatesReceiver()
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
+    private val sharedPrefsManager by lazy { SharedPreferencesManager(binding.root.context) }
     private val reciter by lazy { ChaptersListArgs.fromBundle(requireArguments()).reciter }
     private val workManager by lazy { WorkManager.getInstance(binding.root.context) }
     private val downloadRequestID by lazy { UUID.fromString(getString(com.hifnawy.quran.shared.R.string.BULK_DOWNLOAD_WORK_REQUEST_ID)) }
@@ -64,73 +73,93 @@ class ChaptersList : Fragment() {
             chapters =
                 lifecycleScope.async(context = Dispatchers.IO) { QuranAPI.getChaptersList() }.await()
 
-            with(binding) {
-                chaptersListAdapter = ChaptersListAdapter(
-                        root.context, ArrayList(chapters)
-                ) { position, chapter, itemView ->
-                    Log.d(
-                            TAG,
-                            "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
-                    )
-                    chapterSearch.text = null
-                    chapterSearch.clearFocus()
-                    val inputMethodManager =
-                        requireContext().getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
-                    // Hide:
-                    inputMethodManager.hideSoftInputFromWindow(root.windowToken, 0)
+            withContext(Dispatchers.Main) {
+                with(binding) {
+                    chaptersListAdapter = ChaptersListAdapter(
+                            root.context, ArrayList(chapters)
+                    ) { position, chapter, itemView ->
+                        Log.d(
+                                TAG,
+                                "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
+                        )
+                        chapterSearch.text = null
+                        chapterSearch.clearFocus()
+                        val inputMethodManager =
+                            requireContext().getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+                        // Hide:
+                        inputMethodManager.hideSoftInputFromWindow(root.windowToken, 0)
 
-                    parentActivity.binding.mediaPlaybackFragmentContainer.visibility = View.VISIBLE
-                    parentActivity.mediaPlaybackNavController.navigate(
-                            MediaPlaybackDirections.toMediaPlayback(
-                                    reciter,
-                                    chapter
-                            )
-                    )
-                }
-
-                chaptersList.layoutManager =
-                    GridLayoutManager(root.context, 3, GridLayoutManager.VERTICAL, false)
-                chaptersList.adapter = chaptersListAdapter
-
-                chapterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
-                    if (charSequence.toString().isEmpty()) {
-                        chaptersListAdapter.setChapters(chapters)
-                    } else {
-                        val searchResults = chapters.filter { chapter ->
-                            chapter.name_arabic.contains(charSequence.toString())
-                        }
-
-                        if (searchResults.isNotEmpty()) {
-                            chaptersListAdapter.setChapters(searchResults)
-                        } else {
-                            chaptersListAdapter.clear()
-                        }
-                    }
-                })
-
-                downloadAllChapters.setOnClickListener {
-                    DownloadWorkManager.chapters = chaptersListAdapter.getChapters()
-                    val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
-                        .setInputData(
-                                workDataOf(
-                                        Constants.IntentDataKeys.SINGLE_DOWNLOAD_TYPE.name to false,
-                                        Constants.IntentDataKeys.RECITER.name to DownloadWorkManager.fromReciter(
-                                                reciter
-                                        )
+                        parentActivity.binding.mediaPlaybackFragmentContainer.visibility = View.VISIBLE
+                        parentActivity.mediaPlaybackNavController.navigate(
+                                MediaPlaybackDirections.toMediaPlayback(
+                                        reciter,
+                                        chapter
                                 )
                         )
-                        .setId(downloadRequestID)
-                        .build()
+                    }
 
-                    workManager.enqueueUniqueWork(
-                            getString(com.hifnawy.quran.shared.R.string.bulkDownloadWorkManagerUniqueWorkName),
-                            ExistingWorkPolicy.REPLACE,
-                            downloadWorkRequest
-                    )
+                    sharedPrefsManager.lastChapter?.let {
+                        if (MediaService.isMediaPlaying) {
+                            val currentChapter = chapters.find { chapter -> chapter.id == it.id }
+                            currentChapter?.let {
+                                chaptersListAdapter.notifyItemChanged(chapters.indexOf(currentChapter))
+                            }
+
+                            Log.d(TAG, "scrolling to: ${chapters.indexOf(currentChapter)}")
+
+                            chaptersList.scrollToPosition(chapters.indexOf(currentChapter))
+                        }
+                    }
+
+                    parentActivity.registerReceiver(mediaUpdatesReceiver,
+                                                    IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)).apply {
+                                                        addCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)
+                                                    })
+
+                    chaptersList.layoutManager =
+                        GridLayoutManager(root.context, 3, GridLayoutManager.VERTICAL, false)
+                    chaptersList.adapter = chaptersListAdapter
+
+                    chapterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
+                        if (charSequence.toString().isEmpty()) {
+                            chaptersListAdapter.setChapters(chapters)
+                        } else {
+                            val searchResults = chapters.filter { chapter ->
+                                chapter.name_arabic.contains(charSequence.toString())
+                            }
+
+                            if (searchResults.isNotEmpty()) {
+                                chaptersListAdapter.setChapters(searchResults)
+                            } else {
+                                chaptersListAdapter.clear()
+                            }
+                        }
+                    })
+
+                    downloadAllChapters.setOnClickListener {
+                        DownloadWorkManager.chapters = chaptersListAdapter.getChapters()
+                        val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
+                            .setInputData(
+                                    workDataOf(
+                                            Constants.IntentDataKeys.SINGLE_DOWNLOAD_TYPE.name to false,
+                                            Constants.IntentDataKeys.RECITER.name to DownloadWorkManager.fromReciter(
+                                                    reciter
+                                            )
+                                    )
+                            )
+                            .setId(downloadRequestID)
+                            .build()
+
+                        workManager.enqueueUniqueWork(
+                                getString(com.hifnawy.quran.shared.R.string.bulkDownloadWorkManagerUniqueWorkName),
+                                ExistingWorkPolicy.REPLACE,
+                                downloadWorkRequest
+                        )
+                    }
                 }
-            }
 
-            observeWorker(downloadRequestID)
+                observeWorker(downloadRequestID)
+            }
         }
 
         return binding.root
@@ -148,6 +177,21 @@ class ChaptersList : Fragment() {
         }
 
         super.onResume()
+    }
+
+    override fun onDestroy() {
+        with(parentActivity) {
+            try {
+                unregisterReceiver(mediaUpdatesReceiver)
+            } catch (_: IllegalArgumentException) {
+                Log.w(
+                        TAG,
+                        "Could not unregister ${::mediaUpdatesReceiver.name}, it was probably unregistered in an earlier stage!!!"
+                )
+            }
+        }
+
+        super.onDestroy()
     }
 
     @SuppressLint("SetTextI18n")
@@ -233,7 +277,10 @@ class ChaptersList : Fragment() {
                     return@observe
                 }
                 if (workInfo.state == WorkInfo.State.SUCCEEDED) {
-                    Log.d(TAG, "SUCEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED")
+                    Log.d(
+                            TAG,
+                            "SUCEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED"
+                    )
                     dialog.dismiss()
                     return@observe
                 }
@@ -369,5 +416,34 @@ class ChaptersList : Fragment() {
                     }
                 }
             }
+    }
+
+    private inner class MediaUpdatesReceiver : BroadcastReceiver() {
+
+        var lastMediaPlaying = false
+        var lastChapter: Chapter? = null
+        override fun onReceive(context: Context, intent: Intent) {
+            if (!intent.hasCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)) return
+            val reciter =
+                intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name) ?: return
+            val currentChapter =
+                intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name) ?: return
+            val isMediaPlaying =
+                intent.getBooleanExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, false)
+
+            if ((currentChapter.id != lastChapter?.id) || (isMediaPlaying != lastMediaPlaying)) {
+
+                if (isMediaPlaying) {
+                    chaptersListAdapter.notifyDataSetChanged()
+                    // val chapter = chapters.find { chapter -> chapter.id == currentChapter.id }
+                    // chapter?.let {
+                    //     chaptersListAdapter.notifyItemChanged(chapters.indexOf(it))
+                    // }
+                }
+
+                lastMediaPlaying = isMediaPlaying
+                lastChapter = currentChapter
+            }
+        }
     }
 }

@@ -72,6 +72,7 @@ dependencies {
 
     implementation 'io.github.hokofly:hoko-blur:1.5.0'
     implementation 'androidx.palette:palette-ktx:1.0.0'
+    implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.17'
 
     // Kotlin + coroutines WorkManager dependency
     implementation 'androidx.work:work-runtime-ktx:2.8.1'

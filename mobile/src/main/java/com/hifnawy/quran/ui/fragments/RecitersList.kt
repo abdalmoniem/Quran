@@ -16,26 +16,28 @@ import com.hifnawy.quran.adapters.RecitersListAdapter
 import com.hifnawy.quran.databinding.FragmentRecitersListBinding
 import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.model.Reciter
+import com.hifnawy.quran.shared.services.MediaService
+import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.activities.MainActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * A simple [Fragment] subclass.
  */
 class RecitersList : Fragment() {
 
-    private val parentActivity: MainActivity by lazy {
-        (activity as MainActivity)
-    }
+    private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
+    private val sharedPrefsManager by lazy { SharedPreferencesManager(binding.root.context) }
     private var reciters: List<Reciter> = mutableListOf()
     private lateinit var binding: FragmentRecitersListBinding
+    private lateinit var recitersListAdapter: RecitersListAdapter
 
     override fun onCreateView(
             inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        var recitersListAdapter: RecitersListAdapter
         // Inflate the layout for this fragment
         binding = FragmentRecitersListBinding.inflate(inflater, container, false)
 
@@ -43,38 +45,51 @@ class RecitersList : Fragment() {
             reciters =
                 lifecycleScope.async(context = Dispatchers.IO) { QuranAPI.getRecitersList() }.await()
 
-            with(binding) {
-                recitersListAdapter = RecitersListAdapter(
-                        root.context, ArrayList(reciters)
-                ) { _, reciter, _ ->
-                    reciterSearch.text = null
-                    reciterSearch.clearFocus()
-                    val inputMethodManager =
-                        requireContext().getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
-                    // Hide:
-                    inputMethodManager.hideSoftInputFromWindow(root.windowToken, 0)
+            withContext(Dispatchers.Main) {
+                with(binding) {
+                    recitersListAdapter = RecitersListAdapter(
+                            root.context, ArrayList(reciters)
+                    ) { _, reciter, _ ->
+                        reciterSearch.text = null
+                        reciterSearch.clearFocus()
+                        val inputMethodManager =
+                            requireContext().getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+                        // Hide:
+                        inputMethodManager.hideSoftInputFromWindow(root.windowToken, 0)
 
-                    findNavController().navigate(RecitersListDirections.toChaptersList(reciter))
-                }
+                        findNavController().navigate(RecitersListDirections.toChaptersList(reciter))
+                    }
 
-                recitersList.layoutManager = LinearLayoutManager(root.context)
-                recitersList.adapter = recitersListAdapter
+                    sharedPrefsManager.lastReciter?.let {
+                        if (MediaService.isMediaPlaying) {
+                            val currentReciter = reciters.find { reciter -> reciter.id == it.id }
+                            currentReciter?.let {
+                                recitersListAdapter.notifyItemChanged(reciters.indexOf(currentReciter))
+                            }
 
-                reciterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
-                    if (charSequence.toString().isEmpty()) {
-                        recitersListAdapter.setReciters(reciters)
-                    } else {
-                        val searchResults = reciters.filter { reciter ->
-                            return@filter reciter.name_ar.contains(charSequence.toString())
-                        }
-
-                        if (searchResults.isNotEmpty()) {
-                            recitersListAdapter.setReciters(searchResults)
-                        } else {
-                            recitersListAdapter.clear()
+                            recitersList.scrollToPosition(reciters.indexOf(currentReciter))
                         }
                     }
-                })
+
+                    recitersList.layoutManager = LinearLayoutManager(root.context)
+                    recitersList.adapter = recitersListAdapter
+
+                    reciterSearch.addTextChangedListener(onTextChanged = { charSequence, _, _, _ ->
+                        if (charSequence.toString().isEmpty()) {
+                            recitersListAdapter.setReciters(reciters)
+                        } else {
+                            val searchResults = reciters.filter { reciter ->
+                                return@filter reciter.name_ar.contains(charSequence.toString())
+                            }
+
+                            if (searchResults.isNotEmpty()) {
+                                recitersListAdapter.setReciters(searchResults)
+                            } else {
+                                recitersListAdapter.clear()
+                            }
+                        }
+                    })
+                }
             }
         }
 

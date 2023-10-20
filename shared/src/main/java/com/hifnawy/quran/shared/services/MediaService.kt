@@ -130,13 +130,13 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private val notificationManager: NotificationManager by lazy {
         getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
-    private var playbackMonitorTimer = Timer()
-    private lateinit var mediaSession: MediaSessionCompat
-    private lateinit var sharedPrefsManager: SharedPreferencesManager
+    private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(this) }
     private val mediaManager: MediaManager by lazy { MediaManager.getInstance(this) }
-    private val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
-    private val mainCoroutineScope = CoroutineScope(Dispatchers.Main)
-    private val reciterDrawables = mutableListOf<Bitmap>()
+    private val ioCoroutineScope by lazy { CoroutineScope(Dispatchers.IO) }
+    private val mainCoroutineScope by lazy { CoroutineScope(Dispatchers.Main) }
+    private val reciterDrawables by lazy { mutableListOf<Bitmap>() }
+    private lateinit var mediaSession: MediaSessionCompat
+    private var playbackMonitorTimer = Timer()
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
     private var currentChapterPosition: Long = -1L
@@ -147,8 +147,6 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         super.onCreate()
 
         Log.d(TAG, "$TAG service started!!!")
-
-        sharedPrefsManager = SharedPreferencesManager(this)
 
         currentChapterPosition = sharedPrefsManager.lastChapterPosition
 
