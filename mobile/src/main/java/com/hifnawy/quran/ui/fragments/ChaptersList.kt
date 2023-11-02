@@ -2,7 +2,6 @@ package com.hifnawy.quran.ui.fragments
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.AlertDialog
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
@@ -21,7 +20,6 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
-import com.hifnawy.quran.databinding.DownloadDialogBinding
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
 import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
@@ -62,7 +60,8 @@ class ChaptersList : Fragment() {
 
         lifecycleScope.launch {
             chapters =
-                lifecycleScope.async(context = Dispatchers.IO) { QuranAPI.getChaptersList() }.await()
+                lifecycleScope.async(context = Dispatchers.IO) { QuranAPI.getChaptersList(binding.root.context) }
+                    .await()
 
             with(binding) {
                 chaptersListAdapter = ChaptersListAdapter(
@@ -233,7 +232,6 @@ class ChaptersList : Fragment() {
                     return@observe
                 }
                 if (workInfo.state == WorkInfo.State.SUCCEEDED) {
-                    Log.d(TAG, "SUCEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED")
                     dialog.dismiss()
                     return@observe
                 }

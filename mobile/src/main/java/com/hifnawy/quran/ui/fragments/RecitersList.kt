@@ -41,7 +41,8 @@ class RecitersList : Fragment() {
 
         lifecycleScope.launch {
             reciters =
-                lifecycleScope.async(context = Dispatchers.IO) { QuranAPI.getRecitersList() }.await()
+                lifecycleScope.async(context = Dispatchers.IO) { QuranAPI.getRecitersList(binding.root.context) }
+                    .await()
 
             with(binding) {
                 recitersListAdapter = RecitersListAdapter(

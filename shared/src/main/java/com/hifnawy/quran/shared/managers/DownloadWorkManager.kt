@@ -128,7 +128,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                         DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid chapters list"
                 )
         )
-        val chapterAudioFiles = QuranAPI.getReciterChaptersAudioFiles(reciter.id)
+        val chapterAudioFiles = QuranAPI.getReciterChaptersAudioFiles(reciterID = reciter.id)
         var downloadedChapterCount = 0
         setProgress(
                 getWorkData(

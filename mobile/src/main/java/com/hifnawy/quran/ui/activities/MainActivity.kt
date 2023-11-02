@@ -32,7 +32,6 @@ import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
-import com.hifnawy.quran.shared.tools.ImageUtils
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import com.hifnawy.quran.ui.fragments.MediaPlaybackDirections
 import com.hifnawy.quran.ui.fragments.RecitersListDirections
@@ -47,6 +46,9 @@ import java.net.URL
 import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 import kotlin.concurrent.fixedRateTimer
+
+@Suppress("PrivatePropertyName")
+private val TAG = MainActivity::class.simpleName
 
 class MainActivity : AppCompatActivity() {
 
@@ -73,10 +75,10 @@ class MainActivity : AppCompatActivity() {
         mediaPlaybackNavController =
             (supportFragmentManager.findFragmentById(binding.mediaPlaybackFragmentContainer.id) as NavHostFragment).navController
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 93)
-            }
+        if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) &&
+            (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 93)
         }
 
         supportActionBar?.apply {
@@ -225,9 +227,9 @@ class MainActivity : AppCompatActivity() {
     @Suppress("BlockingMethodInNonBlockingContext")
     private suspend fun updateChapterPaths(context: Context) {
         val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
-        val reciters = ioCoroutineScope.async { QuranAPI.getRecitersList() }.await()
-        val chapters = ioCoroutineScope.async { QuranAPI.getChaptersList() }.await()
-        Log.d(ImageUtils::class.simpleName, "Checking Chapters' Paths...")
+        val reciters = ioCoroutineScope.async { QuranAPI.getRecitersList(this@MainActivity) }.await()
+        val chapters = ioCoroutineScope.async { QuranAPI.getChaptersList(this@MainActivity) }.await()
+        Log.d(TAG, "Checking Chapters' Paths...")
 
         for (reciter in reciters) {
             for (chapter in chapters) {
@@ -235,13 +237,13 @@ class MainActivity : AppCompatActivity() {
 
                 if (!chapterFile.exists()) {
                     Log.d(
-                            ImageUtils::class.simpleName,
+                            TAG,
                             "${chapterFile.absolutePath} doesn't exist, skipping"
                     )
                     continue
                 }
 
-                Log.d(ImageUtils::class.simpleName, "${chapterFile.absolutePath} exists, checking...")
+                Log.d(TAG, "${chapterFile.absolutePath} exists, checking...")
                 val chapterAudioFileUrl =
                     QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url ?: continue
 
@@ -259,13 +261,13 @@ class MainActivity : AppCompatActivity() {
 
                     if (chapterFileSize != contentLength.toLong()) {
                         Log.d(
-                                ImageUtils::class.simpleName,
+                                TAG,
                                 "Chapter Audio File incomplete, Deleting chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\n"
                         )
                         chapterFile.delete()
                     } else {
                         Log.d(
-                                ImageUtils::class.simpleName,
+                                TAG,
                                 "Chapter Audio File complete, Updating chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\nsize: ${chapterFileSize / 1024 / 1024} MBs"
                         )
                         SharedPreferencesManager(context).setChapterPath(
@@ -276,7 +278,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        Log.d(ImageUtils::class.simpleName, "SharedPrefs Updated!!!")
+        Log.d(TAG, "SharedPrefs Updated!!!")
     }
 
     private fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): File {

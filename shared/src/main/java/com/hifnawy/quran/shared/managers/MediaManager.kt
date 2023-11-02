@@ -89,8 +89,8 @@ object MediaManager : LifecycleOwner {
 
     suspend fun initializeData(onDataFetched: (suspend () -> Unit)? = null) {
         val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
-        if (reciters.isEmpty()) reciters = ioCoroutineScope.async { getRecitersList() }.await()
-        if (chapters.isEmpty()) chapters = ioCoroutineScope.async { getChaptersList() }.await()
+        if (reciters.isEmpty()) reciters = ioCoroutineScope.async { getRecitersList(context) }.await()
+        if (chapters.isEmpty()) chapters = ioCoroutineScope.async { getChaptersList(context) }.await()
 
         onDataFetched?.invoke()
     }

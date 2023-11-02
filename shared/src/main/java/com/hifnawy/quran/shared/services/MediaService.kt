@@ -292,7 +292,8 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                             val reciterId = parentId.replace("reciter_", "").toInt()
                             val reciter =
                                 mediaManager.reciters.single { reciter -> reciter.id == reciterId }
-                            val chaptersAudioFiles = getReciterChaptersAudioFiles(reciterId)
+                            val chaptersAudioFiles =
+                                getReciterChaptersAudioFiles(this@MediaService, reciterId)
 
                             mediaManager.chapters.forEach { chapter ->
                                 mediaItems.add(
@@ -376,7 +377,9 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         val mediaDescriptionBuilder = MediaDescriptionCompat.Builder()
         mediaDescriptionBuilder.setMediaId(mediaId)
 
-        if (reciterIndex >= 0) mediaDescriptionBuilder.setIconBitmap(reciterDrawables[reciterIndex])
+        if (reciterIndex in 0..<reciterDrawables.size) {
+            mediaDescriptionBuilder.setIconBitmap(reciterDrawables[reciterIndex])
+        }
         extras.putInt(
                 MediaConstants.DESCRIPTION_EXTRAS_KEY_CONTENT_STYLE_SINGLE_ITEM,
                 MediaConstants.DESCRIPTION_EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM
