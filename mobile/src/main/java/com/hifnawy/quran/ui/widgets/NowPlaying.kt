@@ -14,9 +14,9 @@ import android.widget.RemoteViews
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat.startActivity
 import com.hifnawy.quran.R
-import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
+import com.hifnawy.quran.shared.extensions.SerializableExt.getTypedSerializable
 import com.hifnawy.quran.shared.model.Chapter
-import com.hifnawy.quran.shared.model.Constants
+import com.hifnawy.quran.shared.tools.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
@@ -36,7 +36,8 @@ class NowPlaying : AppWidgetProvider() {
         private var isMediaPlaying: Boolean = false
     }
 
-    enum class WidgetActions(val value: Int) { PLAY_PAUSE(0), NEXT(1), PREVIOUS(2), OPEN_MEDIA_PLAYER(3)
+    enum class WidgetActions(val value: Int) {
+        PLAY_PAUSE(0), NEXT(1), PREVIOUS(2), OPEN_MEDIA_PLAYER(3)
     }
 
     private val views by lazy { RemoteViews(widgetContext.packageName, R.layout.now_playing) }
@@ -66,7 +67,7 @@ class NowPlaying : AppWidgetProvider() {
         widgetContext = context
 
         when (intent.action) {
-            WidgetActions.PLAY_PAUSE.name -> {
+            WidgetActions.PLAY_PAUSE.name            -> {
                 val state = if (isMediaPlaying) Constants.Actions.PAUSE_MEDIA
                 else Constants.Actions.PLAY_MEDIA
 
@@ -76,20 +77,24 @@ class NowPlaying : AppWidgetProvider() {
                 )
             }
 
-            WidgetActions.NEXT.name -> changeMediaState(context, Constants.Actions.SKIP_TO_NEXT_MEDIA)
-            WidgetActions.PREVIOUS.name -> changeMediaState(
+            WidgetActions.NEXT.name                  -> changeMediaState(
+                    context,
+                    Constants.Actions.SKIP_TO_NEXT_MEDIA
+            )
+
+            WidgetActions.PREVIOUS.name              -> changeMediaState(
                     context,
                     Constants.Actions.SKIP_TO_PREVIOUS_MEDIA
             )
 
-            WidgetActions.OPEN_MEDIA_PLAYER.name -> openMediaPlayer(context)
+            WidgetActions.OPEN_MEDIA_PLAYER.name     -> openMediaPlayer(context)
             AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
                 val reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
                 val chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
                 currentChapterPosition =
-                    intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L)
+                        intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L)
                 isMediaPlaying =
-                    intent.getBooleanExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, false)
+                        intent.getBooleanExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, false)
 
                 if ((reciter == null) && (chapter == null)) return
 
@@ -100,7 +105,7 @@ class NowPlaying : AppWidgetProvider() {
                 updateUI(context)
             }
 
-            else -> Unit
+            else                                     -> Unit
         }
     }
 
@@ -117,7 +122,8 @@ class NowPlaying : AppWidgetProvider() {
             if (currentReciter == null) currentReciter = lastReciter
             if (currentChapter == null) currentChapter = lastChapter
         }
-        @SuppressLint("DiscouragedApi") val chapterImageDrawableId = context.resources.getIdentifier(
+        @SuppressLint("DiscouragedApi")
+        val chapterImageDrawableId = context.resources.getIdentifier(
                 "chapter_${currentChapter?.id.toString().padStart(3, '0')}",
                 "drawable",
                 context.packageName

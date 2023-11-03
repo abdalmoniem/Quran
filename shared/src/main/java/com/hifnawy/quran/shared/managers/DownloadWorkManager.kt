@@ -15,7 +15,7 @@ import com.google.gson.Gson
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.model.Chapter
-import com.hifnawy.quran.shared.model.Constants
+import com.hifnawy.quran.shared.tools.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import kotlinx.coroutines.coroutineScope
@@ -73,12 +73,12 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
     override suspend fun doWork(): Result = coroutineScope {
         val reciterJSON =
             inputData.getString(Constants.IntentDataKeys.RECITER.name)
-                ?: return@coroutineScope Result.failure(
-                        workDataOf(
-                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
-                                DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid reciter"
-                        )
-                )
+            ?: return@coroutineScope Result.failure(
+                    workDataOf(
+                            DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                            DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid reciter"
+                    )
+            )
         val singleFileDownload =
             inputData.getBoolean(Constants.IntentDataKeys.SINGLE_DOWNLOAD_TYPE.name, false)
         val reciter = toReciter(reciterJSON)
@@ -86,22 +86,22 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         if (singleFileDownload) {
             val chapterJSON =
                 inputData.getString(Constants.IntentDataKeys.CHAPTER.name)
-                    ?: return@coroutineScope Result.failure(
-                            workDataOf(
-                                    DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
-                                    DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid chapter"
-                            )
-                    )
+                ?: return@coroutineScope Result.failure(
+                        workDataOf(
+                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                                DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid chapter"
+                        )
+                )
             val chapter = toChapter(chapterJSON)
             val urlString =
                 inputData.getString(Constants.IntentDataKeys.CHAPTER_URL.name)
-                    ?: QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url
-                    ?: return@coroutineScope Result.failure(
-                            workDataOf(
-                                    DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
-                                    DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid URL"
-                            )
-                    )
+                ?: QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url
+                ?: return@coroutineScope Result.failure(
+                        workDataOf(
+                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                                DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid URL"
+                        )
+                )
             val url = URL(urlString)
 
             sharedPrefsManager.getChapterPath(reciter, chapter)?.let { chapterFilePath ->

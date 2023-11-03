@@ -33,11 +33,10 @@ import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.DownloadDialogBinding
 import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
 import com.hifnawy.quran.shared.extensions.NumberExt.dp
-import com.hifnawy.quran.shared.extensions.NumberExt.sp
-import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
+import com.hifnawy.quran.shared.extensions.SerializableExt.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.model.Chapter
-import com.hifnawy.quran.shared.model.Constants
+import com.hifnawy.quran.shared.tools.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
@@ -171,9 +170,13 @@ class MediaPlayback : Fragment() {
 
         playChapter(
                 chapter,
-                if ((reciter.id == sharedPrefsManager.lastReciter?.id) && (chapter.id == sharedPrefsManager.lastChapter?.id)) sharedPrefsManager.lastChapterPosition
+                if ((reciter.id == sharedPrefsManager.lastReciter?.id) &&
+                    (chapter.id == sharedPrefsManager.lastChapter?.id)
+                ) sharedPrefsManager.lastChapterPosition
                 else chapterPosition,
-                if ((reciter.id == sharedPrefsManager.lastReciter?.id) && (chapter.id == sharedPrefsManager.lastChapter?.id)) sharedPrefsManager.lastChapterDuration
+                if ((reciter.id == sharedPrefsManager.lastReciter?.id) &&
+                    (chapter.id == sharedPrefsManager.lastChapter?.id)
+                ) sharedPrefsManager.lastChapterDuration
                 else 100L
         )
 
@@ -326,7 +329,7 @@ class MediaPlayback : Fragment() {
         // Log.d(TAG, "${workInfo.state} - $dataSource")
         val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
                 dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
-                    ?: return
+                ?: return
         )
         val bytesDownloaded = dataSource.getLong(
                 DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name, -1L
@@ -487,17 +490,21 @@ class MediaPlayback : Fragment() {
             with(binding) {
                 disableSliderTouch = minimizing
 
-                chapterName.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
+                chapterName.setTextSize(
+                        TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
                     lerp(80f, 25f, progress)
                 } else {
                     lerp(25f, 80f, progress)
-                })
+                }
+                )
 
-                reciterName.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
+                reciterName.setTextSize(
+                        TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
                     lerp(25f, 15f, progress)
                 } else {
                     lerp(15f, 25f, progress)
-                })
+                }
+                )
 
                 chapterSeek.trackInactiveTintList = chapterSeek.trackInactiveTintList.withAlpha(
                         if (minimizing) {

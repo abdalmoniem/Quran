@@ -26,10 +26,10 @@ import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.FragmentChaptersListBinding
 import com.hifnawy.quran.shared.api.QuranAPI
-import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
+import com.hifnawy.quran.shared.extensions.SerializableExt.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.model.Chapter
-import com.hifnawy.quran.shared.model.Constants
+import com.hifnawy.quran.shared.tools.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
@@ -43,6 +43,7 @@ import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
 import java.util.UUID
+import com.hifnawy.quran.shared.R as SharedR
 
 @Suppress("PrivatePropertyName")
 private val TAG = ChaptersList::class.java.simpleName
@@ -57,7 +58,7 @@ class ChaptersList : Fragment() {
     private val sharedPrefsManager by lazy { SharedPreferencesManager(binding.root.context) }
     private val reciter by lazy { ChaptersListArgs.fromBundle(requireArguments()).reciter }
     private val workManager by lazy { WorkManager.getInstance(binding.root.context) }
-    private val downloadRequestID by lazy { UUID.fromString(getString(com.hifnawy.quran.shared.R.string.BULK_DOWNLOAD_WORK_REQUEST_ID)) }
+    private val downloadRequestID by lazy { UUID.fromString(getString(SharedR.string.BULK_DOWNLOAD_WORK_REQUEST_ID)) }
     private var chapters: List<Chapter> = mutableListOf()
     private lateinit var binding: FragmentChaptersListBinding
     private lateinit var chaptersListAdapter: ChaptersListAdapter
@@ -112,7 +113,7 @@ class ChaptersList : Fragment() {
                     }
 
                     parentActivity.registerReceiver(mediaUpdatesReceiver,
-                                                    IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)).apply {
+                                                    IntentFilter(getString(SharedR.string.quran_media_service_updates)).apply {
                                                         addCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)
                                                     })
 
@@ -151,7 +152,7 @@ class ChaptersList : Fragment() {
                             .build()
 
                         workManager.enqueueUniqueWork(
-                                getString(com.hifnawy.quran.shared.R.string.bulkDownloadWorkManagerUniqueWorkName),
+                                getString(SharedR.string.bulkDownloadWorkManagerUniqueWorkName),
                                 ExistingWorkPolicy.REPLACE,
                                 downloadWorkRequest
                         )
@@ -221,14 +222,14 @@ class ChaptersList : Fragment() {
             downloadDialogAllChaptersProgress.progress = 0
             downloadDialogAllChaptersDownloadMessage.text =
                 context.getString(
-                        com.hifnawy.quran.shared.R.string.loading_all_chapters,
+                        SharedR.string.loading_all_chapters,
                         decimalFormat.format(0)
                 )
 
             downloadDialogChapterProgress.progress = 0
             downloadDialogChapterDownloadMessage.text = "${
                 context.getString(
-                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                        SharedR.string.loading_chapter,
                         ""
                 )
             }\n${decimalFormat.format(0)} مب. \\ ${
@@ -238,7 +239,7 @@ class ChaptersList : Fragment() {
             downloadDialogAllChaptersProgress.progress = 0
             downloadDialogAllChaptersDownloadMessage.text =
                 context.getString(
-                        com.hifnawy.quran.shared.R.string.loading_all_chapters,
+                        SharedR.string.loading_all_chapters,
                         decimalFormat.format(0)
                 )
         }
@@ -270,17 +271,13 @@ class ChaptersList : Fragment() {
                             binding.root.context, getString(R.string.connection_error_title),
                             getString(
                                     R.string.downloading_chapters_error_message,
-                                    decimalFormat.format(context.resources.getInteger(com.hifnawy.quran.shared.R.integer.quran_chapter_count) - downloadedChapterCount)
+                                    decimalFormat.format(context.resources.getInteger(SharedR.integer.quran_chapter_count) - downloadedChapterCount)
                             ), "تمام"
                     )
                     dialog.dismiss()
                     return@observe
                 }
                 if (workInfo.state == WorkInfo.State.SUCCEEDED) {
-                    Log.d(
-                            TAG,
-                            "SUCEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED"
-                    )
                     dialog.dismiss()
                     return@observe
                 }
@@ -291,7 +288,7 @@ class ChaptersList : Fragment() {
                 val currentChapter = DownloadWorkManager.toChapter(currentChapterJSON)
                 val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
                         dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
-                            ?: return@observe
+                        ?: return@observe
                 )
                 val bytesDownloaded = dataSource.getLong(
                         DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name,
@@ -306,9 +303,10 @@ class ChaptersList : Fragment() {
                         -1f
                 )
                 val currentChapterIndex = chaptersListAdapter.getChapters()
-                    .indexOf(chaptersListAdapter.getChapters().find { chapter ->
-                        chapter.id == currentChapter.id
-                    }) + 1
+                                              .indexOf(
+                                                      chaptersListAdapter.getChapters().find { chapter ->
+                                                          chapter.id == currentChapter.id
+                                                      }) + 1
 
                 with(dialogBinding) {
                     when (downloadStatus) {
@@ -319,7 +317,7 @@ class ChaptersList : Fragment() {
                             downloadDialogChapterDownloadMessage.setTextColor(Color.WHITE)
                             downloadDialogChapterDownloadMessage.text = "${
                                 this@ChaptersList.context?.getString(
-                                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                                        SharedR.string.loading_chapter,
                                         currentChapter.name_arabic
                                 )
                             }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
@@ -335,7 +333,7 @@ class ChaptersList : Fragment() {
                             downloadDialogChapterProgress.progress = progress.toInt()
                             downloadDialogChapterDownloadMessage.text = "${
                                 context.getString(
-                                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                                        SharedR.string.loading_chapter,
                                         currentChapter.name_arabic
                                 )
                             }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
@@ -355,7 +353,7 @@ class ChaptersList : Fragment() {
                             downloadDialogChapterProgress.progress = progress.toInt()
                             downloadDialogChapterDownloadMessage.text = "${
                                 context.getString(
-                                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                                        SharedR.string.loading_chapter,
                                         currentChapter.name_arabic
                                 )
                             }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
@@ -368,14 +366,14 @@ class ChaptersList : Fragment() {
                             downloadDialogAllChaptersDownloadMessage.text =
                                 "${
                                     context.getString(
-                                            com.hifnawy.quran.shared.R.string.loading_all_chapters,
+                                            SharedR.string.loading_all_chapters,
                                             decimalFormat.format(chaptersDownloadProgress)
                                     )
                                 }\n${
                                     decimalFormat.format(currentChapterIndex)
                                 } \\ ${
                                     decimalFormat.format(
-                                            context.resources.getInteger(com.hifnawy.quran.shared.R.integer.quran_chapter_count)
+                                            context.resources.getInteger(SharedR.integer.quran_chapter_count)
                                     )
                                 }"
                         }
@@ -388,7 +386,7 @@ class ChaptersList : Fragment() {
                             downloadDialogChapterDownloadMessage.setTextColor(Color.RED)
                             downloadDialogChapterDownloadMessage.text = "${
                                 context.getString(
-                                        com.hifnawy.quran.shared.R.string.loading_chapter,
+                                        SharedR.string.loading_chapter,
                                         currentChapter.name_arabic
                                 )
                             }\n${decimalFormat.format(0)} مب. \\ ${decimalFormat.format(0)} مب. (${
@@ -400,14 +398,14 @@ class ChaptersList : Fragment() {
                             downloadDialogAllChaptersDownloadMessage.text =
                                 "${
                                     context.getString(
-                                            com.hifnawy.quran.shared.R.string.loading_all_chapters,
+                                            SharedR.string.loading_all_chapters,
                                             decimalFormat.format(chaptersDownloadProgress)
                                     )
                                 }\n${
                                     decimalFormat.format(currentChapterIndex)
                                 } \\ ${
                                     decimalFormat.format(
-                                            context.resources.getInteger(com.hifnawy.quran.shared.R.integer.quran_chapter_count)
+                                            context.resources.getInteger(SharedR.integer.quran_chapter_count)
                                     )
                                 }"
                         }
@@ -425,14 +423,13 @@ class ChaptersList : Fragment() {
         override fun onReceive(context: Context, intent: Intent) {
             if (!intent.hasCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)) return
             val reciter =
-                intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name) ?: return
+                    intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name) ?: return
             val currentChapter =
-                intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name) ?: return
+                    intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name) ?: return
             val isMediaPlaying =
                 intent.getBooleanExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, false)
 
             if ((currentChapter.id != lastChapter?.id) || (isMediaPlaying != lastMediaPlaying)) {
-
                 if (isMediaPlaying) {
                     chaptersListAdapter.notifyDataSetChanged()
                     // val chapter = chapters.find { chapter -> chapter.id == currentChapter.id }

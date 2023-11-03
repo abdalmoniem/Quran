@@ -26,9 +26,9 @@ import com.hifnawy.quran.BuildConfig
 import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.ActivityMainBinding
 import com.hifnawy.quran.shared.api.QuranAPI
-import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
+import com.hifnawy.quran.shared.extensions.SerializableExt.getTypedSerializable
 import com.hifnawy.quran.shared.model.Chapter
-import com.hifnawy.quran.shared.model.Constants
+import com.hifnawy.quran.shared.tools.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
@@ -142,7 +142,7 @@ class MainActivity : AppCompatActivity() {
     private fun checkIntent(intent: Intent?) {
         if ((intent != null) &&
             (intent.hasCategory(Constants.NowPlayingClass.simpleName) ||
-                    intent.hasCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY))
+             intent.hasCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY))
         ) {
             val reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
             val chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
@@ -260,13 +260,22 @@ class MainActivity : AppCompatActivity() {
                     if (chapterFileSize != contentLength.toLong()) {
                         Log.d(
                                 ImageUtils::class.simpleName,
-                                "Chapter Audio File incomplete, Deleting chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\n"
+                                "Chapter Audio File incomplete, " +
+                                "Deleting chapterPath:\n" +
+                                "reciter #${reciter.id}: ${reciter.reciter_name}\n" +
+                                "chapter: ${chapter.name_simple}\n" +
+                                "path: ${chapterFile.absolutePath}\n"
                         )
                         chapterFile.delete()
                     } else {
                         Log.d(
                                 ImageUtils::class.simpleName,
-                                "Chapter Audio File complete, Updating chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\nsize: ${chapterFileSize / 1024 / 1024} MBs"
+                                "Chapter Audio File complete, " +
+                                "Updating chapterPath:\n" +
+                                "reciter #${reciter.id}: ${reciter.reciter_name}\n" +
+                                "chapter: ${chapter.name_simple}\n" +
+                                "path: ${chapterFile.absolutePath}\n" +
+                                "size: ${chapterFileSize / 1024 / 1024} MBs"
                         )
                         SharedPreferencesManager(context).setChapterPath(
                                 reciter, chapter

@@ -4,14 +4,13 @@ import android.content.SharedPreferences
 import com.google.gson.Gson
 import java.io.Serializable
 
-class SharedPreferencesExt {
-    companion object {
+object SharedPreferencesExt {
 
-        inline fun <reified GenericType : Serializable> SharedPreferences.getSerializable(key: String): GenericType =
-            Gson().fromJson(getString(key, "{}"), GenericType::class.java)
+    inline fun <reified AnyType : Serializable> SharedPreferences.getSerializable(key: String): AnyType =
+        Gson().fromJson(getString(key, "{}"), AnyType::class.java)
 
-        inline fun <reified GenericType : Serializable> SharedPreferences.Editor.putSerializable(
-                key: String, value: GenericType
-        ): SharedPreferences.Editor = putString(key, Gson().toJson(value))
-    }
+    inline fun <reified AnyType : Serializable> SharedPreferences.Editor.putSerializable(
+            key: String,
+            value: AnyType
+    ): SharedPreferences.Editor = putString(key, Gson().toJson(value))
 }

@@ -19,7 +19,8 @@ object ImageUtils {
             context: Context,
             text: String,
             subText: String = "",
-            @FontRes fontFace: Int = R.font.decotype_thuluth_2,
+            @FontRes
+            fontFace: Int = R.font.decotype_thuluth_2,
             fontSize: Float,
             fontMargin: Int
     ): Bitmap {

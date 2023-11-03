@@ -35,12 +35,12 @@ import com.hifnawy.quran.shared.BuildConfig
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.api.QuranAPI.getReciterChaptersAudioFiles
 import com.hifnawy.quran.shared.extensions.NumberExt.dp
-import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
+import com.hifnawy.quran.shared.extensions.SerializableExt.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.managers.MediaManager
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.ChapterAudioFile
-import com.hifnawy.quran.shared.model.Constants
+import com.hifnawy.quran.shared.tools.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.shared.tools.ImageUtils.drawTextOn
@@ -154,7 +154,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
         sessionToken = mediaSession.sessionToken
 
-        mediaSession.setCallback(MediaSessionCallback(this@MediaService, sharedPrefsManager))
+        mediaSession.setCallback(MediaSessionCallback(this@MediaService))
 
         mediaSession.isActive = true
 
@@ -176,11 +176,11 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         if (intent.action == null) return START_NOT_STICKY
 
         when (intent.action) {
-            Constants.Actions.PLAY_MEDIA.name -> {
+            Constants.Actions.PLAY_MEDIA.name             -> {
                 reciter = intent.getTypedSerializable(Constants.IntentDataKeys.RECITER.name)
-                    ?: return START_NOT_STICKY
+                          ?: return START_NOT_STICKY
                 chapter = intent.getTypedSerializable(Constants.IntentDataKeys.CHAPTER.name)
-                    ?: return START_NOT_STICKY
+                          ?: return START_NOT_STICKY
                 val chapterPosition =
                     intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
@@ -210,8 +210,8 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 prepareMedia(reciter, chapter, chapterPosition)
             }
 
-            Constants.Actions.PAUSE_MEDIA.name -> pauseMedia()
-            Constants.Actions.TOGGLE_MEDIA.name -> {
+            Constants.Actions.PAUSE_MEDIA.name            -> pauseMedia()
+            Constants.Actions.TOGGLE_MEDIA.name           -> {
                 if (isMediaPlaying) {
                     pauseMedia()
                 } else {
@@ -219,10 +219,10 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 }
             }
 
-            Constants.Actions.STOP_MEDIA.name -> stopSelf()
-            Constants.Actions.SKIP_TO_NEXT_MEDIA.name -> skipToNextChapter()
+            Constants.Actions.STOP_MEDIA.name             -> stopSelf()
+            Constants.Actions.SKIP_TO_NEXT_MEDIA.name     -> skipToNextChapter()
             Constants.Actions.SKIP_TO_PREVIOUS_MEDIA.name -> skipToPreviousChapter()
-            Constants.Actions.SEEK_MEDIA.name -> {
+            Constants.Actions.SEEK_MEDIA.name             -> {
                 val chapterPosition =
                     intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 

@@ -2,8 +2,8 @@ package com.hifnawy.quran.shared.storage
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.Companion.getSerializable
-import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.Companion.putSerializable
+import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.getSerializable
+import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.putSerializable
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Reciter
 

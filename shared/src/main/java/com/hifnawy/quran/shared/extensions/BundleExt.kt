@@ -4,15 +4,13 @@ import android.os.Build
 import android.os.Bundle
 import java.io.Serializable
 
-class BundleExt {
-    companion object {
-        inline fun <reified GenericType : Serializable> Bundle.getTypedSerializable(key: String): GenericType? =
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> getSerializable(
-                    key, GenericType::class.java
-                )
+object BundleExt {
 
-                else -> @Suppress("DEPRECATION") getSerializable(key) as? GenericType
-            }
-    }
+    inline fun <reified AnyType : Serializable> Bundle.getTypedSerializable(key: String): AnyType? =
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+                getSerializable(key, AnyType::class.java)
+
+            else -> @Suppress("DEPRECATION") getSerializable(key) as? AnyType
+        }
 }

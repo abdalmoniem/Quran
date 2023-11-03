@@ -17,15 +17,19 @@ import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.api.QuranAPI.getChaptersList
 import com.hifnawy.quran.shared.api.QuranAPI.getRecitersList
 import com.hifnawy.quran.shared.model.Chapter
-import com.hifnawy.quran.shared.model.Constants
+import com.hifnawy.quran.shared.tools.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.CompletableFuture.supplyAsync
+import java.util.concurrent.Future
+import kotlin.reflect.KProperty
 
 @Suppress("PrivatePropertyName")
 private val TAG = MediaManager::class.simpleName
@@ -62,13 +66,24 @@ object MediaManager : LifecycleOwner {
     var mediaStateListener: MediaStateListener? = null
     var reciters: List<Reciter> = mutableListOf()
     var chapters: List<Chapter> = mutableListOf()
+    val recitersDeferred: Deferred<List<Reciter>> by supplyAsync {
+        ioCoroutineScope.async {
+            reciters.ifEmpty {
+                reciters = getRecitersList()
+                reciters
+            }
+        }
+    }
+
+    val chaptersDeferred: Deferred<List<Chapter>> by supplyAsync { ioCoroutineScope.async { getChaptersList() } }
     private lateinit var context: Context
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
-    private val sharedPrefsManager by lazy { SharedPreferencesManager(context) }
+    private val ioCoroutineScope by lazy { CoroutineScope(Dispatchers.IO) }
     private val lifecycleRegistry: LifecycleRegistry by lazy { LifecycleRegistry(this) }
-    private val workManager by lazy { WorkManager.getInstance(context) }
+    private val sharedPrefsManager by lazy { SharedPreferencesManager(context) }
     private val downloadRequestID by lazy { UUID.fromString(context.getString(R.string.SINGLE_DOWNLOAD_WORK_REQUEST_ID)) }
+    private val workManager by lazy { WorkManager.getInstance(context) }
     override val lifecycle: Lifecycle
         get() = lifecycleRegistry
 
@@ -77,9 +92,8 @@ object MediaManager : LifecycleOwner {
     }
 
     @Synchronized
-    fun getInstance(context: Context): MediaManager {
-        this.context = context
-        return this
+    fun getInstance(context: Context): MediaManager = this.also {
+        this.context = context.applicationContext
     }
 
     fun stopLifecycle() {
@@ -88,7 +102,6 @@ object MediaManager : LifecycleOwner {
     }
 
     suspend fun initializeData(onDataFetched: (suspend () -> Unit)? = null) {
-        val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
         if (reciters.isEmpty()) reciters = ioCoroutineScope.async { getRecitersList() }.await()
         if (chapters.isEmpty()) chapters = ioCoroutineScope.async { getChaptersList() }.await()
 
@@ -96,8 +109,11 @@ object MediaManager : LifecycleOwner {
     }
 
     suspend fun processChapter(reciter: Reciter, chapter: Chapter) {
-        @SuppressLint("DiscouragedApi") val drawableId = context.resources.getIdentifier(
-                "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", context.packageName
+        @SuppressLint("DiscouragedApi")
+        val drawableId = context.resources.getIdentifier(
+                "chapter_${chapter.id.toString().padStart(3, '0')}",
+                "drawable",
+                context.packageName
         )
 
         currentReciter = reciter
@@ -146,9 +162,7 @@ object MediaManager : LifecycleOwner {
         processChapter(currentReciter!!, currentChapter!!)
     }
 
-    fun cancelPendingDownloads() {
-        workManager.cancelWorkById(downloadRequestID)
-    }
+    fun cancelPendingDownloads() = workManager.cancelWorkById(downloadRequestID)
 
     private fun downloadChapter(reciter: Reciter, chapter: Chapter) {
         val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
@@ -239,4 +253,6 @@ object MediaManager : LifecycleOwner {
                 }
             }
     }
+
+    private operator fun <V> Future<V>.getValue(thisRef: Any?, property: KProperty<*>) = get()
 }

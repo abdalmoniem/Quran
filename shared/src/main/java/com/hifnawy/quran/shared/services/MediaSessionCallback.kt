@@ -3,15 +3,12 @@ package com.hifnawy.quran.shared.services
 import android.os.Bundle
 import android.support.v4.media.session.MediaSessionCompat
 import android.util.Log
-import com.hifnawy.quran.shared.extensions.BundleExt.Companion.getTypedSerializable
+import com.hifnawy.quran.shared.extensions.BundleExt.getTypedSerializable
 import com.hifnawy.quran.shared.model.Chapter
-import com.hifnawy.quran.shared.model.Constants
+import com.hifnawy.quran.shared.tools.Constants
 import com.hifnawy.quran.shared.model.Reciter
-import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 
-class MediaSessionCallback(
-        private val mediaService: MediaService, private val sharedPrefsManager: SharedPreferencesManager
-) : MediaSessionCompat.Callback() {
+class MediaSessionCallback(private val mediaService: MediaService) : MediaSessionCompat.Callback() {
 
     override fun onPlay() {
         Log.d("AndroidAuto", "Playing...")
