@@ -156,7 +156,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
         sessionToken = mediaSession.sessionToken
 
-        mediaSession.setCallback(MediaSessionCallback(this@MediaService, sharedPrefsManager))
+        mediaSession.setCallback(MediaSessionCallback(this@MediaService))
 
         mediaSession.isActive = true
 
