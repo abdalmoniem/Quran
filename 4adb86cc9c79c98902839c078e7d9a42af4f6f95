@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "0e967c74_e2730f7b",
+        "filename": "shared/src/main/java/com/hifnawy/quran/shared/services/MediaSessionCallback.kt",
+        "patchSetId": 1
+      },
+      "lineNbr": 13,
+      "author": {
+        "id": 1018911
+      },
+      "writtenOn": "2023-11-04T19:22:17Z",
+      "side": 0,
+      "message": "sharedPrefsManager is not used, please remove it",
+      "range": {
+        "startLine": 13,
+        "startChar": 48,
+        "endLine": 13,
+        "endChar": 104
+      },
+      "revId": "4adb86cc9c79c98902839c078e7d9a42af4f6f95",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735"
+    }
+  ]
+}
