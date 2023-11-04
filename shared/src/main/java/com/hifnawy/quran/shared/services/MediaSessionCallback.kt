@@ -10,9 +10,7 @@ import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 
 private val TAG = MediaSessionCallback::class.java.simpleName
-class MediaSessionCallback(
-        private val mediaService: MediaService, private val sharedPrefsManager: SharedPreferencesManager
-) : MediaSessionCompat.Callback() {
+class MediaSessionCallback(private val mediaService: MediaService) : MediaSessionCompat.Callback() {
 
     override fun onPlay() {
         Log.d(TAG, "Playing...")
