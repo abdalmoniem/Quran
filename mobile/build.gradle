@@ -17,9 +17,8 @@ android {
         applicationId 'com.hifnawy.quran'
         minSdk 28
         targetSdk 34
-        versionCode 76
-        versionName '1.8.6'
-
+        versionCode 77
+        versionName '1.8.7'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
 

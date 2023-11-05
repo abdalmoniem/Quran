@@ -93,7 +93,9 @@ object MediaManager : LifecycleOwner {
                 lifecycleScope.launch(Dispatchers.IO) {
                     reciters =
                             async { getRecitersList(context) }.await().sortedBy { reciter -> reciter.id }
-                    onReady(reciters)
+                    withContext(Dispatchers.Main) {
+                        onReady(reciters)
+                    }
                 }
                 false
             } else {
@@ -106,7 +108,9 @@ object MediaManager : LifecycleOwner {
                 lifecycleScope.launch(Dispatchers.IO) {
                     chapters =
                             async { getChaptersList(context) }.await().sortedBy { chapter -> chapter.id }
-                    onReady(chapters)
+                    withContext(Dispatchers.Main) {
+                        onReady(chapters)
+                    }
                 }
                 false
             } else {
@@ -123,10 +127,32 @@ object MediaManager : LifecycleOwner {
                     chapterAudioFiles =
                             getReciterChaptersAudioFiles(context, reciterID)
                                 .sortedBy { chapterAudioFile -> chapterAudioFile.id }
+
+                    withContext(Dispatchers.Main) {
+                        onReady(chapterAudioFiles)
+                    }
                 }
                 false
             } else {
                 onReady(chapterAudioFiles)
+                true
+            }
+
+    fun whenReady(onReady: (reciters: List<Reciter>, chapters: List<Chapter>) -> Unit) =
+            if (reciters.isEmpty() || chapters.isEmpty()) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    if (reciters.isEmpty()) reciters = async { getRecitersList(context) }.await()
+                        .sortedBy { reciter -> reciter.id }
+                    if (chapters.isEmpty()) chapters = async { getChaptersList(context) }.await()
+                        .sortedBy { chapter -> chapter.id }
+
+                    withContext(Dispatchers.Main) {
+                        onReady(reciters, chapters)
+                    }
+                }
+                false
+            } else {
+                onReady(reciters, chapters)
                 true
             }
 
@@ -144,7 +170,9 @@ object MediaManager : LifecycleOwner {
                             async { getReciterChaptersAudioFiles(context, reciterID) }.await()
                                 .sortedBy { chapterAudioFile -> chapterAudioFile.id }
 
-                    onReady(reciters, chapters, chapterAudioFiles)
+                    withContext(Dispatchers.Main) {
+                        onReady(reciters, chapters, chapterAudioFiles)
+                    }
                 }
                 false
             } else {
@@ -178,13 +206,12 @@ object MediaManager : LifecycleOwner {
     suspend fun processNextChapter() {
         currentChapter =
                 chapters.find { chapter ->
-                    chapter.id == (if (currentChapter!!.id == context.resources.getInteger(
-                                R.integer.quran_chapter_count
-                        )
-                    ) 1 else currentChapter!!.id + 1)
+                    chapter.id == (
+                            if (currentChapter!!.id == context.resources.getInteger(R.integer.quran_chapter_count)) 1
+                            else currentChapter!!.id + 1)
                 } ?: sharedPrefsManager.lastChapter
 
-        Log.d(TAG, "Skipping to next Chapter...")
+        Log.d(TAG, "Skipping to next Chapter: $currentChapter...")
 
         processChapter(currentReciter!!, currentChapter!!)
     }
@@ -192,19 +219,20 @@ object MediaManager : LifecycleOwner {
     suspend fun processPreviousChapter() {
         currentChapter =
                 chapters.find { chapter ->
-                    chapter.id == (if (currentChapter!!.id == 1) context.resources.getInteger(
-                            R.integer.quran_chapter_count
-                    ) else currentChapter!!.id - 1)
+                    chapter.id == (
+                            if (currentChapter!!.id == 1) context.resources.getInteger(
+                                    R.integer.quran_chapter_count
+                            )
+                            else currentChapter!!.id - 1)
                 } ?: sharedPrefsManager.lastChapter
 
-        Log.d(TAG, "Skipping to previous Chapter...")
+        Log.d(TAG, "Skipping to previous Chapter: $currentChapter...")
 
         processChapter(currentReciter!!, currentChapter!!)
     }
 
-    fun cancelPendingDownloads() {
-        workManager.cancelWorkById(downloadRequestID)
-    }
+    fun cancelPendingDownloads() =
+            workManager.cancelWorkById(downloadRequestID)
 
     private fun downloadChapter(reciter: Reciter, chapter: Chapter) {
         val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()

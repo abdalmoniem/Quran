@@ -175,58 +175,64 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         if (intent == null) return START_NOT_STICKY
         if (intent.action == null) return START_NOT_STICKY
 
-        when (intent.action) {
-            Constants.Actions.PLAY_MEDIA.name             -> {
-                reciter = intent.getTypedSerializable(Constants.IntentDataKeys.RECITER.name)
-                          ?: return START_NOT_STICKY
-                chapter = intent.getTypedSerializable(Constants.IntentDataKeys.CHAPTER.name)
-                          ?: return START_NOT_STICKY
-                val chapterPosition =
-                        intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
+        mediaManager.whenReady { _, _ ->
+            when (intent.action) {
+                Constants.Actions.PLAY_MEDIA.name             -> {
+                    reciter = intent.getTypedSerializable(Constants.IntentDataKeys.RECITER.name)
+                              ?: return@whenReady
 
-                Log.d(TAG, "onStartCommand with position: $chapterPosition")
-                val notificationChannel = NotificationChannel(
-                        getString(R.string.quran_recitation_notification_name),
-                        getString(R.string.quran_recitation_notification_name),
-                        NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = chapter.name_arabic
+                    chapter = intent.getTypedSerializable(Constants.IntentDataKeys.CHAPTER.name)
+                              ?: return@whenReady
+                    val chapterPosition =
+                            intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
+
+                    Log.d(TAG, "onStartCommand with position: $chapterPosition")
+                    val notificationChannel = NotificationChannel(
+                            getString(R.string.quran_recitation_notification_name),
+                            getString(R.string.quran_recitation_notification_name),
+                            NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+                        description = chapter.name_arabic
+                    }
+                    val notification = NotificationCompat.Builder(
+                            this@MediaService,
+                            getString(R.string.quran_recitation_notification_name)
+                    )
+                        .setSilent(true)
+                        .setPriority(NotificationManager.IMPORTANCE_MAX)
+                        .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
+                        .setContentTitle(getString(R.string.app_name))
+                        .setContentText(chapter.name_arabic)
+                        .setSubText(reciter.name_ar)
+                        .build()
+
+                    notificationManager.createNotificationChannel(notificationChannel)
+                    startForeground(
+                            R.integer.quran_chapter_recitation_notification_channel_id,
+                            notification
+                    )
+
+                    prepareMedia(reciter, chapter, chapterPosition)
                 }
-                val notification = NotificationCompat.Builder(
-                        this@MediaService,
-                        getString(R.string.quran_recitation_notification_name)
-                )
-                    .setSilent(true)
-                    .setPriority(NotificationManager.IMPORTANCE_MAX)
-                    .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
-                    .setContentTitle(getString(R.string.app_name))
-                    .setContentText(chapter.name_arabic)
-                    .setSubText(reciter.name_ar)
-                    .build()
 
-                notificationManager.createNotificationChannel(notificationChannel)
-                startForeground(R.integer.quran_chapter_recitation_notification_channel_id, notification)
-
-                prepareMedia(reciter, chapter, chapterPosition)
-            }
-
-            Constants.Actions.PAUSE_MEDIA.name            -> pauseMedia()
-            Constants.Actions.TOGGLE_MEDIA.name           -> {
-                if (isMediaPlaying) {
-                    pauseMedia()
-                } else {
-                    resumeMedia()
+                Constants.Actions.PAUSE_MEDIA.name            -> pauseMedia()
+                Constants.Actions.TOGGLE_MEDIA.name           -> {
+                    if (isMediaPlaying) {
+                        pauseMedia()
+                    } else {
+                        resumeMedia()
+                    }
                 }
-            }
 
-            Constants.Actions.STOP_MEDIA.name             -> stopSelf()
-            Constants.Actions.SKIP_TO_NEXT_MEDIA.name     -> skipToNextChapter()
-            Constants.Actions.SKIP_TO_PREVIOUS_MEDIA.name -> skipToPreviousChapter()
-            Constants.Actions.SEEK_MEDIA.name             -> {
-                val chapterPosition =
-                        intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
+                Constants.Actions.STOP_MEDIA.name             -> stopSelf()
+                Constants.Actions.SKIP_TO_NEXT_MEDIA.name     -> skipToNextChapter()
+                Constants.Actions.SKIP_TO_PREVIOUS_MEDIA.name -> skipToPreviousChapter()
+                Constants.Actions.SEEK_MEDIA.name             -> {
+                    val chapterPosition =
+                            intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
-                seekChapterToPosition(chapterPosition)
+                    seekChapterToPosition(chapterPosition)
+                }
             }
         }
 
@@ -234,8 +240,21 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     }
 
     override fun onDestroy() {
-        mediaManager.stopLifecycle()
-        mediaManager.cancelPendingDownloads()
+        // release media session
+        mediaSession.apply {
+            isActive = false
+            release()
+        }
+        // release exoplayer
+        exoPlayer.apply {
+            removeListener(this@MediaService)
+            release()
+        }
+        // stop mediaManager
+        mediaManager.apply {
+            stopLifecycle()
+            cancelPendingDownloads()
+        }
         super.onDestroy()
     }
 
