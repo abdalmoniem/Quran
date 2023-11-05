@@ -8,6 +8,7 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.lifecycleScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
@@ -15,19 +16,20 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.api.QuranAPI.getChaptersList
+import com.hifnawy.quran.shared.api.QuranAPI.getReciterChaptersAudioFiles
 import com.hifnawy.quran.shared.api.QuranAPI.getRecitersList
 import com.hifnawy.quran.shared.model.Chapter
+import com.hifnawy.quran.shared.model.ChapterAudioFile
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
-@Suppress("PrivatePropertyName")
 private val TAG = MediaManager::class.simpleName
 
 @SuppressLint("StaticFieldLeak")
@@ -44,7 +46,6 @@ object MediaManager : LifecycleOwner {
                 percentage: Float,
                 chapterAudioFile: File?
         )
-
     }
 
     fun interface MediaStateListener {
@@ -55,13 +56,13 @@ object MediaManager : LifecycleOwner {
                 chapterAudioFile: File,
                 chapterDrawable: Drawable?
         )
-
     }
 
     var downloadListener: DownloadListener? = null
     var mediaStateListener: MediaStateListener? = null
-    var reciters: List<Reciter> = mutableListOf()
-    var chapters: List<Chapter> = mutableListOf()
+    private var reciters: List<Reciter> = mutableListOf()
+    private var chapters: List<Chapter> = mutableListOf()
+    private var chapterAudioFiles: List<ChapterAudioFile> = mutableListOf()
     private lateinit var context: Context
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
@@ -87,16 +88,73 @@ object MediaManager : LifecycleOwner {
         workManager.cancelWorkById(downloadRequestID)
     }
 
-    suspend fun initializeData(onDataFetched: (suspend () -> Unit)? = null) {
-        val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
-        if (reciters.isEmpty()) reciters = ioCoroutineScope.async { getRecitersList(context) }.await()
-        if (chapters.isEmpty()) chapters = ioCoroutineScope.async { getChaptersList(context) }.await()
+    fun whenRecitersReady(onReady: (reciters: List<Reciter>) -> Unit) =
+            if (reciters.isEmpty()) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    reciters =
+                            async { getRecitersList(context) }.await().sortedBy { reciter -> reciter.id }
+                    onReady(reciters)
+                }
+                false
+            } else {
+                onReady(reciters)
+                true
+            }
 
-        onDataFetched?.invoke()
-    }
+    fun whenChaptersReady(onReady: (chapters: List<Chapter>) -> Unit): Boolean =
+            if (chapters.isEmpty()) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    chapters =
+                            async { getChaptersList(context) }.await().sortedBy { chapter -> chapter.id }
+                    onReady(chapters)
+                }
+                false
+            } else {
+                onReady(chapters)
+                true
+            }
+
+    fun whenChapterAudioFilesReady(
+            reciterID: Int,
+            onReady: (chapterAudioFiles: List<ChapterAudioFile>) -> Unit
+    ) =
+            if (chapterAudioFiles.isEmpty()) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    chapterAudioFiles =
+                            getReciterChaptersAudioFiles(context, reciterID)
+                                .sortedBy { chapterAudioFile -> chapterAudioFile.id }
+                }
+                false
+            } else {
+                onReady(chapterAudioFiles)
+                true
+            }
+
+    fun whenReady(
+            reciterID: Int,
+            onReady: (reciters: List<Reciter>, chapters: List<Chapter>, chaptersAudioFiles: List<ChapterAudioFile>) -> Unit
+    ) =
+            if (reciters.isEmpty() || chapters.isEmpty() || chapterAudioFiles.isEmpty()) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    if (reciters.isEmpty()) reciters = async { getRecitersList(context) }.await()
+                        .sortedBy { reciter -> reciter.id }
+                    if (chapters.isEmpty()) chapters = async { getChaptersList(context) }.await()
+                        .sortedBy { chapter -> chapter.id }
+                    if (chapterAudioFiles.isEmpty()) chapterAudioFiles =
+                            async { getReciterChaptersAudioFiles(context, reciterID) }.await()
+                                .sortedBy { chapterAudioFile -> chapterAudioFile.id }
+
+                    onReady(reciters, chapters, chapterAudioFiles)
+                }
+                false
+            } else {
+                onReady(reciters, chapters, chapterAudioFiles)
+                true
+            }
 
     suspend fun processChapter(reciter: Reciter, chapter: Chapter) {
-        @SuppressLint("DiscouragedApi") val drawableId = context.resources.getIdentifier(
+        @SuppressLint("DiscouragedApi")
+        val drawableId = context.resources.getIdentifier(
                 "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", context.packageName
         )
 
@@ -119,13 +177,12 @@ object MediaManager : LifecycleOwner {
 
     suspend fun processNextChapter() {
         currentChapter =
-            chapters.find { chapter ->
-                chapter.id == (if (currentChapter!!.id == context.resources.getInteger(
-                            R.integer.quran_chapter_count
-                    )
-                ) 1 else currentChapter!!.id + 1)
-            }
-                ?: sharedPrefsManager.lastChapter
+                chapters.find { chapter ->
+                    chapter.id == (if (currentChapter!!.id == context.resources.getInteger(
+                                R.integer.quran_chapter_count
+                        )
+                    ) 1 else currentChapter!!.id + 1)
+                } ?: sharedPrefsManager.lastChapter
 
         Log.d(TAG, "Skipping to next Chapter...")
 
@@ -134,12 +191,11 @@ object MediaManager : LifecycleOwner {
 
     suspend fun processPreviousChapter() {
         currentChapter =
-            chapters.find { chapter ->
-                chapter.id == (if (currentChapter!!.id == 1) context.resources.getInteger(
-                        R.integer.quran_chapter_count
-                ) else currentChapter!!.id - 1)
-            }
-                ?: sharedPrefsManager.lastChapter
+                chapters.find { chapter ->
+                    chapter.id == (if (currentChapter!!.id == 1) context.resources.getInteger(
+                            R.integer.quran_chapter_count
+                    ) else currentChapter!!.id - 1)
+                } ?: sharedPrefsManager.lastChapter
 
         Log.d(TAG, "Skipping to previous Chapter...")
 
@@ -182,22 +238,27 @@ object MediaManager : LifecycleOwner {
                 if (workInfo == null) return@observe
                 if ((workInfo.state != WorkInfo.State.RUNNING) && (workInfo.state != WorkInfo.State.SUCCEEDED)) return@observe
                 val dataSource =
-                    if (workInfo.state == WorkInfo.State.SUCCEEDED) workInfo.outputData else workInfo.progress
+                        if (workInfo.state == WorkInfo.State.SUCCEEDED) workInfo.outputData else workInfo.progress
 
                 Log.d(TAG, "${workInfo.state} - $dataSource")
                 val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
                         (dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name))
-                            ?: return@observe
+                        ?: return@observe
                 )
                 val fileSize =
-                    dataSource.getInt(DownloadWorkManager.DownloadWorkerInfo.FILE_SIZE.name, -1)
+                        dataSource.getInt(DownloadWorkManager.DownloadWorkerInfo.FILE_SIZE.name, -1)
                 val chapterFilePath =
-                    dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.FILE_PATH.name)
+                        dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.FILE_PATH.name)
                 val bytesDownloaded =
-                    dataSource.getLong(DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name, -1L)
+                        dataSource.getLong(
+                                DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name,
+                                -1L
+                        )
                 val progress =
-                    dataSource.getFloat(DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name, -1f)
-                @SuppressLint("DiscouragedApi") val drawableId = context.resources.getIdentifier(
+                        dataSource.getFloat(DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name, -1f)
+
+                @SuppressLint("DiscouragedApi")
+                val drawableId = context.resources.getIdentifier(
                         "chapter_${chapter.id.toString().padStart(3, '0')}",
                         "drawable",
                         context.packageName
@@ -205,7 +266,7 @@ object MediaManager : LifecycleOwner {
                 when (downloadStatus) {
                     DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD,
                     DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED,
-                    DownloadWorkManager.DownloadStatus.DOWNLOADING -> downloadListener?.onProgressChanged(
+                    DownloadWorkManager.DownloadStatus.DOWNLOADING       -> downloadListener?.onProgressChanged(
                             reciter,
                             chapter,
                             downloadStatus,
@@ -235,7 +296,7 @@ object MediaManager : LifecycleOwner {
                         )
                     }
 
-                    DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR -> Unit
+                    DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR    -> Unit
                 }
             }
     }

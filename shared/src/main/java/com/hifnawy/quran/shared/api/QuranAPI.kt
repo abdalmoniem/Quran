@@ -154,10 +154,6 @@ object QuranAPI {
                     Log.w(TAG, responseMessage)
                     return@sendRESTRequest
                 }
-                Log.d(
-                        TAG,
-                        "No errors found while fetching from: https://api.quran.com/api/v4/chapter_recitations/$reciterID"
-                )
                 val chapterJsonObject =
                     JSONObject(responseMessage).getJSONArray("audio_files").toString()
                 reciterChaptersAudioFiles =
