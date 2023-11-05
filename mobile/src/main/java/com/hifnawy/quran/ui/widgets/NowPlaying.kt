@@ -22,6 +22,7 @@ import com.hifnawy.quran.shared.services.MediaService
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.activities.MainActivity
 import com.hoko.blur.HokoBlur
+import com.hifnawy.quran.shared.R as sharedR
 
 /**
  * Implementation of App Widget functionality.
@@ -66,7 +67,7 @@ class NowPlaying : AppWidgetProvider() {
         widgetContext = context
 
         when (intent.action) {
-            WidgetActions.PLAY_PAUSE.name -> {
+            WidgetActions.PLAY_PAUSE.name            -> {
                 val state = if (isMediaPlaying) Constants.Actions.PAUSE_MEDIA
                 else Constants.Actions.PLAY_MEDIA
 
@@ -76,20 +77,24 @@ class NowPlaying : AppWidgetProvider() {
                 )
             }
 
-            WidgetActions.NEXT.name -> changeMediaState(context, Constants.Actions.SKIP_TO_NEXT_MEDIA)
-            WidgetActions.PREVIOUS.name -> changeMediaState(
+            WidgetActions.NEXT.name                  -> changeMediaState(
+                    context,
+                    Constants.Actions.SKIP_TO_NEXT_MEDIA
+            )
+
+            WidgetActions.PREVIOUS.name              -> changeMediaState(
                     context,
                     Constants.Actions.SKIP_TO_PREVIOUS_MEDIA
             )
 
-            WidgetActions.OPEN_MEDIA_PLAYER.name -> openMediaPlayer(context)
+            WidgetActions.OPEN_MEDIA_PLAYER.name     -> openMediaPlayer(context)
             AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
                 val reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
                 val chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
                 currentChapterPosition =
-                    intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L)
+                        intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, 0L)
                 isMediaPlaying =
-                    intent.getBooleanExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, false)
+                        intent.getBooleanExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, false)
 
                 if ((reciter == null) && (chapter == null)) return
 
@@ -100,7 +105,7 @@ class NowPlaying : AppWidgetProvider() {
                 updateUI(context)
             }
 
-            else -> Unit
+            else                                     -> Unit
         }
     }
 
@@ -117,30 +122,34 @@ class NowPlaying : AppWidgetProvider() {
             if (currentReciter == null) currentReciter = lastReciter
             if (currentChapter == null) currentChapter = lastChapter
         }
-        @SuppressLint("DiscouragedApi") val chapterImageDrawableId = context.resources.getIdentifier(
-                "chapter_${currentChapter?.id.toString().padStart(3, '0')}",
-                "drawable",
-                context.packageName
-        )
-        val chapterImageBlurred = HokoBlur.with(context)
-            .scheme(HokoBlur.SCHEME_NATIVE) // different implementation, RenderScript、OpenGL、Native(default) and Java
-            .mode(HokoBlur.MODE_GAUSSIAN) // blur algorithms，Gaussian、Stack(default) and Box
-            .radius(3) // blur radius，max=25，default=5
-            .sampleFactor(2.0f).processor().blur(
-                    (AppCompatResources.getDrawable(
-                            context, chapterImageDrawableId
-                    ) as BitmapDrawable).bitmap
+        currentChapter?.let { chapter ->
+            @SuppressLint("DiscouragedApi")
+            val chapterImageDrawableId = context.resources.getIdentifier(
+                    "chapter_${chapter.id.toString().padStart(3, '0')}",
+                    "drawable",
+                    context.packageName
             )
+            val chapterDrawable = AppCompatResources.getDrawable(context, chapterImageDrawableId)
+            val chapterDrawableBitmap = (chapterDrawable as BitmapDrawable).bitmap
+            val chapterImageBlurred = HokoBlur.with(context)
+                .scheme(HokoBlur.SCHEME_NATIVE) // different implementation, RenderScript、OpenGL、Native(default) and Java
+                .mode(HokoBlur.MODE_GAUSSIAN) // blur algorithms，Gaussian、Stack(default) and Box
+                .radius(3) // blur radius，max=25，default=5
+                .sampleFactor(2.0f)
+                .processor()
+                .blur(chapterDrawableBitmap)
+
+            views.setImageViewBitmap(R.id.background_image, chapterImageBlurred)
+            views.setImageViewResource(R.id.chapter_image, chapterImageDrawableId)
+        }
 
         with(views) {
             setTextViewText(R.id.reciter_name, currentReciter?.name_ar)
             setTextViewText(R.id.chapter_name, currentChapter?.name_arabic)
-            setImageViewBitmap(R.id.background_image, chapterImageBlurred)
-            setImageViewResource(R.id.chapter_image, chapterImageDrawableId)
             setImageViewResource(
                     R.id.media_playback,
-                    if (isMediaPlaying) com.hifnawy.quran.shared.R.drawable.media_pause_white
-                    else com.hifnawy.quran.shared.R.drawable.media_play_white
+                    if (isMediaPlaying) sharedR.drawable.media_pause_white
+                    else sharedR.drawable.media_play_white
             )
             setViewVisibility(R.id.chapter_loading, View.INVISIBLE)
             setViewVisibility(R.id.media_playback, View.VISIBLE)

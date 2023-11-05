@@ -33,7 +33,6 @@ import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.DownloadDialogBinding
 import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
 import com.hifnawy.quran.shared.extensions.NumberExt.dp
-import com.hifnawy.quran.shared.extensions.NumberExt.sp
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.model.Chapter
@@ -50,6 +49,7 @@ import java.text.NumberFormat
 import java.time.Duration
 import java.util.Locale
 import java.util.UUID
+import com.hifnawy.quran.shared.R as sharedR
 import com.hoko.blur.HokoBlur as Blur
 
 @Suppress("PrivatePropertyName")
@@ -63,7 +63,7 @@ class MediaPlayback : Fragment() {
     private val mediaUpdatesReceiver = MediaUpdatesReceiver()
     private var chapterPosition: Long = 0L
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
-    private val downloadRequestID by lazy { UUID.fromString(getString(com.hifnawy.quran.shared.R.string.SINGLE_DOWNLOAD_WORK_REQUEST_ID)) }
+    private val downloadRequestID by lazy { UUID.fromString(getString(sharedR.string.SINGLE_DOWNLOAD_WORK_REQUEST_ID)) }
     private lateinit var reciter: Reciter
     private lateinit var chapter: Chapter
     private lateinit var binding: FragmentMediaPlaybackBinding
@@ -165,7 +165,7 @@ class MediaPlayback : Fragment() {
         }
 
         parentActivity.registerReceiver(mediaUpdatesReceiver,
-                                        IntentFilter(getString(com.hifnawy.quran.shared.R.string.quran_media_service_updates)).apply {
+                                        IntentFilter(getString(sharedR.string.quran_media_service_updates)).apply {
                                             addCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)
                                         })
 
@@ -234,49 +234,45 @@ class MediaPlayback : Fragment() {
             chapterDuration: Long = 100L,
             isMediaPlaying: Boolean = false
     ) {
-        @SuppressLint("DiscouragedApi") val drawableId = resources.getIdentifier(
+        @SuppressLint("DiscouragedApi")
+        val drawableId = resources.getIdentifier(
                 "chapter_${chapter.id.toString().padStart(3, '0')}",
                 "drawable",
                 binding.root.context.packageName
         )
+        val drawable = AppCompatResources.getDrawable(binding.root.context, drawableId)
+        val drawableBitmap = (drawable as BitmapDrawable).bitmap
         val bitmap = Blur.with(context)
             .scheme(Blur.SCHEME_NATIVE) // different implementation, RenderScript、OpenGL、Native(default) and Java
             .mode(Blur.MODE_GAUSSIAN) // blur algorithms，Gaussian、Stack(default) and Box
             .radius(3) // blur radius，max=25，default=5
-            .sampleFactor(2.0f).processor().blur(
-                    (AppCompatResources.getDrawable(
-                            binding.root.context, drawableId
-                    ) as BitmapDrawable).bitmap
-            )
-        val dominantColor = Palette.from(
-                (AppCompatResources.getDrawable(
-                        binding.root.context, drawableId
-                ) as BitmapDrawable).bitmap
-        ).generate().getDominantColor(Color.RED)
+            .sampleFactor(2.0f)
+            .processor()
+            .blur(drawableBitmap)
+        val dominantColor = Palette.from(drawableBitmap).generate().getDominantColor(Color.RED)
 
         with(binding) {
             chapterBackgroundImage.setImageDrawable(bitmap.toDrawable(resources))
             chapterName.text = chapter.name_arabic
             reciterName.text = reciter.name_ar
             chapterImageCard.setCardBackgroundColor(
-                    if (chapter.id % 2 == 0) Color.parseColor("#336e6a") else Color.parseColor(
-                            "#dd5f56"
-                    )
+                    if (chapter.id % 2 == 0) Color.parseColor("#336e6a")
+                    else Color.parseColor("#dd5f56")
             )
-            chapterImage.setImageDrawable(
-                    AppCompatResources.getDrawable(
-                            binding.root.context, drawableId
-                    )
-            )
+            chapterImage.setImageDrawable(drawable)
             chapterSeek.trackActiveTintList = ColorStateList.valueOf(dominantColor)
             chapterSeek.valueFrom = 0f
             chapterSeek.valueTo = chapterDuration.toFloat()
             chapterSeek.value = chapterPosition.toFloat()
-            chapterPlayPause.icon = if (isMediaPlaying) AppCompatResources.getDrawable(
-                    binding.root.context, com.hifnawy.quran.shared.R.drawable.media_pause_black
-            ) else AppCompatResources.getDrawable(
-                    binding.root.context, com.hifnawy.quran.shared.R.drawable.media_play_black
-            )
+            chapterPlayPause.icon =
+                    if (isMediaPlaying) AppCompatResources.getDrawable(
+                            binding.root.context,
+                            sharedR.drawable.media_pause_black
+                    )
+                    else AppCompatResources.getDrawable(
+                            binding.root.context,
+                            sharedR.drawable.media_play_black
+                    )
 
             chapterPlayPause.setBackgroundColor(dominantColor)
             chapterNext.setBackgroundColor(dominantColor)
@@ -297,10 +293,10 @@ class MediaPlayback : Fragment() {
             (workInfo.state != WorkInfo.State.FAILED)
         ) return
         val dataSource =
-            if ((workInfo.state == WorkInfo.State.SUCCEEDED) ||
-                (workInfo.state == WorkInfo.State.FAILED)
-            ) workInfo.outputData
-            else workInfo.progress
+                if ((workInfo.state == WorkInfo.State.SUCCEEDED) ||
+                    (workInfo.state == WorkInfo.State.FAILED)
+                ) workInfo.outputData
+                else workInfo.progress
 
         if (dataSource.keyValueMap.isEmpty()) return
 
@@ -326,7 +322,7 @@ class MediaPlayback : Fragment() {
         // Log.d(TAG, "${workInfo.state} - $dataSource")
         val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
                 dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
-                    ?: return
+                ?: return
         )
         val bytesDownloaded = dataSource.getLong(
                 DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name, -1L
@@ -348,7 +344,7 @@ class MediaPlayback : Fragment() {
                     downloadDialogChapterProgress.progress = 0
                     downloadDialogChapterDownloadMessage.text = "${
                         context?.getString(
-                                com.hifnawy.quran.shared.R.string.loading_chapter,
+                                sharedR.string.loading_chapter,
                                 chapter.name_arabic
                         )
                     }\n${decimalFormat.format(0)} مب. \\ ${decimalFormat.format(0)} مب. (${
@@ -362,14 +358,13 @@ class MediaPlayback : Fragment() {
                     downloadDialogChapterProgress.progress = progress.toInt()
                     downloadDialogChapterDownloadMessage.text = "${
                         context?.getString(
-                                com.hifnawy.quran.shared.R.string.loading_chapter, chapter.name_arabic
+                                sharedR.string.loading_chapter, chapter.name_arabic
                         )
                     }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
                         decimalFormat.format(
                                 fileSize.toFloat() / (1024 * 1024)
                         )
                     } مب. (${decimalFormat.format(progress)}٪)"
-
                 }
 
                 DownloadWorkManager.DownloadStatus.FILE_EXISTS,
@@ -404,10 +399,10 @@ class MediaPlayback : Fragment() {
             reciter = intent.getTypedSerializable(Constants.IntentDataKeys.RECITER.name) ?: return
             chapter = intent.getTypedSerializable(Constants.IntentDataKeys.CHAPTER.name) ?: return
             val isMediaPlaying =
-                intent.getBooleanExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, false)
+                    intent.getBooleanExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, false)
             val durationMs = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_DURATION.name, -1L)
             val currentPosition =
-                intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
+                    intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
             updateUI(reciter, chapter, isMediaPlaying = isMediaPlaying)
 
@@ -487,17 +482,21 @@ class MediaPlayback : Fragment() {
             with(binding) {
                 disableSliderTouch = minimizing
 
-                chapterName.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
+                chapterName.setTextSize(
+                        TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
                     lerp(80f, 25f, progress)
                 } else {
                     lerp(25f, 80f, progress)
-                })
+                }
+                )
 
-                reciterName.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
+                reciterName.setTextSize(
+                        TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
                     lerp(25f, 15f, progress)
                 } else {
                     lerp(15f, 25f, progress)
-                })
+                }
+                )
 
                 chapterSeek.trackInactiveTintList = chapterSeek.trackInactiveTintList.withAlpha(
                         if (minimizing) {
@@ -552,7 +551,6 @@ class MediaPlayback : Fragment() {
                     lerp(0f, 255f, progress)
                 }.toInt()
             }
-
         }
 
         override fun onTransitionCompleted(motionLayout: MotionLayout?, currentState: Int) {
@@ -567,8 +565,8 @@ class MediaPlayback : Fragment() {
                 if (!fragmentContainer.isInLayout) {
                     fragmentContainer.updateLayoutParams<FrameLayout.LayoutParams> {
                         bottomMargin =
-                            if (minimized) resources.getDimension(R.dimen.media_player_minimized_height)
-                                .toInt() else 0.dp
+                                if (minimized) resources.getDimension(R.dimen.media_player_minimized_height)
+                                    .toInt() else 0.dp
                     }
                 }
             }
@@ -587,5 +585,4 @@ class MediaPlayback : Fragment() {
                 progress: Float
         ) = Unit
     }
-
 }
