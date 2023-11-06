@@ -211,6 +211,12 @@ class MediaPlayback : Fragment() {
             dialog.dismiss()
         }
 
+        /**
+         * TODO: this is in correct, this line adds a new observer everytime it's being called
+         *       which means there'll be duplicate actions being taken in the same time while the data
+         *       its parsing is changing, check [com.hifnawy.quran.shared.managers.MediaManager] for details
+         *       on how to fix
+         * */
         workManager.getWorkInfoByIdLiveData(downloadRequestID)
             .observe(viewLifecycleOwner) { workInfo ->
                 observeWorker(workInfo, dialog, dialogBinding)
@@ -300,7 +306,7 @@ class MediaPlayback : Fragment() {
 
         if (dataSource.keyValueMap.isEmpty()) return
 
-        Log.d(TAG, workInfo.toString())
+        Log.d(TAG, "${workInfo.state}\n$dataSource")
 
         if (workInfo.state == WorkInfo.State.FAILED) {
             dialog.dismiss()
@@ -319,7 +325,6 @@ class MediaPlayback : Fragment() {
             }
             return
         }
-        // Log.d(TAG, "${workInfo.state} - $dataSource")
         val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
                 dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name)
                 ?: return

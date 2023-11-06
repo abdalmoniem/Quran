@@ -8,6 +8,7 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -63,9 +64,10 @@ object MediaManager : LifecycleOwner {
     private var reciters: List<Reciter> = mutableListOf()
     private var chapters: List<Chapter> = mutableListOf()
     private var chapterAudioFiles: List<ChapterAudioFile> = mutableListOf()
-    private lateinit var context: Context
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
+    private lateinit var context: Context
+    private lateinit var downloadObserver: DownloadObserver
     private val sharedPrefsManager by lazy { SharedPreferencesManager(context) }
     private val lifecycleRegistry: LifecycleRegistry by lazy { LifecycleRegistry(this) }
     private val workManager by lazy { WorkManager.getInstance(context) }
@@ -180,7 +182,7 @@ object MediaManager : LifecycleOwner {
                 true
             }
 
-    suspend fun processChapter(reciter: Reciter, chapter: Chapter) {
+    fun processChapter(reciter: Reciter, chapter: Chapter) {
         @SuppressLint("DiscouragedApi")
         val drawableId = context.resources.getIdentifier(
                 "chapter_${chapter.id.toString().padStart(3, '0')}", "drawable", context.packageName
@@ -192,18 +194,16 @@ object MediaManager : LifecycleOwner {
         sharedPrefsManager.lastChapter = chapter
 
         sharedPrefsManager.getChapterPath(reciter, chapter)?.let { chapterAudioFile ->
-            withContext(Dispatchers.Main) {
-                mediaStateListener?.onMediaReady(
-                        reciter,
-                        chapter,
-                        File(chapterAudioFile),
-                        AppCompatResources.getDrawable(context, drawableId)
-                )
-            }
-        } ?: withContext(Dispatchers.Main) { downloadChapter(reciter, chapter) }
+            mediaStateListener?.onMediaReady(
+                    reciter,
+                    chapter,
+                    File(chapterAudioFile),
+                    AppCompatResources.getDrawable(context, drawableId)
+            )
+        } ?: downloadChapter(reciter, chapter)
     }
 
-    suspend fun processNextChapter() {
+    fun processNextChapter() {
         currentChapter =
                 chapters.find { chapter ->
                     chapter.id == (
@@ -216,7 +216,7 @@ object MediaManager : LifecycleOwner {
         processChapter(currentReciter!!, currentChapter!!)
     }
 
-    suspend fun processPreviousChapter() {
+    fun processPreviousChapter() {
         currentChapter =
                 chapters.find { chapter ->
                     chapter.id == (
@@ -231,10 +231,12 @@ object MediaManager : LifecycleOwner {
         processChapter(currentReciter!!, currentChapter!!)
     }
 
-    fun cancelPendingDownloads() =
-            workManager.cancelWorkById(downloadRequestID)
+    fun cancelPendingDownloads() {
+        workManager.cancelWorkById(downloadRequestID)
+    }
 
     private fun downloadChapter(reciter: Reciter, chapter: Chapter) {
+        Log.d(TAG, "Downloading ${reciter.reciter_name} - ${chapter.name_simple}")
         val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
             .setInputData(
                     workDataOf(
@@ -259,42 +261,56 @@ object MediaManager : LifecycleOwner {
         )
     }
 
-    private fun observeWorker(requestID: UUID, reciter: Reciter, chapter: Chapter) {
-        val workManager = WorkManager.getInstance(context)
-        workManager.getWorkInfoByIdLiveData(requestID)
-            .observe(this) { workInfo ->
-                if (workInfo == null) return@observe
-                if ((workInfo.state != WorkInfo.State.RUNNING) && (workInfo.state != WorkInfo.State.SUCCEEDED)) return@observe
-                val dataSource =
-                        if (workInfo.state == WorkInfo.State.SUCCEEDED) workInfo.outputData else workInfo.progress
+    private fun observeWorker(requestID: UUID, reciter: Reciter, chapter: Chapter) =
+            if (!this::downloadObserver.isInitialized) {
+                downloadObserver = DownloadObserver(reciter, chapter)
+                workManager.getWorkInfoByIdLiveData(requestID).observe(this, downloadObserver)
+            } else {
+                downloadObserver.reciter = reciter
+                downloadObserver.chapter = chapter
+            }
 
-                Log.d(TAG, "${workInfo.state} - $dataSource")
-                val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
-                        (dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name))
-                        ?: return@observe
-                )
-                val fileSize =
-                        dataSource.getInt(DownloadWorkManager.DownloadWorkerInfo.FILE_SIZE.name, -1)
-                val chapterFilePath =
-                        dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.FILE_PATH.name)
-                val bytesDownloaded =
-                        dataSource.getLong(
-                                DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name,
-                                -1L
-                        )
-                val progress =
-                        dataSource.getFloat(DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name, -1f)
+    internal class DownloadObserver(var reciter: Reciter, var chapter: Chapter) :
+            Observer<WorkInfo?> {
 
-                @SuppressLint("DiscouragedApi")
-                val drawableId = context.resources.getIdentifier(
-                        "chapter_${chapter.id.toString().padStart(3, '0')}",
-                        "drawable",
-                        context.packageName
-                )
-                when (downloadStatus) {
-                    DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD,
-                    DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED,
-                    DownloadWorkManager.DownloadStatus.DOWNLOADING       -> downloadListener?.onProgressChanged(
+        override fun onChanged(value: WorkInfo?) {
+            if (value == null) return
+            if ((value.state != WorkInfo.State.RUNNING) && (value.state != WorkInfo.State.SUCCEEDED)) return
+            val dataSource =
+                    if (value.state == WorkInfo.State.SUCCEEDED) value.outputData
+                    else value.progress
+
+            Log.d(
+                    TAG,
+                    "DownloadWorkManager: ${value.state} - ${reciter.reciter_name} - ${chapter.name_simple}\n$dataSource"
+            )
+            val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
+                    (dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name))
+                    ?: return
+            )
+            val fileSize =
+                    dataSource.getInt(DownloadWorkManager.DownloadWorkerInfo.FILE_SIZE.name, -1)
+            val chapterFilePath =
+                    dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.FILE_PATH.name)
+            val bytesDownloaded =
+                    dataSource.getLong(
+                            DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name,
+                            -1L
+                    )
+            val progress =
+                    dataSource.getFloat(DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name, -1f)
+
+            @SuppressLint("DiscouragedApi")
+            val drawableId = context.resources.getIdentifier(
+                    "chapter_${chapter.id.toString().padStart(3, '0')}",
+                    "drawable",
+                    context.packageName
+            )
+            when (downloadStatus) {
+                DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD,
+                DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED,
+                DownloadWorkManager.DownloadStatus.DOWNLOADING -> {
+                    downloadListener?.onProgressChanged(
                             reciter,
                             chapter,
                             downloadStatus,
@@ -303,29 +319,30 @@ object MediaManager : LifecycleOwner {
                             progress,
                             null
                     )
-
-                    DownloadWorkManager.DownloadStatus.FILE_EXISTS,
-                    DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> {
-                        downloadListener?.onProgressChanged(
-                                reciter,
-                                chapter,
-                                downloadStatus,
-                                bytesDownloaded,
-                                fileSize,
-                                progress,
-                                File(chapterFilePath!!)
-                        )
-
-                        mediaStateListener?.onMediaReady(
-                                reciter,
-                                chapter,
-                                File(chapterFilePath!!),
-                                AppCompatResources.getDrawable(context, drawableId)
-                        )
-                    }
-
-                    DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR    -> Unit
                 }
+
+                DownloadWorkManager.DownloadStatus.FILE_EXISTS,
+                DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> {
+                    downloadListener?.onProgressChanged(
+                            reciter,
+                            chapter,
+                            downloadStatus,
+                            bytesDownloaded,
+                            fileSize,
+                            progress,
+                            File(chapterFilePath!!)
+                    )
+
+                    mediaStateListener?.onMediaReady(
+                            reciter,
+                            chapter,
+                            File(chapterFilePath!!),
+                            AppCompatResources.getDrawable(context, drawableId)
+                    )
+                }
+
+                DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR -> Unit
             }
+        }
     }
 }

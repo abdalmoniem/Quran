@@ -354,6 +354,8 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     }
 
     private fun startPlaybackMonitoring() {
+        stopPlaybackMonitoring()
+
         playbackMonitorTimer = Timer()
         playbackMonitorTimer.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
@@ -374,6 +376,13 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 }
             }
         }, 0, 500)
+    }
+
+    private fun stopPlaybackMonitoring() {
+        if (this::playbackMonitorTimer.isInitialized) {
+            playbackMonitorTimer.cancel()
+            playbackMonitorTimer.purge()
+        }
     }
 
     private fun createBrowsableMediaItem(
@@ -597,8 +606,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 "$downloadStatus ${chapter.name_simple} $bytesDownloaded / $audioFileSize (${progress}%)"
         )
 
-        playbackMonitorTimer.cancel()
-        playbackMonitorTimer.purge()
+        stopPlaybackMonitoring()
         isMediaPlaying = false
         updateMediaPlayer(reciter, chapter)
         updateWidget(reciter, chapter)
@@ -676,7 +684,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         updateMediaSession(reciter, chapter)
         updateMediaPlayer(reciter, chapter, chapterPosition)
         updateWidget(reciter, chapter)
-        ioCoroutineScope.launch { mediaManager.processChapter(reciter, chapter) }
+        mediaManager.processChapter(reciter, chapter)
 
         showMediaNotification(chapter)
     }
@@ -752,8 +760,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         if ((reciter.id != currentReciter?.id) || (chapter.id != currentChapter?.id)) {
             currentReciter = reciter
             currentChapter = chapter
-            playbackMonitorTimer.cancel()
-            playbackMonitorTimer.purge()
+            stopPlaybackMonitoring()
 
             processChapter(reciter, chapter, chapterPosition)
             return
@@ -774,17 +781,15 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     fun skipToNextChapter() {
         exoPlayer.stop()
         currentChapterPosition = -1L
-        playbackMonitorTimer.cancel()
-        playbackMonitorTimer.purge()
-        ioCoroutineScope.launch { mediaManager.processNextChapter() }
+        stopPlaybackMonitoring()
+        mediaManager.processNextChapter()
     }
 
     fun skipToPreviousChapter() {
         exoPlayer.stop()
-        playbackMonitorTimer.cancel()
-        playbackMonitorTimer.purge()
         currentChapterPosition = -1L
-        ioCoroutineScope.launch { mediaManager.processPreviousChapter() }
+        stopPlaybackMonitoring()
+        mediaManager.processPreviousChapter()
     }
 
     fun seekChapterToPosition(chapterPosition: Long) {
