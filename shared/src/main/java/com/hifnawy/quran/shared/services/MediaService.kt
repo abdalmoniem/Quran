@@ -129,7 +129,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private val notificationManager: NotificationManager by lazy {
         getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
-    private var playbackMonitorTimer = Timer()
+    private lateinit var playbackMonitorTimer: Timer
     private lateinit var mediaSession: MediaSessionCompat
     private lateinit var sharedPrefsManager: SharedPreferencesManager
     private val mediaManager: MediaManager by lazy { MediaManager.getInstance(this) }
@@ -343,17 +343,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             Player.STATE_BUFFERING -> Unit
             Player.STATE_READY     -> {
                 setMediaPlaybackState(MediaSessionState.PLAYING)
-
-                try {
-                    startPlaybackMonitoring()
-                } catch (_: IllegalStateException) {
-                    Log.w(
-                            TAG,
-                            "${this::playbackMonitorTimer.name} is already cancelled or not started, skipping cancellation!"
-                    )
-                    playbackMonitorTimer = Timer()
-                    startPlaybackMonitoring()
-                }
+                startPlaybackMonitoring()
             }
 
             Player.STATE_ENDED     -> {
@@ -364,6 +354,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     }
 
     private fun startPlaybackMonitoring() {
+        playbackMonitorTimer = Timer()
         playbackMonitorTimer.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
                 mainCoroutineScope.launch {
@@ -606,6 +597,9 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 "$downloadStatus ${chapter.name_simple} $bytesDownloaded / $audioFileSize (${progress}%)"
         )
 
+        playbackMonitorTimer.cancel()
+        playbackMonitorTimer.purge()
+        isMediaPlaying = false
         updateMediaPlayer(reciter, chapter)
         updateWidget(reciter, chapter)
 
