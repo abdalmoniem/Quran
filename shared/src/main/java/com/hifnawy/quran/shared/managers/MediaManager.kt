@@ -13,12 +13,15 @@ import androidx.lifecycle.lifecycleScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
+import androidx.work.WorkInfo.State
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.api.QuranAPI.getChaptersList
 import com.hifnawy.quran.shared.api.QuranAPI.getReciterChaptersAudioFiles
 import com.hifnawy.quran.shared.api.QuranAPI.getRecitersList
+import com.hifnawy.quran.shared.managers.DownloadWorkManager.DownloadStatus
+import com.hifnawy.quran.shared.managers.DownloadWorkManager.DownloadWorkerInfo
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.ChapterAudioFile
 import com.hifnawy.quran.shared.model.Constants
@@ -36,42 +39,64 @@ private val TAG = MediaManager::class.simpleName
 @SuppressLint("StaticFieldLeak")
 object MediaManager : LifecycleOwner {
 
-    fun interface DownloadListener {
-
-        fun onProgressChanged(
-                reciter: Reciter,
-                chapter: Chapter,
-                downloadStatus: DownloadWorkManager.DownloadStatus,
-                bytesDownloaded: Long,
-                fileSize: Int,
-                percentage: Float,
-                chapterAudioFile: File?
-        )
-    }
-
-    fun interface MediaStateListener {
-
-        fun onMediaReady(
-                reciter: Reciter,
-                chapter: Chapter,
-                chapterAudioFile: File,
-                chapterDrawable: Drawable?
-        )
-    }
-
-    var downloadListener: DownloadListener? = null
-    var mediaStateListener: MediaStateListener? = null
-    private var reciters: List<Reciter> = mutableListOf()
-    private var chapters: List<Chapter> = mutableListOf()
-    private var chapterAudioFiles: List<ChapterAudioFile> = mutableListOf()
+    var onMediaReady: ((
+            reciter: Reciter,
+            chapter: Chapter,
+            chapterAudioFile: File,
+            chapterDrawable: Drawable?
+    ) -> Unit)? = null
+    var onSingleDownloadProgressUpdate: ((
+            reciter: Reciter,
+            chapter: Chapter,
+            downloadStatus: DownloadStatus,
+            bytesDownloaded: Long,
+            fileSize: Int,
+            percentage: Float,
+            chapterAudioFile: File?
+    ) -> Unit)? = null
+    var onBulkDownloadProgressUpdate: ((
+            reciter: Reciter,
+            currentChapter: Chapter?,
+            currentChapterIndex: Int,
+            currentChapterDownloadStatus: DownloadStatus,
+            currentChapterBytesDownloaded: Long,
+            currentChapterFileSize: Int,
+            currentChapterProgress: Float,
+            allChaptersProgress: Float
+    ) -> Unit)? = null
+    var onBulkDownloadSucceed: ((
+            reciter: Reciter,
+            currentChapter: Chapter?,
+            currentChapterIndex: Int,
+            currentChapterDownloadStatus: DownloadStatus,
+            currentChapterBytesDownloaded: Long,
+            currentChapterFileSize: Int,
+            currentChapterProgress: Float,
+            allChaptersProgress: Float
+    ) -> Unit)? = null
+    var onBulkDownloadFail: ((
+            reciter: Reciter,
+            currentChapter: Chapter?,
+            currentChapterIndex: Int,
+            currentChapterDownloadStatus: DownloadStatus,
+            currentChapterBytesDownloaded: Long,
+            currentChapterFileSize: Int,
+            currentChapterProgress: Float,
+            allChaptersProgress: Float
+    ) -> Unit)? = null
+    private var reciters: List<Reciter> = listOf()
+    private var chapters: List<Chapter> = listOf()
+    private var chapterAudioFiles: List<ChapterAudioFile> = listOf()
     private var currentReciter: Reciter? = null
     private var currentChapter: Chapter? = null
     private lateinit var context: Context
-    private lateinit var downloadObserver: DownloadObserver
+    private lateinit var singleDownloadObserver: SingleDownloadObserver
+    private lateinit var bulkDownloadObserver: BulkDownloadObserver
     private val sharedPrefsManager by lazy { SharedPreferencesManager(context) }
     private val lifecycleRegistry: LifecycleRegistry by lazy { LifecycleRegistry(this) }
     private val workManager by lazy { WorkManager.getInstance(context) }
-    private val downloadRequestID by lazy { UUID.fromString(context.getString(R.string.SINGLE_DOWNLOAD_WORK_REQUEST_ID)) }
+    private val singleDownloadRequestID by lazy { UUID.fromString(context.getString(R.string.SINGLE_DOWNLOAD_WORK_REQUEST_ID)) }
+    private val bulkDownloadRequestID by lazy { UUID.fromString(context.getString(R.string.BULK_DOWNLOAD_WORK_REQUEST_ID)) }
     override val lifecycle: Lifecycle
         get() = lifecycleRegistry
 
@@ -81,13 +106,14 @@ object MediaManager : LifecycleOwner {
 
     @Synchronized
     fun getInstance(context: Context): MediaManager {
-        this.context = context
+        this.context = context.applicationContext
         return this
     }
 
     fun stopLifecycle() {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-        workManager.cancelWorkById(downloadRequestID)
+        workManager.cancelWorkById(singleDownloadRequestID)
+        workManager.cancelWorkById(bulkDownloadRequestID)
     }
 
     fun whenRecitersReady(onReady: (reciters: List<Reciter>) -> Unit) =
@@ -194,7 +220,7 @@ object MediaManager : LifecycleOwner {
         sharedPrefsManager.lastChapter = chapter
 
         sharedPrefsManager.getChapterPath(reciter, chapter)?.let { chapterAudioFile ->
-            mediaStateListener?.onMediaReady(
+            onMediaReady?.invoke(
                     reciter,
                     chapter,
                     File(chapterAudioFile),
@@ -232,73 +258,104 @@ object MediaManager : LifecycleOwner {
     }
 
     fun cancelPendingDownloads() {
-        workManager.cancelWorkById(downloadRequestID)
+        workManager.cancelWorkById(singleDownloadRequestID)
+        workManager.cancelWorkById(bulkDownloadRequestID)
+    }
+
+    fun downloadChapters(reciter: Reciter) {
+        DownloadWorkManager.chapters = chapters
+        val bulkDownloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
+            .setInputData(
+                    workDataOf(
+                            Constants.IntentDataKeys.IS_SINGLE_DOWNLOAD.name to false,
+                            Constants.IntentDataKeys.RECITER.name to
+                                    DownloadWorkManager.fromReciter(reciter)
+                    )
+            )
+            .setId(bulkDownloadRequestID)
+            .build()
+
+        observeBulkDownloadProgress(bulkDownloadRequestID, reciter)
+
+        workManager.enqueueUniqueWork(
+                context.getString(R.string.bulkDownloadWorkManagerUniqueWorkName),
+                ExistingWorkPolicy.REPLACE,
+                bulkDownloadWorkRequest
+        )
     }
 
     private fun downloadChapter(reciter: Reciter, chapter: Chapter) {
         Log.d(TAG, "Downloading ${reciter.reciter_name} - ${chapter.name_simple}")
-        val downloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
+        val singleDownloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
             .setInputData(
                     workDataOf(
-                            Constants.IntentDataKeys.SINGLE_DOWNLOAD_TYPE.name to true,
-                            Constants.IntentDataKeys.RECITER.name to DownloadWorkManager.fromReciter(
-                                    reciter
-                            ),
-                            Constants.IntentDataKeys.CHAPTER.name to DownloadWorkManager.fromChapter(
-                                    chapter
-                            )
+                            Constants.IntentDataKeys.IS_SINGLE_DOWNLOAD.name to true,
+                            Constants.IntentDataKeys.RECITER.name to
+                                    DownloadWorkManager.fromReciter(reciter),
+                            Constants.IntentDataKeys.CHAPTER.name to
+                                    DownloadWorkManager.fromChapter(chapter)
                     )
             )
-            .setId(downloadRequestID)
+            .setId(singleDownloadRequestID)
             .build()
 
-        observeWorker(downloadRequestID, reciter, chapter)
+        observeSingleDownloadProgress(singleDownloadRequestID, reciter, chapter)
 
         workManager.enqueueUniqueWork(
                 context.getString(R.string.singleDownloadWorkManagerUniqueWorkName),
                 ExistingWorkPolicy.REPLACE,
-                downloadWorkRequest
+                singleDownloadWorkRequest
         )
     }
 
-    private fun observeWorker(requestID: UUID, reciter: Reciter, chapter: Chapter) =
-            if (!this::downloadObserver.isInitialized) {
-                downloadObserver = DownloadObserver(reciter, chapter)
-                workManager.getWorkInfoByIdLiveData(requestID).observe(this, downloadObserver)
-            } else {
-                downloadObserver.reciter = reciter
-                downloadObserver.chapter = chapter
-            }
+    private fun observeSingleDownloadProgress(requestID: UUID, reciter: Reciter, chapter: Chapter) {
+        if (!this::singleDownloadObserver.isInitialized) {
+            singleDownloadObserver = SingleDownloadObserver(reciter, chapter)
+            workManager.getWorkInfoByIdLiveData(requestID).observe(this, singleDownloadObserver)
+        } else {
+            singleDownloadObserver.reciter = reciter
+            singleDownloadObserver.chapter = chapter
+        }
+    }
 
-    internal class DownloadObserver(var reciter: Reciter, var chapter: Chapter) :
+    private fun observeBulkDownloadProgress(requestID: UUID, reciter: Reciter) {
+        if (!this::bulkDownloadObserver.isInitialized) {
+            bulkDownloadObserver = BulkDownloadObserver(reciter)
+            workManager.getWorkInfoByIdLiveData(requestID).observe(this, bulkDownloadObserver)
+        } else {
+            bulkDownloadObserver.reciter = reciter
+        }
+    }
+
+    internal class SingleDownloadObserver(var reciter: Reciter, var chapter: Chapter) :
             Observer<WorkInfo?> {
 
         override fun onChanged(value: WorkInfo?) {
             if (value == null) return
-            if ((value.state != WorkInfo.State.RUNNING) && (value.state != WorkInfo.State.SUCCEEDED)) return
+            if ((value.state != State.RUNNING) && (value.state != State.SUCCEEDED)) return
             val dataSource =
-                    if (value.state == WorkInfo.State.SUCCEEDED) value.outputData
+                    if (value.state == State.SUCCEEDED) value.outputData
                     else value.progress
 
             Log.d(
                     TAG,
                     "DownloadWorkManager: ${value.state} - ${reciter.reciter_name} - ${chapter.name_simple}\n$dataSource"
             )
-            val downloadStatus = DownloadWorkManager.DownloadStatus.valueOf(
-                    (dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.DOWNLOAD_STATUS.name))
+            val downloadStatus = DownloadStatus.valueOf(
+                    (dataSource.getString(DownloadWorkerInfo.DOWNLOAD_STATUS.name))
                     ?: return
             )
             val fileSize =
-                    dataSource.getInt(DownloadWorkManager.DownloadWorkerInfo.FILE_SIZE.name, -1)
+                    dataSource.getInt(DownloadWorkerInfo.FILE_SIZE.name, -1)
             val chapterFilePath =
-                    dataSource.getString(DownloadWorkManager.DownloadWorkerInfo.FILE_PATH.name)
+                    dataSource.getString(DownloadWorkerInfo.FILE_PATH.name)
             val bytesDownloaded =
                     dataSource.getLong(
-                            DownloadWorkManager.DownloadWorkerInfo.BYTES_DOWNLOADED.name,
+                            DownloadWorkerInfo.BYTES_DOWNLOADED.name,
                             -1L
                     )
             val progress =
-                    dataSource.getFloat(DownloadWorkManager.DownloadWorkerInfo.PROGRESS.name, -1f)
+                    dataSource.getFloat(DownloadWorkerInfo.PROGRESS.name, -1f)
 
             @SuppressLint("DiscouragedApi")
             val drawableId = context.resources.getIdentifier(
@@ -307,10 +364,11 @@ object MediaManager : LifecycleOwner {
                     context.packageName
             )
             when (downloadStatus) {
-                DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD,
-                DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED,
-                DownloadWorkManager.DownloadStatus.DOWNLOADING -> {
-                    downloadListener?.onProgressChanged(
+                DownloadStatus.STARTING_DOWNLOAD,
+                DownloadStatus.DOWNLOAD_INTERRUPTED,
+                DownloadStatus.DOWNLOAD_ERROR,
+                DownloadStatus.DOWNLOADING       -> {
+                    onSingleDownloadProgressUpdate?.invoke(
                             reciter,
                             chapter,
                             downloadStatus,
@@ -321,9 +379,9 @@ object MediaManager : LifecycleOwner {
                     )
                 }
 
-                DownloadWorkManager.DownloadStatus.FILE_EXISTS,
-                DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> {
-                    downloadListener?.onProgressChanged(
+                DownloadStatus.FILE_EXISTS,
+                DownloadStatus.FINISHED_DOWNLOAD -> {
+                    onSingleDownloadProgressUpdate?.invoke(
                             reciter,
                             chapter,
                             downloadStatus,
@@ -333,16 +391,93 @@ object MediaManager : LifecycleOwner {
                             File(chapterFilePath!!)
                     )
 
-                    mediaStateListener?.onMediaReady(
+                    onMediaReady?.invoke(
                             reciter,
                             chapter,
                             File(chapterFilePath!!),
                             AppCompatResources.getDrawable(context, drawableId)
                     )
                 }
-
-                DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR -> Unit
             }
+        }
+    }
+
+    internal class BulkDownloadObserver(var reciter: Reciter) : Observer<WorkInfo?> {
+
+        override fun onChanged(value: WorkInfo?) {
+            if (value == null) return
+
+            Log.d(TAG, "${value.state}\n$value")
+            val dataSource =
+                    if ((value.state == State.SUCCEEDED) || (value.state == State.FAILED)) value.outputData
+                    else value.progress
+
+            if (value.state == State.SUCCEEDED) {
+                onBulkDownloadSucceed?.invoke(
+                        reciter,
+                        null,
+                        context.resources.getInteger(R.integer.quran_chapter_count),
+                        DownloadStatus.DOWNLOAD_ERROR,
+                        0,
+                        0,
+                        0f,
+                        0f
+                )
+                return
+            }
+
+            if (value.state == State.FAILED) {
+                if (dataSource.keyValueMap.isEmpty()) {
+                    onBulkDownloadFail?.invoke(
+                            reciter,
+                            null,
+                            context.resources.getInteger(R.integer.quran_chapter_count),
+                            DownloadStatus.DOWNLOAD_ERROR,
+                            0,
+                            0,
+                            0f,
+                            0f
+                    )
+                } else {
+                    onBulkDownloadProgressUpdate?.invoke(
+                            reciter,
+                            null,
+                            context.resources.getInteger(R.integer.quran_chapter_count),
+                            DownloadStatus.DOWNLOAD_ERROR,
+                            0,
+                            0,
+                            0f,
+                            0f
+                    )
+                }
+                return
+            }
+
+            Log.d(TAG, "${value.state}\n$dataSource")
+            val currentChapterJSON = dataSource.getString(DownloadWorkerInfo.DOWNLOAD_CHAPTER.name)
+            val currentChapter = DownloadWorkManager.toChapter(currentChapterJSON)
+            val downloadStatus = DownloadStatus.valueOf(
+                    dataSource.getString(DownloadWorkerInfo.DOWNLOAD_STATUS.name)
+                    ?: return
+            )
+            val bytesDownloaded = dataSource.getLong(DownloadWorkerInfo.BYTES_DOWNLOADED.name, -1L)
+            val fileSize = dataSource.getInt(DownloadWorkerInfo.FILE_SIZE.name, -1)
+            val progress = dataSource.getFloat(DownloadWorkerInfo.PROGRESS.name, -1f)
+            val currentChapterIndex =
+                    chapters.indexOf(chapters.find { chapter -> chapter.id == currentChapter.id }) + 1
+            val chaptersDownloadProgress =
+                    (currentChapterIndex.toFloat() / chapters.size.toFloat()) * 100f
+
+            onBulkDownloadProgressUpdate?.invoke(
+                    reciter,
+                    currentChapter,
+                    currentChapterIndex,
+                    downloadStatus,
+                    bytesDownloaded,
+                    fileSize,
+                    progress,
+                    chaptersDownloadProgress
+            )
         }
     }
 }

@@ -100,7 +100,7 @@ class MediaPlayback : Fragment() {
                 parentActivity.startForegroundService(Intent(
                         binding.root.context, MediaService::class.java
                 ).apply {
-                    action = Constants.Actions.TOGGLE_MEDIA.name
+                    action = Constants.MediaServiceActions.TOGGLE_MEDIA.name
                 })
             }
 
@@ -108,7 +108,7 @@ class MediaPlayback : Fragment() {
                 parentActivity.startForegroundService(Intent(
                         binding.root.context, MediaService::class.java
                 ).apply {
-                    action = Constants.Actions.SKIP_TO_NEXT_MEDIA.name
+                    action = Constants.MediaServiceActions.SKIP_TO_NEXT_MEDIA.name
                 })
             }
 
@@ -116,7 +116,7 @@ class MediaPlayback : Fragment() {
                 parentActivity.startForegroundService(Intent(
                         binding.root.context, MediaService::class.java
                 ).apply {
-                    action = Constants.Actions.SKIP_TO_PREVIOUS_MEDIA.name
+                    action = Constants.MediaServiceActions.SKIP_TO_PREVIOUS_MEDIA.name
                 })
             }
 
@@ -134,7 +134,7 @@ class MediaPlayback : Fragment() {
                             binding.root.context,
                             MediaService::class.java
                     ).apply {
-                        action = Constants.Actions.SEEK_MEDIA.name
+                        action = Constants.MediaServiceActions.SEEK_MEDIA.name
 
                         putExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, value.toLong())
                     })
@@ -166,7 +166,7 @@ class MediaPlayback : Fragment() {
 
         parentActivity.registerReceiver(mediaUpdatesReceiver,
                                         IntentFilter(getString(sharedR.string.quran_media_service_updates)).apply {
-                                            addCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)
+                                            addCategory(Constants.ServiceUpdates.MEDIA_PLAYBACK_UPDATES.name)
                                         })
 
         playChapter(
@@ -225,7 +225,7 @@ class MediaPlayback : Fragment() {
         parentActivity.startForegroundService(Intent(
                 binding.root.context, MediaService::class.java
         ).apply {
-            action = Constants.Actions.PLAY_MEDIA.name
+            action = Constants.MediaServiceActions.PLAY_MEDIA.name
 
             putExtra(Constants.IntentDataKeys.RECITER.name, reciter)
             putExtra(Constants.IntentDataKeys.CHAPTER.name, chapter)
@@ -399,7 +399,7 @@ class MediaPlayback : Fragment() {
 
         @SuppressLint("SetTextI18n")
         override fun onReceive(context: Context, intent: Intent) {
-            if (!intent.hasCategory(Constants.ServiceUpdates.SERVICE_UPDATE.name)) return
+            if (!intent.hasCategory(Constants.ServiceUpdates.MEDIA_PLAYBACK_UPDATES.name)) return
 
             reciter = intent.getTypedSerializable(Constants.IntentDataKeys.RECITER.name) ?: return
             chapter = intent.getTypedSerializable(Constants.IntentDataKeys.CHAPTER.name) ?: return

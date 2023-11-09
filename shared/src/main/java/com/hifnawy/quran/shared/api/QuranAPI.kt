@@ -30,7 +30,8 @@ object QuranAPI {
     ) {
         val client: OkHttpClient = OkHttpClient().newBuilder()
             .connectTimeout(3, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true).build()
+            // .retryOnConnectionFailure(true)
+            .build()
         val request: Request = Request.Builder()
             .url(url)
             .method("GET", null)
