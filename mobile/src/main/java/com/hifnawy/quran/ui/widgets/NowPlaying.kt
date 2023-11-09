@@ -68,8 +68,8 @@ class NowPlaying : AppWidgetProvider() {
 
         when (intent.action) {
             WidgetActions.PLAY_PAUSE.name            -> {
-                val state = if (isMediaPlaying) Constants.Actions.PAUSE_MEDIA
-                else Constants.Actions.PLAY_MEDIA
+                val state = if (isMediaPlaying) Constants.MediaServiceActions.PAUSE_MEDIA
+                else Constants.MediaServiceActions.PLAY_MEDIA
 
                 Log.d(NowPlaying::class.simpleName, "new state: $state")
                 changeMediaState(
@@ -79,12 +79,12 @@ class NowPlaying : AppWidgetProvider() {
 
             WidgetActions.NEXT.name                  -> changeMediaState(
                     context,
-                    Constants.Actions.SKIP_TO_NEXT_MEDIA
+                    Constants.MediaServiceActions.SKIP_TO_NEXT_MEDIA
             )
 
             WidgetActions.PREVIOUS.name              -> changeMediaState(
                     context,
-                    Constants.Actions.SKIP_TO_PREVIOUS_MEDIA
+                    Constants.MediaServiceActions.SKIP_TO_PREVIOUS_MEDIA
             )
 
             WidgetActions.OPEN_MEDIA_PLAYER.name     -> openMediaPlayer(context)
@@ -210,7 +210,7 @@ class NowPlaying : AppWidgetProvider() {
         }, null)
     }
 
-    private fun changeMediaState(context: Context, action: Constants.Actions) {
+    private fun changeMediaState(context: Context, action: Constants.MediaServiceActions) {
         views.setViewVisibility(R.id.chapter_loading, View.VISIBLE)
         views.setViewVisibility(R.id.media_playback, View.INVISIBLE)
         pushUIUpdates(context)

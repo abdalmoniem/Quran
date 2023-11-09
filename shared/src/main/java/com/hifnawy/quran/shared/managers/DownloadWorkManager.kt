@@ -19,7 +19,6 @@ import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -31,7 +30,6 @@ import java.text.DecimalFormatSymbols
 import java.text.NumberFormat
 import java.util.Locale
 
-@Suppress("PrivatePropertyName")
 private var TAG = DownloadWorkManager::class.simpleName
 
 class DownloadWorkManager(private val context: Context, workerParams: WorkerParameters) :
@@ -39,7 +37,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
     companion object {
 
-        var chapters = mutableListOf<Chapter>()
+        var chapters = listOf<Chapter>()
         private val gsonParser = Gson()
 
         fun toReciter(reciterJSON: String?): Reciter {
@@ -60,19 +58,22 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
     }
 
     enum class DownloadStatus {
-        FILE_EXISTS, STARTING_DOWNLOAD, DOWNLOADING, FINISHED_DOWNLOAD, DOWNLOAD_ERROR, DOWNLOAD_INTERRUPTED
+        FILE_EXISTS, STARTING_DOWNLOAD, DOWNLOADING, FINISHED_DOWNLOAD, DOWNLOAD_ERROR,
+        DOWNLOAD_INTERRUPTED
     }
 
     enum class DownloadWorkerInfo {
-        DOWNLOADED_CHAPTER_COUNT, DOWNLOAD_CHAPTER, DOWNLOAD_STATUS, BYTES_DOWNLOADED, FILE_SIZE, FILE_PATH, PROGRESS, ERROR_MESSAGE
+        DOWNLOADED_CHAPTER_COUNT, DOWNLOAD_CHAPTER, DOWNLOAD_STATUS, BYTES_DOWNLOADED, FILE_SIZE,
+        FILE_PATH, PROGRESS, ERROR_MESSAGE
     }
 
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(context) }
     private val numberFormat = NumberFormat.getNumberInstance(Locale.ENGLISH)
 
     override suspend fun doWork(): Result = coroutineScope {
+        if (isStopped) return@coroutineScope Result.success()
         val reciterJSON =
-            inputData.getString(Constants.IntentDataKeys.RECITER.name)
+                inputData.getString(Constants.IntentDataKeys.RECITER.name)
                 ?: return@coroutineScope Result.failure(
                         workDataOf(
                                 DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
@@ -80,12 +81,12 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                         )
                 )
         val singleFileDownload =
-            inputData.getBoolean(Constants.IntentDataKeys.SINGLE_DOWNLOAD_TYPE.name, false)
+                inputData.getBoolean(Constants.IntentDataKeys.IS_SINGLE_DOWNLOAD.name, false)
         val reciter = toReciter(reciterJSON)
 
         if (singleFileDownload) {
             val chapterJSON =
-                inputData.getString(Constants.IntentDataKeys.CHAPTER.name)
+                    inputData.getString(Constants.IntentDataKeys.CHAPTER.name)
                     ?: return@coroutineScope Result.failure(
                             workDataOf(
                                     DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
@@ -94,7 +95,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                     )
             val chapter = toChapter(chapterJSON)
             val urlString =
-                inputData.getString(Constants.IntentDataKeys.CHAPTER_URL.name)
+                    inputData.getString(Constants.IntentDataKeys.CHAPTER_URL.name)
                     ?: QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url
                     ?: return@coroutineScope Result.failure(
                             workDataOf(
@@ -141,49 +142,51 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 )
         )
         for (currentChapter in chapters) {
-            sharedPrefsManager.getChapterPath(reciter, currentChapter)
-                ?.let { chapterFilePath ->
-                    val chapterFile = File(chapterFilePath)
-                    val chapterFileSize = Files.readAttributes(
-                            chapterFile.toPath(), BasicFileAttributes::class.java
-                    ).size()
+            if (!isStopped) {
+                sharedPrefsManager.getChapterPath(reciter, currentChapter)
+                    ?.let { chapterFilePath ->
+                        val chapterFile = File(chapterFilePath)
+                        val chapterFileSize = Files.readAttributes(
+                                chapterFile.toPath(), BasicFileAttributes::class.java
+                        ).size()
 
-                    Log.d(
-                            TAG,
-                            "file ${chapterFile.name} ${numberFormat.format(chapterFileSize)} bytes / ${
-                                numberFormat.format(chapterFileSize)
-                            } bytes (100%) exists and is complete, will not download!"
-                    )
+                        Log.d(
+                                TAG,
+                                "file ${chapterFile.name} ${numberFormat.format(chapterFileSize)} bytes / ${
+                                    numberFormat.format(chapterFileSize)
+                                } bytes (100%) exists and is complete, will not download!"
+                        )
 
-                    setProgress(
-                            getWorkData(
-                                    DownloadStatus.FILE_EXISTS,
-                                    chapterFileSize,
-                                    chapterFileSize.toInt(),
-                                    chapterFile.absolutePath,
-                                    100f,
-                                    currentChapter
-                            )
-                    )
-                } ?: chapterAudioFiles.find { chapterAudioFile ->
-                chapterAudioFile.chapter_id == currentChapter.id
-            }?.let { chapterAudioFile ->
-                val result =
-                    downloadFile(URL(chapterAudioFile.audio_url), reciter, currentChapter, false)
-                if (result.outputData.getString(DownloadWorkerInfo.DOWNLOAD_STATUS.name) == DownloadStatus.DOWNLOAD_ERROR.name) {
-                    downloadedChapterCount--
+                        setProgress(
+                                getWorkData(
+                                        DownloadStatus.FILE_EXISTS,
+                                        chapterFileSize,
+                                        chapterFileSize.toInt(),
+                                        chapterFile.absolutePath,
+                                        100f,
+                                        currentChapter
+                                )
+                        )
+                    } ?: chapterAudioFiles.find { chapterAudioFile ->
+                    chapterAudioFile.chapter_id == currentChapter.id
+                }?.let { chapterAudioFile ->
+                    val result =
+                            downloadFile(URL(chapterAudioFile.audio_url), reciter, currentChapter, false)
+                    if (result.outputData.getString(DownloadWorkerInfo.DOWNLOAD_STATUS.name) == DownloadStatus.DOWNLOAD_ERROR.name) {
+                        Log.d(TAG, "failed to download ${chapterAudioFile.audio_url}")
+                        downloadedChapterCount--
+                    }
                 }
-            }
 
-            downloadedChapterCount++
-            delay(50)
+                downloadedChapterCount++
+            }
         }
 
         if (downloadedChapterCount < context.resources.getInteger(R.integer.quran_chapter_count)) {
             return@coroutineScope Result.failure(
                     workDataOf(
                             DownloadWorkerInfo.DOWNLOADED_CHAPTER_COUNT.name to downloadedChapterCount,
-                            DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FINISHED_DOWNLOAD.name,
+                            DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
                             DownloadWorkerInfo.PROGRESS.name to 100f
                     )
             )
@@ -322,7 +325,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                     }
                 }
 
-                else -> {
+                else        -> {
                     setProgress(
                             workDataOf(
                                     DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
@@ -359,7 +362,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             setRequestProperty("Range", "bytes=$offset-")
             connect()
             val decimalFormat =
-                DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
+                    DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
             val outputStream = FileOutputStream(chapterFile, true)
             var bytesDownloaded = offset
             val buffer = ByteArray(8_192) // 8KB buffer size
@@ -427,7 +430,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                     NotificationManager.IMPORTANCE_HIGH
             ).apply { description = chapter.name_arabic }
             val notificationManager: NotificationManager =
-                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
             var bytes: Int
             do {
@@ -576,9 +579,9 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
     private fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): File {
         val reciterDirectory =
-            "${context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}"
+                "${context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}"
         val chapterFileName =
-            "$reciterDirectory/${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3"
+                "$reciterDirectory/${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3"
 
         return File(chapterFileName)
     }
