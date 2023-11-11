@@ -257,9 +257,8 @@ object MediaManager : LifecycleOwner {
     }
 
     fun cancelPendingDownloads() {
-        DownloadWorkManager.isCancelled = true
-        // workManager.cancelWorkById(singleDownloadRequestID)
-        // workManager.cancelWorkById(bulkDownloadRequestID)
+        workManager.cancelWorkById(singleDownloadRequestID)
+        workManager.cancelWorkById(bulkDownloadRequestID)
     }
 
     fun downloadChapters(reciter: Reciter) {

@@ -24,9 +24,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
 import java.net.HttpURLConnection
@@ -39,6 +37,8 @@ import java.text.NumberFormat
 import java.util.Locale
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.io.path.createParentDirectories
 import kotlin.coroutines.coroutineContext as currentCoroutineContext
 
 private var TAG = DownloadWorkManager::class.simpleName
@@ -48,7 +48,6 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
     companion object {
 
-        var isCancelled = false
         var chapters = listOf<Chapter>()
         private val gsonParser = Gson()
 
@@ -91,15 +90,14 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(context) }
     private val numberFormat = NumberFormat.getNumberInstance(Locale.ENGLISH)
-    val decimalFormat =
+    private val decimalFormat =
             DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
     private val threadLock = ReentrantLock()
 
-    override suspend fun doWork(): Result = coroutineScope {
-        // if (isCancelled) return@coroutineScope Result.success()
+    override suspend fun doWork(): Result {
         val reciterJSON =
                 inputData.getString(Constants.IntentDataKeys.RECITER.name)
-                ?: return@coroutineScope Result.failure(
+                ?: return Result.failure(
                         workDataOf(
                                 DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
                                 DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid reciter"
@@ -112,7 +110,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         if (singleFileDownload) {
             val chapterJSON =
                     inputData.getString(Constants.IntentDataKeys.CHAPTER.name)
-                    ?: return@coroutineScope Result.failure(
+                    ?: return Result.failure(
                             workDataOf(
                                     DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
                                     DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid chapter"
@@ -122,7 +120,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             val urlString =
                     inputData.getString(Constants.IntentDataKeys.CHAPTER_URL.name)
                     ?: QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url
-                    ?: return@coroutineScope Result.failure(
+                    ?: return Result.failure(
                             workDataOf(
                                     DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
                                     DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid URL"
@@ -137,7 +135,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
                 Log.d(TAG, "${chapter.name_simple} audio file exists in ${chapterFile.absoluteFile}")
 
-                return@coroutineScope Result.success(
+                return Result.success(
                         workDataOf(
                                 DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FILE_EXISTS.name,
                                 DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterFileSize,
@@ -148,12 +146,12 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 )
             } ?: run {
                 Log.d(TAG, "${chapter.name_simple} audio file does not exist, downloading...")
-                return@coroutineScope downloadFile(url, reciter, chapter, true)
+                return downloadFile(url, reciter, chapter, true)
             }
         }
 
         if (chapters.isEmpty()) {
-            return@coroutineScope Result.failure(
+            return Result.failure(
                     workDataOf(
                             DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
                             DownloadWorkerInfo.ERROR_MESSAGE.name to "invalid chapters list"
@@ -167,7 +165,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                     TAG,
                     "cannot fetch chapter audio files for reciter #${reciter.id}: ${reciter.reciter_name}"
             )
-            return@coroutineScope Result.failure(
+            return Result.failure(
                     // workDataOf(
                     //         DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
                     //         DownloadWorkerInfo.ERROR_MESSAGE.name to
@@ -187,7 +185,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                     )
             )
             for (currentChapter in chapters) {
-                if (!isCancelled) {
+                if (!isStopped) {
                     sharedPrefsManager.getChapterFile(reciter, currentChapter)
                         ?.let { chapterFile ->
                             val chapterFileSize = Files.readAttributes(
@@ -232,7 +230,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             }
 
             if (downloadedChapterCount < context.resources.getInteger(R.integer.quran_chapter_count)) {
-                return@coroutineScope Result.failure(
+                return Result.failure(
                         workDataOf(
                                 DownloadWorkerInfo.DOWNLOADED_CHAPTER_COUNT.name to downloadedChapterCount,
                                 DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
@@ -241,7 +239,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 )
             }
 
-            return@coroutineScope Result.success(
+            return Result.success(
                     workDataOf(
                             DownloadWorkerInfo.DOWNLOADED_CHAPTER_COUNT.name to downloadedChapterCount,
                             DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FINISHED_DOWNLOAD.name,
@@ -276,24 +274,27 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             reciter: Reciter,
             chapter: Chapter,
             singleFileDownload: Boolean = true,
-            threadCount: Int = 16
+            threadCount: Int = 32
     ): Result {
         val chapterFile = getChapterPath(context, reciter, chapter)
 
-        chapterFile.parentFile?.run {
-            if (!exists()) {
-                mkdirs()
-            }
-        }
-
-        (withContext(Dispatchers.IO) {
-            url.openConnection()
-        } as HttpURLConnection).apply {
+        @Suppress("BlockingMethodInNonBlockingContext")
+        (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 0 // set connection timeout to infinity
             readTimeout = 0 // set read timeout to infinity
             requestMethod = "GET"
             setRequestProperty("Accept-Encoding", "identity")
             connect()
+
+            if (responseCode !in 200..299) {
+                return Result.failure(
+                        workDataOf(
+                                DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
+                                DownloadWorkerInfo.ERROR_MESSAGE.name to "connection to $url returned a $responseCode response code",
+                                DownloadWorkerInfo.DOWNLOAD_CHAPTER.name to fromChapter(chapter)
+                        )
+                )
+            }
 
             setProgress(
                     getWorkData(
@@ -305,343 +306,200 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                             if (singleFileDownload) null else chapter
                     )
             )
+            val chapterAudioFileSize = contentLength
 
-            when (responseCode) {
-                in 200..299 -> {
-                    val chapterAudioFileSize = contentLength
-                    var offset = 0L
-
-                    if (chapterFile.exists()) {
-                        val chapterFileSize = Files.readAttributes(
-                                chapterFile.toPath(), BasicFileAttributes::class.java
+            val (notificationBuilder, notificationManager) =
+                    createDownloadNotification(reciter, chapter)
+            val qcDownloadFile = File("${chapterFile.absolutePath}.qcdownload")
+            var offset = 0L
+            if (chapterFile.exists()) {
+                offset =
+                        Files.readAttributes(
+                                chapterFile.toPath(),
+                                BasicFileAttributes::class.java
                         ).size()
+                val progress = (offset.toFloat() / chapterAudioFileSize.toFloat() * 100)
 
-                        offset = chapterFileSize
-                        val progress = (offset.toFloat() / chapterAudioFileSize.toFloat() * 100)
+                Log.d(
+                        TAG,
+                        "file ${chapterFile.name} ${numberFormat.format(offset)} bytes / " +
+                        "${numberFormat.format(chapterAudioFileSize)} bytes " +
+                        "(${DecimalFormat("000.000").format(progress)}%) " +
+                        "exists but is not complete, resuming download..."
+                )
+
+                chapterFile.copyTo(qcDownloadFile, true)
+                chapterFile.delete()
+            } else {
+                chapterFile.toPath().createParentDirectories()
+
+                Log.d(
+                        TAG,
+                        "file ${chapterFile.name} 0 / " +
+                        "${numberFormat.format(chapterAudioFileSize)} bytes (0%) " +
+                        "does not exist, starting download..."
+                )
+            }
+
+            if (offset == chapterAudioFileSize.toLong()) {
+                return Result.success(
+                        getWorkData(
+                                DownloadStatus.FILE_EXISTS,
+                                chapterAudioFileSize.toLong(),
+                                chapterAudioFileSize,
+                                chapterFile.absolutePath,
+                                100f,
+                                if (singleFileDownload) null else chapter
+                        )
+                )
+            }
+
+            Log.d(TAG, "skipping ${numberFormat.format(offset)} bytes from $url...")
+            disconnect()
+            val totalDownloadSize = chapterAudioFileSize - offset
+            val quantumSize = totalDownloadSize / threadCount
+            var chapterDownloadedBytes = 0L
+            var chapterProgress: Float
+            val qcDownloadFileStream =
+                    RandomAccessFile(qcDownloadFile, "rw")
+            val jobs = mutableListOf<Deferred<Unit>>()
+            val jobDownloadedBytesArray = LongArray(threadCount) { 0L }
+            val jobOffsets = Array(threadCount) { JobOffset(0, 0, 0, 0) }
+
+            for (jobID in 0..<threadCount) {
+                val startOffset = offset + (quantumSize * jobID) + jobID
+                val endOffset =
+                        (startOffset + quantumSize).cap(chapterAudioFileSize.toLong())
+
+                jobOffsets[jobID] = JobOffset(jobID, startOffset, endOffset, 0)
+                val job = CoroutineScope(context = Dispatchers.IO).async(
+                        context = CoroutineName(
+                                "Thread #" +
+                                jobID.toString().padStart(3, '0')
+                        ),
+                        start = CoroutineStart.LAZY
+                ) {
+                    val threadName = "${coroutineContext[CoroutineName.Key]?.name}"
+
+                    Log.d(
+                            TAG,
+                            "$threadName: " +
+                            "starting download from ${numberFormat.format(startOffset)} bytes " +
+                            "to ${numberFormat.format(endOffset)}..."
+                    )
+
+                    executeDownload(
+                            jobID,
+                            url,
+                            qcDownloadFileStream,
+                            startOffset,
+                            endOffset
+                    ) { jobID, jobName, downloadedBytes, currentOffset ->
+                        jobOffsets[jobID].currentOffset = currentOffset
+
+                        jobDownloadedBytesArray[jobID] = downloadedBytes
+                        val totalDownloadedBytes = jobDownloadedBytesArray.sum()
+                        chapterDownloadedBytes = offset + totalDownloadedBytes
+                        chapterProgress =
+                                (chapterDownloadedBytes.toFloat() / chapterAudioFileSize.toFloat()) * 100f
 
                         Log.d(
                                 TAG,
-                                "file ${chapterFile.name} ${numberFormat.format(offset)} bytes / " +
+                                "$jobName: downloading ${chapterFile.name} " +
+                                "${numberFormat.format(chapterDownloadedBytes)} bytes / " +
                                 "${numberFormat.format(chapterAudioFileSize)} bytes " +
-                                "(${DecimalFormat("000.000").format(progress)}%) " +
-                                "exists but is not complete, resuming download..."
+                                "(${DecimalFormat("000.000").format(chapterProgress)}%)...",
                         )
-                    } else {
-                        Log.d(
-                                TAG,
-                                "file ${chapterFile.name} 0 / " +
-                                "${numberFormat.format(chapterAudioFileSize)} bytes (0%) " +
-                                "does not exist, starting download..."
-                        )
-                    }
-                    val pendingIntent = PendingIntent.getActivity(
-                            context,
-                            0,
-                            Intent(context, Constants.MainActivityClass).apply {
-                                addCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY)
-                                putExtra(Constants.IntentDataKeys.RECITER.name, reciter)
-                                putExtra(Constants.IntentDataKeys.CHAPTER.name, chapter)
-                            },
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                    val notificationBuilder = NotificationCompat.Builder(
-                            context,
-                            context.getString(R.string.quran_download_notification_name)
-                    )
-                        .setSilent(true)
-                        .setOngoing(true)
-                        .setPriority(NotificationManager.IMPORTANCE_MAX)
-                        .setContentIntent(pendingIntent)
-                        .setContentInfo(context.getString(R.string.app_name))
-                        .setSubText("${reciter.name_ar} \\ ${chapter.name_arabic}")
-                        .setProgress(100, 0, false)
-                        .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
-                        .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-                    val channel = NotificationChannel(
-                            context.getString(R.string.quran_download_notification_name),
-                            context.getString(R.string.quran_download_notification_name),
-                            NotificationManager.IMPORTANCE_HIGH
-                    ).apply { description = chapter.name_arabic }
-                    val notificationManager: NotificationManager =
-                            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    notificationManager.createNotificationChannel(channel)
 
-                    if (offset != chapterAudioFileSize.toLong()) {
-                        Log.d(TAG, "skipping ${numberFormat.format(offset)} bytes from $url...")
-                        disconnect()
-                        val totalDownloadSize = chapterAudioFileSize - offset
-                        val quantumSize = totalDownloadSize / threadCount
-                        var totalDownloadedBytes = 0L
-                        var chapterDownloadedBytes = 0L
-                        var chapterProgress = 0f
-                        val randomAccessFile = RandomAccessFile("${chapterFile.absolutePath}.cdf", "rw")
-                        val jobs = mutableListOf<Deferred<Unit>>()
-                        val jobDownloadedBytesArray = LongArray(threadCount) { 0L }
-                        val jobOffsets = Array(threadCount) { JobOffset(0, 0, 0, 0) }
-
-                        for (jobID in 0..<threadCount) {
-                            val job = CoroutineScope(context = Dispatchers.IO).async(
-                                    context = CoroutineName(
-                                            "Thread #" +
-                                            jobID.toString().padStart(3, '0')
-                                    ),
-                                    start = CoroutineStart.LAZY
-                            ) {
-                                val threadName = "${currentCoroutineContext[CoroutineName.Key]?.name}"
-                                val startOffset = offset + (quantumSize * jobID) + jobID
-                                val endOffset =
-                                        if ((startOffset + quantumSize) <= chapterAudioFileSize) startOffset + quantumSize
-                                        else chapterAudioFileSize.toLong()
-
-                                jobOffsets[jobID] = JobOffset(jobID, startOffset, endOffset, 0)
-
-                                Log.d(
-                                        TAG,
-                                        "$threadName: " +
-                                        "starting download from ${numberFormat.format(startOffset)} bytes " +
-                                        "to ${numberFormat.format(endOffset)}..."
-                                )
-
-                                executeDownload(
-                                        jobID,
-                                        url,
-                                        randomAccessFile,
-                                        startOffset,
-                                        endOffset
-                                ) { jobID, jobName, downloadedBytes, currentOffset ->
-                                    jobOffsets[jobID].currentOffset = currentOffset
-
-                                    jobDownloadedBytesArray[jobID] = downloadedBytes
-                                    totalDownloadedBytes = jobDownloadedBytesArray.sum()
-                                    chapterDownloadedBytes = offset + totalDownloadedBytes
-                                    chapterProgress =
-                                            (chapterDownloadedBytes.toFloat() / chapterAudioFileSize.toFloat()) * 100f
-
-                                    Log.d(
-                                            TAG,
-                                            "$jobName: downloading ${chapterFile.name} " +
-                                            "${numberFormat.format(chapterDownloadedBytes)} bytes / " +
-                                            "${numberFormat.format(chapterAudioFileSize)} bytes " +
-                                            "(${DecimalFormat("000.000").format(chapterProgress)}%)...",
-                                    )
-
-                                    setProgress(
-                                            getWorkData(
-                                                    DownloadStatus.DOWNLOADING,
-                                                    chapterDownloadedBytes,
-                                                    chapterAudioFileSize,
-                                                    null,
-                                                    chapterProgress,
-                                                    if (singleFileDownload) null else chapter
-                                            )
-                                    )
-
-                                    notificationBuilder
-                                        .setContentTitle(
-                                                context.getString(
-                                                        R.string.loading_chapter,
-                                                        chapter.name_arabic
-                                                )
-                                        )
-                                        .setContentText(
-                                                "${decimalFormat.format(chapterDownloadedBytes.toFloat() / (1024f * 1024f))} مب." +
-                                                " \\ ${decimalFormat.format(chapterAudioFileSize.toFloat() / (1024f * 1024f))}" +
-                                                " مب. (${decimalFormat.format(chapterProgress)}٪)"
-                                        )
-                                        .setProgress(100, chapterProgress.toInt(), false)
-
-                                    notificationManager.notify(
-                                            R.integer.quran_chapter_download_notification_channel_id,
-                                            notificationBuilder.build()
-                                    )
-                                }
-                            }
-
-                            jobs.add(job)
-                        }
-
-                        jobs.forEach(Deferred<Unit>::start)
-                        jobs.joinAll()
-
-                        notificationManager.cancel(R.integer.quran_chapter_download_notification_channel_id)
-
-                        if (isCancelled) {
-                            Log.d(TAG, "download cancelled")
-                            val raf = RandomAccessFile(chapterFile, "rw")
-                            var jobsBytesDownloaded = 0
-                            val offsetSum = jobOffsets.sumOf { jobOffset ->
-                                jobOffset.currentOffset - jobOffset.startOffset
-                            }
-
-                            Log.d(
-                                    TAG, "calculated offsets sum: " +
-                                         "${numberFormat.format(offsetSum)} bytes"
-                            )
-
-                            Log.d(
-                                    TAG,
-                                    "==============================================================="
-                            )
-                            jobOffsets.forEach { jobOffset ->
-                                val jobDownloadedBytes =
-                                        (jobOffset.currentOffset - jobOffset.startOffset).toInt()
-                                Log.d(
-                                        TAG,
-                                        "reading ${numberFormat.format(jobDownloadedBytes)} bytes " +
-                                        "from offset: ${numberFormat.format(jobOffset.startOffset)}"
-                                )
-                                val buffer = ByteArray(jobDownloadedBytes)
-                                randomAccessFile.seek(jobOffset.startOffset)
-                                randomAccessFile.readFully(
-                                        buffer,
-                                        0,
-                                        jobDownloadedBytes
-                                )
-
-                                Log.d(
-                                        TAG,
-                                        "writing ${numberFormat.format(buffer.size)} bytes " +
-                                        "to offset: ${numberFormat.format(raf.filePointer)}"
-                                )
-                                Log.d(
-                                        TAG,
-                                        "==============================================================="
-                                )
-
-                                raf.write(buffer, 0, buffer.size)
-
-                                jobsBytesDownloaded += buffer.size
-                            }
-
-                            raf.close()
-                            randomAccessFile.close()
-
-                            Log.d(
-                                    TAG, "copied ${numberFormat.format(jobsBytesDownloaded)} bytes," +
-                                         "chapter audio file size: " +
-                                         "${numberFormat.format(chapterAudioFileSize)} bytes " +
-                                         "(${
-                                             DecimalFormat("000.000")
-                                                 .format((jobsBytesDownloaded.toFloat() / chapterAudioFileSize.toFloat()) * 100f)
-                                         }%)!!!"
-                            )
-                            val bytesLeft = chapterAudioFileSize - chapterDownloadedBytes
-                            val progressLeft =
-                                    (bytesLeft.toFloat() / chapterAudioFileSize.toFloat()) * 100f
-                            Log.d(
-                                    TAG,
-                                    "download is interrupted with " +
-                                    "${numberFormat.format(bytesLeft)} " +
-                                    "bytes left to download out of " +
-                                    "${numberFormat.format(chapterAudioFileSize)} bytes " +
-                                    "(${DecimalFormat("000.000").format(progressLeft)}%)!!!"
-                            )
-                            setProgress(
-                                    getWorkData(
-                                            DownloadStatus.DOWNLOAD_INTERRUPTED,
-                                            chapterAudioFileSize.toLong(),
-                                            chapterAudioFileSize,
-                                            chapterFile.absolutePath,
-                                            100f,
-                                            if (singleFileDownload) null else chapter
-                                    )
-                            )
-
-                            return Result.failure(
-                                    getWorkData(
-                                            DownloadStatus.DOWNLOAD_INTERRUPTED,
-                                            chapterAudioFileSize.toLong(),
-                                            chapterAudioFileSize,
-                                            chapterFile.absolutePath,
-                                            100f,
-                                            if (singleFileDownload) null else chapter
-                                    )
-                            )
-                        } else {
-                            randomAccessFile.close()
-                            val cdfFile = File("${chapterFile.absolutePath}.cdf")
-                            cdfFile.renameTo(chapterFile)
-
-                            Log.d(
-                                    TAG,
-                                    "downloaded ${chapterFile.name} " +
-                                    "${numberFormat.format(chapterDownloadedBytes)} bytes / " +
-                                    "${numberFormat.format(chapterAudioFileSize)} bytes " +
-                                    "(${DecimalFormat("000.000").format(chapterProgress)}%)"
-                            )
-
-                            Log.d(
-                                    TAG,
-                                    "saving ${chapter.name_simple} for ${reciter.reciter_name} in " +
-                                    "${chapterFile.absolutePath} with size of " +
-                                    "${numberFormat.format(chapterDownloadedBytes)} bytes"
-                            )
-                            sharedPrefsManager.setChapterPath(reciter, chapter)
-
-                            setProgress(
-                                    getWorkData(
-                                            DownloadStatus.FINISHED_DOWNLOAD,
-                                            chapterAudioFileSize.toLong(),
-                                            chapterAudioFileSize,
-                                            chapterFile.absolutePath,
-                                            100f,
-                                            if (singleFileDownload) null else chapter
-                                    )
-                            )
-
-                            return Result.success(
-                                    getWorkData(
-                                            DownloadStatus.FINISHED_DOWNLOAD,
-                                            chapterAudioFileSize.toLong(),
-                                            chapterAudioFileSize,
-                                            chapterFile.absolutePath,
-                                            100f,
-                                            if (singleFileDownload) null else chapter
-                                    )
-                            )
-                        }
-                    } else {
                         setProgress(
                                 getWorkData(
-                                        DownloadStatus.FILE_EXISTS,
-                                        chapterAudioFileSize.toLong(),
+                                        DownloadStatus.DOWNLOADING,
+                                        chapterDownloadedBytes,
                                         chapterAudioFileSize,
-                                        chapterFile.absolutePath,
-                                        100f,
+                                        null,
+                                        chapterProgress,
                                         if (singleFileDownload) null else chapter
                                 )
                         )
 
-                        return Result.success(
-                                getWorkData(
-                                        DownloadStatus.FILE_EXISTS,
-                                        chapterAudioFileSize.toLong(),
-                                        chapterAudioFileSize,
-                                        chapterFile.absolutePath,
-                                        100f,
-                                        if (singleFileDownload) null else chapter
-                                )
+                        notificationBuilder
+                            .setContentTitle(
+                                    context.getString(
+                                            R.string.loading_chapter,
+                                            chapter.name_arabic
+                                    )
+                            )
+                            .setContentText(
+                                    "${decimalFormat.format(chapterDownloadedBytes.toFloat() / (1024f * 1024f))} مب." +
+                                    " \\ ${decimalFormat.format(chapterAudioFileSize.toFloat() / (1024f * 1024f))}" +
+                                    " مب. (${decimalFormat.format(chapterProgress)}٪)"
+                            )
+                            .setProgress(100, chapterProgress.toInt(), false)
+
+                        notificationManager.notify(
+                                R.integer.quran_chapter_download_notification_channel_id,
+                                notificationBuilder.build()
                         )
                     }
                 }
 
-                else        -> {
-                    setProgress(
-                            workDataOf(
-                                    DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
-                                    DownloadWorkerInfo.ERROR_MESSAGE.name to "connection to $url returned a $responseCode response code",
-                                    DownloadWorkerInfo.DOWNLOAD_CHAPTER.name to fromChapter(chapter)
-                            )
-                    )
+                jobs.add(job)
+            }
 
-                    return Result.failure(
-                            workDataOf(
-                                    DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
-                                    DownloadWorkerInfo.ERROR_MESSAGE.name to "connection to $url returned a $responseCode response code",
-                                    DownloadWorkerInfo.DOWNLOAD_CHAPTER.name to fromChapter(chapter)
-                            )
-                    )
-                }
+            try {
+                jobOffsets.forEach { jobOffset -> Log.d(TAG, jobOffset.toString()) }
+                jobs.forEach(Deferred<Unit>::start)
+                jobs.joinAll()
+
+                postDownloadCleanup(
+                        downloadFailed = false,
+                        offset = offset,
+                        reciter = reciter,
+                        chapter = chapter,
+                        chapterDownloadedBytes = chapterDownloadedBytes,
+                        chapterAudioFileSize = chapterAudioFileSize,
+                        chapterFile = chapterFile,
+                        qcDownloadFileStream = qcDownloadFileStream,
+                        jobOffsets = jobOffsets,
+                        notificationManager = notificationManager
+                )
+
+                qcDownloadFile.renameTo(chapterFile)
+
+                return Result.success(
+                        getWorkData(
+                                DownloadStatus.FINISHED_DOWNLOAD,
+                                chapterAudioFileSize.toLong(),
+                                chapterAudioFileSize,
+                                chapterFile.absolutePath,
+                                100f,
+                                if (singleFileDownload) null else chapter
+                        )
+                )
+            } catch (ex: CancellationException) {
+                postDownloadCleanup(
+                        downloadFailed = true,
+                        offset = offset,
+                        chapterDownloadedBytes = chapterDownloadedBytes,
+                        chapterAudioFileSize = chapterAudioFileSize,
+                        chapterFile = chapterFile,
+                        qcDownloadFileStream = qcDownloadFileStream,
+                        jobOffsets = jobOffsets,
+                        notificationManager = notificationManager
+                )
+
+                qcDownloadFile.delete()
+
+                return Result.failure(
+                        getWorkData(
+                                DownloadStatus.DOWNLOAD_INTERRUPTED,
+                                chapterAudioFileSize.toLong(),
+                                chapterAudioFileSize,
+                                chapterFile.absolutePath,
+                                100f,
+                                if (singleFileDownload) null else chapter
+                        )
+                )
             }
         }
     }
@@ -649,7 +507,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
     private suspend fun executeDownload(
             jobID: Int,
             url: URL,
-            randomAccessFile: RandomAccessFile,
+            chapterFileStream: RandomAccessFile,
             startOffset: Long,
             endOffset: Long,
             onProgressChanged: (suspend (jobID: Int, jobName: String, bytesDownloaded: Long, currentOffset: Long) -> Unit)? = null
@@ -675,24 +533,194 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
                 while (threadLock.isLocked) Unit
                 threadLock.withLock {
-                    randomAccessFile.seek(seekOffset)
-                    randomAccessFile.write(buffer, 0, bytes)
+                    chapterFileStream.seek(seekOffset)
+                    chapterFileStream.write(buffer, 0, bytes)
                     seekOffset += bytes
                 }
 
                 onProgressChanged?.invoke(jobID, jobName, bytesDownloaded - startOffset, seekOffset)
-            } while (!isCancelled && bytesDownloaded < endOffset)
+            } while (!isStopped && bytesDownloaded < endOffset)
+
             Log.d(
                     TAG,
-                    "$jobName: ${if (isCancelled) "DOWNLOAD JOB INTERRUPTED!!! " else "DOWNLOAD JOB COMPLETE! "}closing input stream..."
+                    "$jobName: ${if (isStopped) "DOWNLOAD JOB INTERRUPTED!!! " else "DOWNLOAD JOB COMPLETE! "}closing input stream..."
             )
             inputStream.close()
+
             Log.d(
                     TAG,
-                    "$jobName: ${if (isCancelled) "DOWNLOAD JOB INTERRUPTED!!! " else "DOWNLOAD JOB COMPLETE! "} disconnecting from $url..."
+                    "$jobName: ${if (isStopped) "DOWNLOAD JOB INTERRUPTED!!! " else "DOWNLOAD JOB COMPLETE! "} disconnecting from $url..."
             )
             disconnect()
         }
+    }
+
+    private fun postDownloadCleanup(
+            downloadFailed: Boolean,
+            reciter: Reciter? = null,
+            chapter: Chapter? = null,
+            offset: Long,
+            chapterDownloadedBytes: Long,
+            chapterAudioFileSize: Int,
+            chapterFile: File,
+            qcDownloadFileStream: RandomAccessFile,
+            jobOffsets: Array<JobOffset>,
+            notificationManager: NotificationManager
+    ) {
+        notificationManager.cancel(R.integer.quran_chapter_download_notification_channel_id)
+
+        if (!downloadFailed) {
+            if (reciter == null || chapter == null) throw IllegalStateException("reciter or chapter parameter must not be null")
+
+            qcDownloadFileStream.close()
+
+            Log.d(
+                    TAG,
+                    "downloaded ${chapterFile.name} " +
+                    "${numberFormat.format(chapterDownloadedBytes)} bytes / " +
+                    "${numberFormat.format(chapterAudioFileSize)} bytes " +
+                    "(${
+                        DecimalFormat("000.000")
+                            .format((chapterDownloadedBytes.toFloat() / chapterAudioFileSize.toFloat()) * 100f)
+                    }%)"
+            )
+
+            Log.d(
+                    TAG,
+                    "saving ${chapter.name_simple} for ${reciter.reciter_name} in " +
+                    "${chapterFile.absolutePath} with size of " +
+                    "${numberFormat.format(chapterDownloadedBytes)} bytes"
+            )
+
+            sharedPrefsManager.setChapterPath(reciter, chapter)
+        } else {
+            val bytesLeft = chapterAudioFileSize - chapterDownloadedBytes
+            val progressLeft =
+                    (bytesLeft.toFloat() / chapterAudioFileSize.toFloat()) * 100f
+            Log.d(
+                    TAG,
+                    "download is interrupted with " +
+                    "${numberFormat.format(bytesLeft)} " +
+                    "bytes left to download out of " +
+                    "${numberFormat.format(chapterAudioFileSize)} bytes " +
+                    "(${DecimalFormat("000.000").format(progressLeft)}%)!!!"
+            )
+            val chapterFileStream = RandomAccessFile(chapterFile, "rw")
+            var jobsBytesDownloaded = offset
+            val offsetSum = offset + jobOffsets.sumOf { jobOffset ->
+                jobOffset.currentOffset - jobOffset.startOffset
+            }
+
+            Log.d(TAG, "checking for data before offset: ${numberFormat.format(offset)}...")
+
+            if (offset > 0) {
+                Log.d(TAG, "reading ${numberFormat.format(offset)} bytes from beginning...")
+                val preOffsetBuffer = ByteArray(offset.toInt())
+                qcDownloadFileStream.seek(0)
+                qcDownloadFileStream.readFully(
+                        preOffsetBuffer,
+                        0,
+                        offset.toInt()
+                )
+
+                Log.d(TAG, "writing ${numberFormat.format(offset)} bytes to offset 0")
+                chapterFileStream.write(preOffsetBuffer, 0, preOffsetBuffer.size)
+            }
+
+            Log.d(
+                    TAG, "calculated offsets sum: " +
+                         "${numberFormat.format(offsetSum)} bytes"
+            )
+
+            Log.d(
+                    TAG,
+                    "==============================================================="
+            )
+
+            chapterFileStream.seek(offset)
+            jobOffsets.forEach { jobOffset ->
+                val jobDownloadedBytes =
+                        (jobOffset.currentOffset - jobOffset.startOffset).toInt()
+                Log.d(
+                        TAG,
+                        "reading ${numberFormat.format(jobDownloadedBytes)} bytes " +
+                        "from offset: ${numberFormat.format(jobOffset.startOffset)}"
+                )
+                val buffer = ByteArray(jobDownloadedBytes)
+                qcDownloadFileStream.seek(jobOffset.startOffset)
+                qcDownloadFileStream.readFully(
+                        buffer,
+                        0,
+                        jobDownloadedBytes
+                )
+
+                Log.d(
+                        TAG,
+                        "writing ${numberFormat.format(buffer.size)} bytes " +
+                        "to offset: ${numberFormat.format(chapterFileStream.filePointer)}"
+                )
+                Log.d(
+                        TAG,
+                        "==============================================================="
+                )
+
+                chapterFileStream.write(buffer, 0, buffer.size)
+
+                jobsBytesDownloaded += buffer.size
+            }
+
+            chapterFileStream.close()
+            qcDownloadFileStream.close()
+
+            Log.d(
+                    TAG, "copied ${numberFormat.format(jobsBytesDownloaded)} bytes, " +
+                         "chapter audio file size: " +
+                         "${numberFormat.format(chapterAudioFileSize)} bytes " +
+                         "(${
+                             DecimalFormat("000.000")
+                                 .format((jobsBytesDownloaded.toFloat() / chapterAudioFileSize.toFloat()) * 100f)
+                         }%)!!!"
+            )
+        }
+    }
+
+    private fun createDownloadNotification(
+            reciter: Reciter,
+            chapter: Chapter
+    ): Pair<NotificationCompat.Builder, NotificationManager> {
+        val pendingIntent = PendingIntent.getActivity(
+                context,
+                0,
+                Intent(context, Constants.MainActivityClass).apply {
+                    addCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY)
+                    putExtra(Constants.IntentDataKeys.RECITER.name, reciter)
+                    putExtra(Constants.IntentDataKeys.CHAPTER.name, chapter)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notificationBuilder = NotificationCompat.Builder(
+                context,
+                context.getString(R.string.quran_download_notification_name)
+        )
+            .setSilent(true)
+            .setOngoing(true)
+            .setPriority(NotificationManager.IMPORTANCE_MAX)
+            .setContentIntent(pendingIntent)
+            .setContentInfo(context.getString(R.string.app_name))
+            .setSubText("${reciter.name_ar} \\ ${chapter.name_arabic}")
+            .setProgress(100, 0, false)
+            .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+        val channel = NotificationChannel(
+                context.getString(R.string.quran_download_notification_name),
+                context.getString(R.string.quran_download_notification_name),
+                NotificationManager.IMPORTANCE_HIGH
+        ).apply { description = chapter.name_arabic }
+        val notificationManager: NotificationManager =
+                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
+
+        return notificationBuilder to notificationManager
     }
 
     private fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): File {
@@ -709,7 +737,14 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             val startOffset: Long,
             val endOffset: Long,
             var currentOffset: Long
-    )
+    ) {
+
+        private val numberFormat = NumberFormat.getNumberInstance(Locale.ENGLISH)
+        override fun toString(): String = "JobOffset(jobID=${jobID}, " +
+                                          "startOffset=${numberFormat.format(startOffset)}, " +
+                                          "endOffset=${numberFormat.format(endOffset)}, " +
+                                          "currentOffset=${numberFormat.format(currentOffset)})"
+    }
 
     private infix fun Long.cap(max: Long): Long = if (this > max) max else this
 }
