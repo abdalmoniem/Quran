@@ -664,7 +664,8 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             .setOngoing(true)
             .setPriority(NotificationManager.IMPORTANCE_MAX)
             .setContentInfo(getString(R.string.app_name))
-            .setSubText(reciter.name_ar)
+            .setSubText("${reciter.name_ar} \\ ${getString(R.string.chapter_name)}")
+            .setProgress(100, 0, false)
             .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
@@ -676,8 +677,9 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         val notificationManager: NotificationManager =
                 getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(channel)
+
         startForeground(
-                R.integer.quran_chapter_recitation_notification_channel_id,
+                R.integer.quran_chapter_download_notification_channel_id,
                 notification
         )
     }
@@ -785,7 +787,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
     fun prepareMedia(reciter: Reciter? = null, chapter: Chapter? = null, chapterPosition: Long = 0L) {
         if ((reciter == null) || (chapter == null)) return
-        Log.d("ExoPlayer_Audio_Player", "Playing Chapter ${chapter.name_simple}...")
+        Log.d("ExoPlayer_Audio_Player", "Preparing Chapter ${chapter.name_simple}...")
 
         currentChapterPosition = chapterPosition
         sharedPrefsManager.lastReciter = reciter

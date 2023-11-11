@@ -146,7 +146,8 @@ class ChaptersList : Fragment() {
 
         with(dialogBinding) {
             dialogBinding.downloadDialogCancelDownload.setOnClickListener {
-                workManager.cancelWorkById(downloadRequestID)
+                // workManager.cancelWorkById(downloadRequestID)
+                MediaManager.cancelPendingDownloads()
                 dialog.dismiss()
                 downloadAllChaptersButton.isEnabled = true
                 parentActivity.unregisterReceiver(chaptersDownloadProgressReceiver)

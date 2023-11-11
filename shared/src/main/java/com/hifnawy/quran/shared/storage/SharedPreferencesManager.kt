@@ -1,6 +1,7 @@
 package com.hifnawy.quran.shared.storage
 
 import android.content.Context
+import android.util.Log
 import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.Companion.getSerializable
 import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.Companion.getSerializableList
 import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.Companion.putSerializable
@@ -8,6 +9,7 @@ import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.Companion.putSer
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.ChapterAudioFile
 import com.hifnawy.quran.shared.model.Reciter
+import java.io.File
 
 class SharedPreferencesManager(private val context: Context) {
     private enum class SharedPrefsKeys {
@@ -73,7 +75,17 @@ class SharedPreferencesManager(private val context: Context) {
         sharedPrefs.edit().putString("${reciter.id}_${chapter.id}", chapterFileName).apply()
     }
 
-    fun getChapterPath(reciter: Reciter, chapter: Chapter): String? {
-        return sharedPrefs.getString("${reciter.id}_${chapter.id}", null)
+    fun getChapterFile(reciter: Reciter, chapter: Chapter): File? {
+        val chapterPathKey = "${reciter.id}_${chapter.id}"
+        sharedPrefs.getString(chapterPathKey, null)?.let { chapterFilePath ->
+            val chapterFile = File(chapterFilePath)
+            Log.d("SharedPrefsManager", "file $chapterFilePath exists: ${chapterFile.exists()}")
+            if (chapterFile.exists())
+                return chapterFile
+            else {
+                sharedPrefs.edit().remove(chapterPathKey).apply()
+                return null
+            }
+        } ?: return null
     }
 }

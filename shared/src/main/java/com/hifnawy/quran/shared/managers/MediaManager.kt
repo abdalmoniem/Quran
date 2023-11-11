@@ -112,8 +112,7 @@ object MediaManager : LifecycleOwner {
 
     fun stopLifecycle() {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-        workManager.cancelWorkById(singleDownloadRequestID)
-        workManager.cancelWorkById(bulkDownloadRequestID)
+        cancelPendingDownloads()
     }
 
     fun whenRecitersReady(onReady: (reciters: List<Reciter>) -> Unit) =
@@ -219,11 +218,11 @@ object MediaManager : LifecycleOwner {
         sharedPrefsManager.lastReciter = reciter
         sharedPrefsManager.lastChapter = chapter
 
-        sharedPrefsManager.getChapterPath(reciter, chapter)?.let { chapterAudioFile ->
+        sharedPrefsManager.getChapterFile(reciter, chapter)?.let { chapterFile ->
             onMediaReady?.invoke(
                     reciter,
                     chapter,
-                    File(chapterAudioFile),
+                    chapterFile,
                     AppCompatResources.getDrawable(context, drawableId)
             )
         } ?: downloadChapter(reciter, chapter)
@@ -258,8 +257,9 @@ object MediaManager : LifecycleOwner {
     }
 
     fun cancelPendingDownloads() {
-        workManager.cancelWorkById(singleDownloadRequestID)
-        workManager.cancelWorkById(bulkDownloadRequestID)
+        DownloadWorkManager.isCancelled = true
+        // workManager.cancelWorkById(singleDownloadRequestID)
+        // workManager.cancelWorkById(bulkDownloadRequestID)
     }
 
     fun downloadChapters(reciter: Reciter) {
@@ -381,22 +381,24 @@ object MediaManager : LifecycleOwner {
 
                 DownloadStatus.FILE_EXISTS,
                 DownloadStatus.FINISHED_DOWNLOAD -> {
-                    onSingleDownloadProgressUpdate?.invoke(
-                            reciter,
-                            chapter,
-                            downloadStatus,
-                            bytesDownloaded,
-                            fileSize,
-                            progress,
-                            File(chapterFilePath!!)
-                    )
+                    sharedPrefsManager.getChapterFile(reciter, chapter)?.let { chapterFile ->
+                        onSingleDownloadProgressUpdate?.invoke(
+                                reciter,
+                                chapter,
+                                downloadStatus,
+                                bytesDownloaded,
+                                fileSize,
+                                progress,
+                                chapterFile
+                        )
 
-                    onMediaReady?.invoke(
-                            reciter,
-                            chapter,
-                            File(chapterFilePath!!),
-                            AppCompatResources.getDrawable(context, drawableId)
-                    )
+                        onMediaReady?.invoke(
+                                reciter,
+                                chapter,
+                                chapterFile,
+                                AppCompatResources.getDrawable(context, drawableId)
+                        )
+                    }
                 }
             }
         }

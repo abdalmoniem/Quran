@@ -35,6 +35,7 @@ import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
 import com.hifnawy.quran.shared.extensions.NumberExt.dp
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
+import com.hifnawy.quran.shared.managers.MediaManager
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
@@ -207,7 +208,8 @@ class MediaPlayback : Fragment() {
         )
 
         dialogBinding.downloadDialogCancelDownload.setOnClickListener {
-            workManager.cancelWorkById(downloadRequestID)
+            // workManager.cancelWorkById(downloadRequestID)
+            MediaManager.cancelPendingDownloads()
             dialog.dismiss()
         }
 
