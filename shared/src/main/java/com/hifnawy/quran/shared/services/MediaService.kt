@@ -35,12 +35,13 @@ import com.hifnawy.quran.shared.BuildConfig
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.extensions.NumberExt.dp
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
-import com.hifnawy.quran.shared.managers.DownloadWorkManager
+import com.hifnawy.quran.shared.managers.DownloadWorkManager.DownloadStatus
 import com.hifnawy.quran.shared.managers.MediaManager
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.ChapterAudioFile
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Constants.IntentDataKeys
+import com.hifnawy.quran.shared.model.Constants.MediaServiceActions.CANCEL_DOWNLOADS
 import com.hifnawy.quran.shared.model.Constants.MediaServiceActions.DOWNLOAD_CHAPTERS
 import com.hifnawy.quran.shared.model.Constants.MediaServiceActions.PAUSE_MEDIA
 import com.hifnawy.quran.shared.model.Constants.MediaServiceActions.PLAY_MEDIA
@@ -71,11 +72,19 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     }
 
     private enum class MediaSessionState {
-        PLAYING, PAUSED, SKIPPING_TO_NEXT, SKIPPING_TO_PREVIOUS, BUFFERING, CONNECTING, STOPPED
+        PLAYING,
+        PAUSED,
+        SKIPPING_TO_NEXT,
+        SKIPPING_TO_PREVIOUS,
+        BUFFERING,
+        CONNECTING,
+        STOPPED
     }
 
     private enum class MediaState {
-        ROOT, RECITER_BROWSE, CHAPTER_BROWSE
+        ROOT,
+        RECITER_BROWSE,
+        CHAPTER_BROWSE
     }
 
     private val audioAttributes by lazy {
@@ -143,24 +152,29 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                     intent.getLongExtra(IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
             when (intent.action) {
-                DOWNLOAD_CHAPTERS.name      -> {
+                DOWNLOAD_CHAPTERS.name        -> {
                     if (reciter == null) return@whenReady
                     showDownloadForegroundNotification(reciter)
                     mediaManager.downloadChapters(reciter)
                 }
 
-                PLAY_MEDIA.name             -> {
+                CANCEL_DOWNLOADS.name -> {
+                    MediaManager.cancelPendingDownloads()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                }
+
+                PLAY_MEDIA.name               -> {
                     if (reciter == null || chapter == null) return@whenReady
                     showMediaForegroundNotification(reciter, chapter)
                     prepareMedia(reciter, chapter, chapterPosition)
                 }
 
-                PAUSE_MEDIA.name            -> pauseMedia()
-                TOGGLE_MEDIA.name           -> toggleMedia()
-                STOP_MEDIA.name             -> stopSelf()
-                SKIP_TO_NEXT_MEDIA.name     -> skipToNextChapter()
-                SKIP_TO_PREVIOUS_MEDIA.name -> skipToPreviousChapter()
-                SEEK_MEDIA.name             -> seekChapterToPosition(chapterPosition)
+                PAUSE_MEDIA.name              -> pauseMedia()
+                TOGGLE_MEDIA.name             -> toggleMedia()
+                STOP_MEDIA.name               -> stopSelf()
+                SKIP_TO_NEXT_MEDIA.name       -> skipToNextChapter()
+                SKIP_TO_PREVIOUS_MEDIA.name   -> skipToPreviousChapter()
+                SEEK_MEDIA.name               -> seekChapterToPosition(chapterPosition)
             }
         }
 
@@ -523,7 +537,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private fun processSingleDownloadProgress(
             reciter: Reciter,
             chapter: Chapter,
-            downloadStatus: DownloadWorkManager.DownloadStatus,
+            downloadStatus: DownloadStatus,
             bytesDownloaded: Long,
             audioFileSize: Int,
             progress: Float,
@@ -541,7 +555,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         updateWidget(reciter, chapter)
 
         when (downloadStatus) {
-            DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD    -> {
+            DownloadStatus.STARTING_DOWNLOAD  -> {
                 isMediaReady = false
                 currentReciter = reciter
                 currentChapter = chapter
@@ -550,15 +564,16 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 updateMediaSession(reciter, chapter)
             }
 
-            DownloadWorkManager.DownloadStatus.FILE_EXISTS,
-            DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD    -> {
+            DownloadStatus.FILE_EXISTS,
+            DownloadStatus.FINISHED_DOWNLOAD  -> {
                 setMediaPlaybackState(MediaSessionState.PLAYING)
                 showMediaNotification(chapter)
             }
 
-            DownloadWorkManager.DownloadStatus.DOWNLOADING,
-            DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR,
-            DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED -> Unit
+            DownloadStatus.DOWNLOADING,
+            DownloadStatus.DOWNLOAD_ERROR,
+            DownloadStatus.DOWNLOAD_INTERRUPTED,
+            DownloadStatus.CONNECTION_FAILURE -> Unit
         }
     }
 
@@ -566,7 +581,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             reciter: Reciter,
             currentChapter: Chapter?,
             currentChapterIndex: Int,
-            currentChapterDownloadStatus: DownloadWorkManager.DownloadStatus,
+            currentChapterDownloadStatus: DownloadStatus,
             currentChapterBytesDownloaded: Long,
             currentChapterFileSize: Int,
             currentChapterProgress: Float,
@@ -589,7 +604,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             reciter: Reciter,
             currentChapter: Chapter?,
             currentChapterIndex: Int,
-            currentChapterDownloadStatus: DownloadWorkManager.DownloadStatus,
+            currentChapterDownloadStatus: DownloadStatus,
             currentChapterBytesDownloaded: Long,
             currentChapterFileSize: Int,
             currentChapterProgress: Float,
@@ -612,7 +627,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             reciter: Reciter,
             currentChapter: Chapter?,
             currentChapterIndex: Int,
-            currentChapterDownloadStatus: DownloadWorkManager.DownloadStatus,
+            currentChapterDownloadStatus: DownloadStatus,
             currentChapterBytesDownloaded: Long,
             currentChapterFileSize: Int,
             currentChapterProgress: Float,
@@ -635,7 +650,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             status: ServiceUpdates, reciter: Reciter,
             currentChapter: Chapter?,
             currentChapterIndex: Int,
-            currentChapterDownloadStatus: DownloadWorkManager.DownloadStatus,
+            currentChapterDownloadStatus: DownloadStatus,
             currentChapterBytesDownloaded: Long,
             currentChapterFileSize: Int,
             currentChapterProgress: Float,

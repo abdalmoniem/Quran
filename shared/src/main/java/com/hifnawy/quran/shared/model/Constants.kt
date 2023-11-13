@@ -17,6 +17,7 @@ class Constants {
 
     enum class MediaServiceActions {
         DOWNLOAD_CHAPTERS,
+        CANCEL_DOWNLOADS,
         PLAY_MEDIA,
         PAUSE_MEDIA,
         TOGGLE_MEDIA,

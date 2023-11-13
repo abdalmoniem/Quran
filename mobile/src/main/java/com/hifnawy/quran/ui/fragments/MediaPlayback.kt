@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.util.TypedValue
@@ -35,7 +36,6 @@ import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
 import com.hifnawy.quran.shared.extensions.NumberExt.dp
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
-import com.hifnawy.quran.shared.managers.MediaManager
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
@@ -53,7 +53,6 @@ import java.util.UUID
 import com.hifnawy.quran.shared.R as sharedR
 import com.hoko.blur.HokoBlur as Blur
 
-@Suppress("PrivatePropertyName")
 private val TAG = MediaPlayback::class.simpleName
 
 /**
@@ -71,7 +70,10 @@ class MediaPlayback : Fragment() {
     private lateinit var sharedPrefsManager: SharedPreferencesManager
     private var appBarHeight: Int = 0
 
-    @SuppressLint("DiscouragedApi", "SetTextI18n", "ClickableViewAccessibility")
+    @SuppressLint(
+            "DiscouragedApi", "SetTextI18n", "ClickableViewAccessibility",
+            "UnspecifiedRegisterReceiverFlag"
+    )
     override fun onCreateView(
             inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
@@ -165,10 +167,20 @@ class MediaPlayback : Fragment() {
                     })
         }
 
-        parentActivity.registerReceiver(mediaUpdatesReceiver,
-                                        IntentFilter(getString(sharedR.string.quran_media_service_updates)).apply {
-                                            addCategory(Constants.ServiceUpdates.MEDIA_PLAYBACK_UPDATES.name)
-                                        })
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            parentActivity.registerReceiver(
+                    mediaUpdatesReceiver,
+                    IntentFilter(getString(sharedR.string.quran_media_service_updates)).apply {
+                        addCategory(Constants.ServiceUpdates.MEDIA_PLAYBACK_UPDATES.name)
+                    },
+                    Context.RECEIVER_NOT_EXPORTED
+            )
+        } else {
+            parentActivity.registerReceiver(mediaUpdatesReceiver,
+                                            IntentFilter(getString(sharedR.string.quran_media_service_updates)).apply {
+                                                addCategory(Constants.ServiceUpdates.MEDIA_PLAYBACK_UPDATES.name)
+                                            })
+        }
 
         playChapter(
                 chapter,
@@ -208,8 +220,11 @@ class MediaPlayback : Fragment() {
         )
 
         dialogBinding.downloadDialogCancelDownload.setOnClickListener {
-            // workManager.cancelWorkById(downloadRequestID)
-            MediaManager.cancelPendingDownloads()
+            parentActivity.startForegroundService(Intent(
+                    context, MediaService::class.java
+            ).apply {
+                action = Constants.MediaServiceActions.CANCEL_DOWNLOADS.name
+            })
             dialog.dismiss()
         }
 
@@ -378,7 +393,8 @@ class MediaPlayback : Fragment() {
                 DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> dialog.dismiss()
 
                 DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR,
-                DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED -> Unit
+                DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED,
+                DownloadWorkManager.DownloadStatus.CONNECTION_FAILURE -> Unit
             }
         }
     }
