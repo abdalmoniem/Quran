@@ -366,7 +366,7 @@ object MediaManager : LifecycleOwner {
                 DownloadStatus.STARTING_DOWNLOAD,
                 DownloadStatus.DOWNLOAD_INTERRUPTED,
                 DownloadStatus.DOWNLOAD_ERROR,
-                DownloadStatus.DOWNLOADING       -> {
+                DownloadStatus.DOWNLOADING        -> {
                     onSingleDownloadProgressUpdate?.invoke(
                             reciter,
                             chapter,
@@ -379,7 +379,7 @@ object MediaManager : LifecycleOwner {
                 }
 
                 DownloadStatus.FILE_EXISTS,
-                DownloadStatus.FINISHED_DOWNLOAD -> {
+                DownloadStatus.FINISHED_DOWNLOAD  -> {
                     sharedPrefsManager.getChapterFile(reciter, chapter)?.let { chapterFile ->
                         onSingleDownloadProgressUpdate?.invoke(
                                 reciter,
@@ -399,6 +399,8 @@ object MediaManager : LifecycleOwner {
                         )
                     }
                 }
+
+                DownloadStatus.CONNECTION_FAILURE -> Unit
             }
         }
     }
@@ -407,11 +409,11 @@ object MediaManager : LifecycleOwner {
 
         override fun onChanged(value: WorkInfo?) {
             if (value == null) return
-
-            Log.d(TAG, "${value.state}\n$value")
             val dataSource =
                     if ((value.state == State.SUCCEEDED) || (value.state == State.FAILED)) value.outputData
                     else value.progress
+
+            Log.d(TAG, "${value.state}\n$dataSource")
 
             if (value.state == State.SUCCEEDED) {
                 onBulkDownloadSucceed?.invoke(
@@ -428,33 +430,18 @@ object MediaManager : LifecycleOwner {
             }
 
             if (value.state == State.FAILED) {
-                if (dataSource.keyValueMap.isEmpty()) {
-                    onBulkDownloadFail?.invoke(
-                            reciter,
-                            null,
-                            context.resources.getInteger(R.integer.quran_chapter_count),
-                            DownloadStatus.DOWNLOAD_ERROR,
-                            0,
-                            0,
-                            0f,
-                            0f
-                    )
-                } else {
-                    onBulkDownloadProgressUpdate?.invoke(
-                            reciter,
-                            null,
-                            context.resources.getInteger(R.integer.quran_chapter_count),
-                            DownloadStatus.DOWNLOAD_ERROR,
-                            0,
-                            0,
-                            0f,
-                            0f
-                    )
-                }
+                onBulkDownloadFail?.invoke(
+                        reciter,
+                        null,
+                        context.resources.getInteger(R.integer.quran_chapter_count),
+                        DownloadStatus.DOWNLOAD_ERROR,
+                        0,
+                        0,
+                        0f,
+                        0f
+                )
                 return
             }
-
-            Log.d(TAG, "${value.state}\n$dataSource")
             val currentChapterJSON = dataSource.getString(DownloadWorkerInfo.DOWNLOAD_CHAPTER.name)
             val currentChapter = DownloadWorkManager.toChapter(currentChapterJSON)
             val downloadStatus = DownloadStatus.valueOf(

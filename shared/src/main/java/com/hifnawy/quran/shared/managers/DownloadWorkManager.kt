@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import java.io.File
 import java.io.RandomAccessFile
@@ -69,6 +70,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
     }
 
     enum class DownloadStatus {
+        CONNECTION_FAILURE,
         STARTING_DOWNLOAD,
         FILE_EXISTS,
         DOWNLOADING,
@@ -166,68 +168,65 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                     "cannot fetch chapter audio files for reciter #${reciter.id}: ${reciter.reciter_name}"
             )
             return Result.failure(
-                    // workDataOf(
-                    //         DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
-                    //         DownloadWorkerInfo.ERROR_MESSAGE.name to
-                    //                 "cannot fetch chapter audio files for reciter #${reciter.id}: ${reciter.reciter_name}"
-                    // )
+                    workDataOf(
+                            DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.CONNECTION_FAILURE.name,
+                            DownloadWorkerInfo.ERROR_MESSAGE.name to
+                                    "cannot fetch chapter audio files for reciter #${reciter.id}: ${reciter.reciter_name}"
+                    )
             )
         } else {
             var downloadedChapterCount = 0
-            setProgress(
-                    getWorkData(
-                            DownloadStatus.STARTING_DOWNLOAD,
-                            0,
-                            0,
-                            null,
-                            0f,
-                            null
-                    )
-            )
             for (currentChapter in chapters) {
-                if (!isStopped) {
-                    sharedPrefsManager.getChapterFile(reciter, currentChapter)
-                        ?.let { chapterFile ->
-                            val chapterFileSize = Files.readAttributes(
-                                    chapterFile.toPath(), BasicFileAttributes::class.java
-                            ).size()
+                if (isStopped) break
 
-                            Log.d(
-                                    TAG,
-                                    "file ${chapterFile.name} ${numberFormat.format(chapterFileSize)} bytes / ${
-                                        numberFormat.format(chapterFileSize)
-                                    } bytes (100%) exists and is complete, will not download!"
-                            )
+                sharedPrefsManager.getChapterFile(reciter, currentChapter)
+                    ?.let { chapterFile ->
+                        val chapterFileSize = Files.readAttributes(
+                                chapterFile.toPath(), BasicFileAttributes::class.java
+                        ).size()
 
-                            setProgress(
-                                    getWorkData(
-                                            DownloadStatus.FILE_EXISTS,
-                                            chapterFileSize,
-                                            chapterFileSize.toInt(),
-                                            chapterFile.absolutePath,
-                                            100f,
-                                            currentChapter
-                                    )
-                            )
-                        } ?: chapterAudioFiles.find { chapterAudioFile ->
-                        chapterAudioFile.chapter_id == currentChapter.id
-                    }?.let { chapterAudioFile ->
-                        val result =
-                                downloadFile(
-                                        URL(chapterAudioFile.audio_url),
-                                        reciter,
-                                        currentChapter,
-                                        false
+                        Log.d(
+                                TAG,
+                                "file ${chapterFile.name} ${numberFormat.format(chapterFileSize)} bytes / ${
+                                    numberFormat.format(chapterFileSize)
+                                } bytes (100%) exists and is complete, will not download!"
+                        )
+
+                        setProgress(
+                                getWorkData(
+                                        DownloadStatus.FILE_EXISTS,
+                                        chapterFileSize,
+                                        chapterFileSize.toInt(),
+                                        chapterFile.absolutePath,
+                                        100f,
+                                        currentChapter
                                 )
-                        if (result.outputData.getString(DownloadWorkerInfo.DOWNLOAD_STATUS.name) == DownloadStatus.DOWNLOAD_ERROR.name) {
-                            Log.d(TAG, "failed to download ${chapterAudioFile.audio_url}")
-                            downloadedChapterCount--
-                        }
+                        )
+                    } ?: chapterAudioFiles.find { chapterAudioFile ->
+                    chapterAudioFile.chapter_id == currentChapter.id
+                }?.let { chapterAudioFile ->
+                    val result =
+                            downloadFile(
+                                    URL(chapterAudioFile.audio_url),
+                                    reciter,
+                                    currentChapter,
+                                    false
+                            )
+                    val downloadStatus =
+                            result.outputData.getString(DownloadWorkerInfo.DOWNLOAD_STATUS.name)
+
+                    if (downloadStatus == DownloadStatus.DOWNLOAD_ERROR.name) {
+                        Log.d(TAG, "failed to download ${chapterAudioFile.audio_url}")
+                        downloadedChapterCount--
                     }
 
-                    downloadedChapterCount++
+                    setProgress(result.outputData)
                 }
+
+                downloadedChapterCount++
             }
+
+            delay(150)
 
             if (downloadedChapterCount < context.resources.getInteger(R.integer.quran_chapter_count)) {
                 return Result.failure(
