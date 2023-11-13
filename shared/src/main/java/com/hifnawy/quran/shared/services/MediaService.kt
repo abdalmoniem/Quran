@@ -35,7 +35,7 @@ import com.hifnawy.quran.shared.BuildConfig
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.extensions.NumberExt.dp
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
-import com.hifnawy.quran.shared.managers.DownloadWorkManager
+import com.hifnawy.quran.shared.managers.DownloadWorkManager.DownloadStatus
 import com.hifnawy.quran.shared.managers.MediaManager
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.ChapterAudioFile
@@ -523,7 +523,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
     private fun processSingleDownloadProgress(
             reciter: Reciter,
             chapter: Chapter,
-            downloadStatus: DownloadWorkManager.DownloadStatus,
+            downloadStatus: DownloadStatus,
             bytesDownloaded: Long,
             audioFileSize: Int,
             progress: Float,
@@ -541,7 +541,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         updateWidget(reciter, chapter)
 
         when (downloadStatus) {
-            DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD    -> {
+            DownloadStatus.STARTING_DOWNLOAD  -> {
                 isMediaReady = false
                 currentReciter = reciter
                 currentChapter = chapter
@@ -550,15 +550,16 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 updateMediaSession(reciter, chapter)
             }
 
-            DownloadWorkManager.DownloadStatus.FILE_EXISTS,
-            DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD    -> {
+            DownloadStatus.FILE_EXISTS,
+            DownloadStatus.FINISHED_DOWNLOAD  -> {
                 setMediaPlaybackState(MediaSessionState.PLAYING)
                 showMediaNotification(chapter)
             }
 
-            DownloadWorkManager.DownloadStatus.DOWNLOADING,
-            DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR,
-            DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED -> Unit
+            DownloadStatus.DOWNLOADING,
+            DownloadStatus.DOWNLOAD_ERROR,
+            DownloadStatus.DOWNLOAD_INTERRUPTED,
+            DownloadStatus.CONNECTION_FAILURE -> Unit
         }
     }
 
@@ -566,7 +567,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             reciter: Reciter,
             currentChapter: Chapter?,
             currentChapterIndex: Int,
-            currentChapterDownloadStatus: DownloadWorkManager.DownloadStatus,
+            currentChapterDownloadStatus: DownloadStatus,
             currentChapterBytesDownloaded: Long,
             currentChapterFileSize: Int,
             currentChapterProgress: Float,
@@ -589,7 +590,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             reciter: Reciter,
             currentChapter: Chapter?,
             currentChapterIndex: Int,
-            currentChapterDownloadStatus: DownloadWorkManager.DownloadStatus,
+            currentChapterDownloadStatus: DownloadStatus,
             currentChapterBytesDownloaded: Long,
             currentChapterFileSize: Int,
             currentChapterProgress: Float,
@@ -612,7 +613,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             reciter: Reciter,
             currentChapter: Chapter?,
             currentChapterIndex: Int,
-            currentChapterDownloadStatus: DownloadWorkManager.DownloadStatus,
+            currentChapterDownloadStatus: DownloadStatus,
             currentChapterBytesDownloaded: Long,
             currentChapterFileSize: Int,
             currentChapterProgress: Float,
@@ -635,7 +636,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             status: ServiceUpdates, reciter: Reciter,
             currentChapter: Chapter?,
             currentChapterIndex: Int,
-            currentChapterDownloadStatus: DownloadWorkManager.DownloadStatus,
+            currentChapterDownloadStatus: DownloadStatus,
             currentChapterBytesDownloaded: Long,
             currentChapterFileSize: Int,
             currentChapterProgress: Float,

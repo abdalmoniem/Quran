@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -13,11 +14,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import androidx.annotation.ColorInt
 import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.GridLayoutManager
-import androidx.work.WorkManager
 import com.hifnawy.quran.R
 import com.hifnawy.quran.adapters.ChaptersListAdapter
 import com.hifnawy.quran.databinding.DownloadDialogBinding
@@ -35,8 +36,8 @@ import com.hifnawy.quran.ui.activities.MainActivity
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
+import java.text.NumberFormat
 import java.util.Locale
-import java.util.UUID
 import com.hifnawy.quran.shared.R as sharedR
 
 private val TAG = ChaptersList::class.java.simpleName
@@ -48,8 +49,8 @@ class ChaptersList : Fragment() {
 
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private val reciter by lazy { ChaptersListArgs.fromBundle(requireArguments()).reciter }
-    private val workManager by lazy { WorkManager.getInstance(binding.root.context) }
-    private val downloadRequestID by lazy { UUID.fromString(getString(sharedR.string.BULK_DOWNLOAD_WORK_REQUEST_ID)) }
+    private val decimalFormat =
+            DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
     private lateinit var binding: FragmentChaptersListBinding
     private lateinit var chaptersListAdapter: ChaptersListAdapter
     private lateinit var chaptersDownloadProgressReceiver: ChaptersDownloadProgressReceiver
@@ -156,18 +157,10 @@ class ChaptersList : Fragment() {
             downloadDialogChapterProgress.min = 0
             downloadDialogChapterProgress.max = 100
             downloadDialogChapterProgress.progress = 0
+
             downloadDialogAllChaptersProgress.min = 0
             downloadDialogAllChaptersProgress.max = 100
             downloadDialogAllChaptersProgress.progress = 0
-            val decimalFormat =
-                    DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
-
-            downloadDialogAllChaptersProgress.progress = 0
-            downloadDialogAllChaptersDownloadMessage.text =
-                    context.getString(
-                            sharedR.string.loading_all_chapters,
-                            decimalFormat.format(0)
-                    )
 
             downloadDialogChapterProgress.progress = 0
             downloadDialogChapterDownloadMessage.text = "${
@@ -220,13 +213,9 @@ class ChaptersList : Fragment() {
     ) :
             BroadcastReceiver() {
 
-        val context: Context = binding.root.context
-        val decimalFormat =
-                DecimalFormat(
-                        "#.#",
-                        DecimalFormatSymbols.getInstance(Locale("ar", "EG"))
-                )
-        var downloadedChapterCount = 0
+        private val numberFormat = NumberFormat.getNumberInstance(Locale.ENGLISH)
+        private val context: Context = binding.root.context
+        private var downloadedChapterCount = 0
 
         @SuppressLint("SetTextI18n")
         override fun onReceive(receiverContext: Context?, intent: Intent) {
@@ -273,114 +262,102 @@ class ChaptersList : Fragment() {
 
                 Log.d(
                         TAG,
-                        "Download Status: $currentChapterDownloadStatus" +
-                        "\nReciter: ${reciter?.reciter_name}" +
-                        "\nChapter: ${currentChapter.name_simple}" +
-                        "\nIndex: $currentChapterIndex" +
-                        "\nDownloaded: $currentChapterBytesDownloaded" +
-                        "\nSize: $currentChapterFileSize" +
-                        "\nChapter Progress: $currentChapterProgress" +
-                        "\nChapters Progress: $allChaptersProgress"
+                        "Download Status: $currentChapterDownloadStatus, " +
+                        "Reciter: ${reciter?.reciter_name}, " +
+                        "Chapter: ${currentChapter.name_simple}, " +
+                        "Index: $currentChapterIndex, " +
+                        "Downloaded: ${numberFormat.format(currentChapterBytesDownloaded)}, " +
+                        "Size: ${numberFormat.format(currentChapterFileSize)}, " +
+                        "Chapter Progress: ${DecimalFormat("000.000").format(currentChapterProgress)}, " +
+                        "Chapters Progress: ${DecimalFormat("000.000").format(allChaptersProgress)}"
                 )
 
-                with(dialogBinding) {
-                    when (currentChapterDownloadStatus) {
-                        DownloadStatus.STARTING_DOWNLOAD -> {
-                            downloadDialogChapterProgress.progress = currentChapterProgress.toInt()
-                            downloadDialogChapterDownloadMessage.setTextColor(android.graphics.Color.WHITE)
-                            downloadDialogChapterDownloadMessage.text = "${
-                                this@ChaptersList.context?.getString(
-                                        sharedR.string.loading_chapter,
-                                        currentChapter.name_arabic
-                                )
-                            }\n${decimalFormat.format(currentChapterBytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
-                                decimalFormat.format(
-                                        currentChapterFileSize.toFloat() / (1024 * 1024)
-                                )
-                            } مب. (${
-                                decimalFormat.format(currentChapterProgress)
-                            }٪)"
-                        }
+                when (currentChapterDownloadStatus) {
+                    DownloadStatus.STARTING_DOWNLOAD,
+                    DownloadStatus.DOWNLOADING        -> updateProgressBars(
+                            currentChapter = currentChapter,
+                            currentChapterIndex = currentChapterIndex,
+                            currentChapterBytesDownloaded = currentChapterBytesDownloaded,
+                            currentChapterFileSize = currentChapterFileSize,
+                            currentChapterProgress = currentChapterProgress,
+                            currentChapterProgressMessageColor = Color.WHITE,
+                            allChaptersProgress = allChaptersProgress,
+                    )
 
-                        DownloadStatus.DOWNLOADING       -> {
-                            downloadDialogChapterProgress.progress = currentChapterProgress.toInt()
-                            downloadDialogChapterDownloadMessage.text = "${
-                                context.getString(
-                                        sharedR.string.loading_chapter,
-                                        currentChapter.name_arabic
-                                )
-                            }\n${decimalFormat.format(currentChapterBytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
-                                decimalFormat.format(
-                                        currentChapterFileSize.toFloat() / (1024 * 1024)
-                                )
-                            } مب. (${
-                                decimalFormat.format(currentChapterProgress)
-                            }٪)"
-                        }
-
-                        DownloadStatus.FILE_EXISTS,
-                        DownloadStatus.FINISHED_DOWNLOAD -> {
-                            downloadedChapterCount += 1
-                            downloadDialogChapterProgress.progress = currentChapterProgress.toInt()
-                            downloadDialogChapterDownloadMessage.text = "${
-                                context.getString(
-                                        sharedR.string.loading_chapter,
-                                        currentChapter.name_arabic
-                                )
-                            }\n${decimalFormat.format(currentChapterBytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
-                                decimalFormat.format(
-                                        currentChapterFileSize.toFloat() / (1024 * 1024)
-                                )
-                            } مب. (${decimalFormat.format(currentChapterProgress)}٪)"
-
-                            downloadDialogAllChaptersProgress.progress = allChaptersProgress.toInt()
-                            downloadDialogAllChaptersDownloadMessage.text =
-                                    "${
-                                        context.getString(
-                                                sharedR.string.loading_all_chapters,
-                                                decimalFormat.format(allChaptersProgress)
-                                        )
-                                    }\n${
-                                        decimalFormat.format(currentChapterIndex)
-                                    } \\ ${
-                                        decimalFormat.format(
-                                                context.resources.getInteger(sharedR.integer.quran_chapter_count)
-                                        )
-                                    }"
-                        }
-
-                        DownloadStatus.DOWNLOAD_ERROR    -> {
-                            downloadDialogChapterProgress.progress = 100
-                            downloadDialogChapterDownloadMessage.setTextColor(android.graphics.Color.RED)
-                            downloadDialogChapterDownloadMessage.text = "${
-                                context.getString(
-                                        sharedR.string.loading_chapter,
-                                        currentChapter.name_arabic
-                                )
-                            }\n${decimalFormat.format(0)} مب. \\ ${decimalFormat.format(0)} مب. (${
-                                decimalFormat.format(100f)
-                            }٪)"
-
-                            downloadDialogAllChaptersProgress.progress =
-                                    allChaptersProgress.toInt()
-                            downloadDialogAllChaptersDownloadMessage.text =
-                                    "${
-                                        context.getString(
-                                                sharedR.string.loading_all_chapters,
-                                                decimalFormat.format(allChaptersProgress)
-                                        )
-                                    }\n${
-                                        decimalFormat.format(currentChapterIndex)
-                                    } \\ ${
-                                        decimalFormat.format(
-                                                context.resources.getInteger(sharedR.integer.quran_chapter_count)
-                                        )
-                                    }"
-                        }
-
-                        else                             -> Unit
+                    DownloadStatus.FILE_EXISTS,
+                    DownloadStatus.FINISHED_DOWNLOAD  -> {
+                        downloadedChapterCount += 1
+                        updateProgressBars(
+                                currentChapter = currentChapter,
+                                currentChapterIndex = currentChapterIndex,
+                                currentChapterBytesDownloaded = currentChapterBytesDownloaded,
+                                currentChapterFileSize = currentChapterFileSize,
+                                currentChapterProgress = currentChapterProgress,
+                                currentChapterProgressMessageColor = Color.WHITE,
+                                allChaptersProgress = allChaptersProgress,
+                        )
                     }
+
+                    DownloadStatus.DOWNLOAD_ERROR     -> updateProgressBars(
+                            currentChapter = currentChapter,
+                            currentChapterIndex = currentChapterIndex,
+                            currentChapterBytesDownloaded = currentChapterBytesDownloaded,
+                            currentChapterFileSize = currentChapterFileSize,
+                            currentChapterProgress = currentChapterProgress,
+                            currentChapterProgressMessageColor = Color.RED,
+                            allChaptersProgress = allChaptersProgress,
+                    )
+
+                    DownloadStatus.DOWNLOAD_INTERRUPTED,
+                    DownloadStatus.CONNECTION_FAILURE -> Unit
                 }
+            }
+        }
+
+        @SuppressLint("SetTextI18n")
+        private fun updateProgressBars(
+                currentChapter: Chapter,
+                currentChapterIndex: Int,
+                currentChapterBytesDownloaded: Long,
+                currentChapterFileSize: Int,
+                currentChapterProgress: Float,
+                @ColorInt
+                currentChapterProgressMessageColor: Int = Color.WHITE,
+                allChaptersProgress: Float,
+                @ColorInt
+                allChaptersProgressMessageColor: Int = Color.WHITE
+        ) {
+            with(dialogBinding) {
+                downloadDialogChapterProgress.progress = currentChapterProgress.toInt()
+                downloadDialogChapterDownloadMessage.setTextColor(currentChapterProgressMessageColor)
+                downloadDialogChapterDownloadMessage.text = "${
+                    this@ChaptersList.context?.getString(
+                            sharedR.string.loading_chapter,
+                            currentChapter.name_arabic
+                    )
+                }\n${decimalFormat.format(currentChapterBytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
+                    decimalFormat.format(
+                            currentChapterFileSize.toFloat() / (1024 * 1024)
+                    )
+                } مب. (${
+                    decimalFormat.format(currentChapterProgress)
+                }٪)"
+
+                downloadDialogAllChaptersProgress.progress = allChaptersProgress.toInt()
+                downloadDialogAllChaptersDownloadMessage.setTextColor(allChaptersProgressMessageColor)
+                downloadDialogAllChaptersDownloadMessage.text =
+                        "${
+                            context.getString(
+                                    sharedR.string.loading_all_chapters,
+                                    decimalFormat.format(allChaptersProgress)
+                            )
+                        }\n${
+                            decimalFormat.format(currentChapterIndex)
+                        } \\ ${
+                            decimalFormat.format(
+                                    context.resources.getInteger(sharedR.integer.quran_chapter_count)
+                            )
+                        }"
             }
         }
     }
