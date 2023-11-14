@@ -227,13 +227,14 @@ class MediaPlayback : Fragment() {
             })
             dialog.dismiss()
         }
-
         /**
-         * TODO: this is in correct, this line adds a new observer everytime it's being called
-         *       which means there'll be duplicate actions being taken in the same time while the data
-         *       its parsing is changing, check [com.hifnawy.quran.shared.managers.MediaManager] for details
-         *       on how to fix
-         * */
+         * TODO:
+         * this is in correct, this line adds a new observer everytime it's being called
+         * which means there'll be duplicate actions being taken in the same time while the data
+         * its parsing is changing, check:
+         * [com.hifnawy.quran.shared.managers.MediaManager.observeSingleDownloadProgress] for details
+         * on how to fix
+         */
         workManager.getWorkInfoByIdLiveData(downloadRequestID)
             .observe(viewLifecycleOwner) { workInfo ->
                 observeWorker(workInfo, dialog, dialogBinding)

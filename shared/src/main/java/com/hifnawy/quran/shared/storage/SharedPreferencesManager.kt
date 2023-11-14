@@ -8,13 +8,21 @@ import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.Companion.putSer
 import com.hifnawy.quran.shared.extensions.SharedPreferencesExt.Companion.putSerializableList
 import com.hifnawy.quran.shared.model.Chapter
 import com.hifnawy.quran.shared.model.ChapterAudioFile
+import com.hifnawy.quran.shared.model.Constants
 import com.hifnawy.quran.shared.model.Reciter
 import java.io.File
 
 class SharedPreferencesManager(private val context: Context) {
     private enum class SharedPrefsKeys {
-        RECITERS, CHAPTERS, LAST_RECITER, LAST_CHAPTER, LAST_CHAPTER_POSITION, LAST_CHAPTER_DURATION,
-        RECITER_CHAPTER_AUDIO_FILES, MEDIA_PATH_CONSISTENCY
+        RECITERS,
+        CHAPTERS,
+        LAST_RECITER,
+        LAST_CHAPTER,
+        LAST_CHAPTER_POSITION,
+        LAST_CHAPTER_DURATION,
+        RECITER_CHAPTER_AUDIO_FILES,
+        MEDIA_PATH_CONSISTENCY,
+        MEDIA_PATH_RENAMED
     }
 
     private val sharedPrefs =
@@ -54,6 +62,11 @@ class SharedPreferencesManager(private val context: Context) {
         set(value) = sharedPrefs.edit()
             .putBoolean(SharedPrefsKeys.MEDIA_PATH_CONSISTENCY.name, value)
             .apply()
+    var areChapterPathsRenamed: Boolean
+        get() = sharedPrefs.getBoolean(SharedPrefsKeys.MEDIA_PATH_RENAMED.name, false)
+        set(value) = sharedPrefs.edit()
+            .putBoolean(SharedPrefsKeys.MEDIA_PATH_RENAMED.name, value)
+            .apply()
 
     fun getReciterChapterAudioFiles(reciterID: Int): List<ChapterAudioFile> =
             sharedPrefs.getSerializableList("${SharedPrefsKeys.RECITER_CHAPTER_AUDIO_FILES.name}_#$reciterID")
@@ -67,18 +80,21 @@ class SharedPreferencesManager(private val context: Context) {
                 .apply()
 
     fun setChapterPath(reciter: Reciter, chapter: Chapter) {
-        val reciterDirectory =
-                "${this.context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}"
-        val chapterFileName =
-                "$reciterDirectory/${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3"
+        val chapterPathKey = getChapterPathKey(reciter, chapter)
+        val chapterFilePath = Constants.getChapterPath(context, reciter, chapter)
+        sharedPrefs.edit().putString(chapterPathKey, chapterFilePath).apply()
+    }
 
-        sharedPrefs.edit().putString("${reciter.id}_${chapter.id}", chapterFileName).apply()
+    fun getChapterPath(reciter: Reciter, chapter: Chapter): String? {
+        val chapterPathKey = getChapterPathKey(reciter, chapter)
+        return sharedPrefs.getString(chapterPathKey, null)
     }
 
     fun getChapterFile(reciter: Reciter, chapter: Chapter): File? {
-        val chapterPathKey = "${reciter.id}_${chapter.id}"
-        sharedPrefs.getString(chapterPathKey, null)?.let { chapterFilePath ->
+        val chapterPathKey = getChapterPathKey(reciter, chapter)
+        getChapterPath(reciter, chapter)?.let { chapterFilePath ->
             val chapterFile = File(chapterFilePath)
+
             Log.d("SharedPrefsManager", "file $chapterFilePath exists: ${chapterFile.exists()}")
             if (chapterFile.exists())
                 return chapterFile
@@ -88,4 +104,7 @@ class SharedPreferencesManager(private val context: Context) {
             }
         } ?: return null
     }
+
+    private fun getChapterPathKey(reciter: Reciter, chapter: Chapter): String =
+            "${reciter.id}_${chapter.id}"
 }

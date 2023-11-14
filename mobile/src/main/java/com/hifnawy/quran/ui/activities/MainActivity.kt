@@ -47,7 +47,6 @@ import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 import kotlin.concurrent.fixedRateTimer
 
-@Suppress("PrivatePropertyName")
 private val TAG = MainActivity::class.simpleName
 
 class MainActivity : AppCompatActivity() {
@@ -71,9 +70,9 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(binding.appToolbar)
 
         navController =
-            (supportFragmentManager.findFragmentById(binding.fragmentContainer.id) as NavHostFragment).navController
+                (supportFragmentManager.findFragmentById(binding.fragmentContainer.id) as NavHostFragment).navController
         mediaPlaybackNavController =
-            (supportFragmentManager.findFragmentById(binding.mediaPlaybackFragmentContainer.id) as NavHostFragment).navController
+                (supportFragmentManager.findFragmentById(binding.mediaPlaybackFragmentContainer.id) as NavHostFragment).navController
 
         if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) &&
             (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
@@ -144,7 +143,7 @@ class MainActivity : AppCompatActivity() {
     private fun checkIntent(intent: Intent?) {
         if ((intent != null) &&
             (intent.hasCategory(Constants.NowPlayingClass.simpleName) ||
-                    intent.hasCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY))
+             intent.hasCategory(Constants.MAIN_ACTIVITY_INTENT_CATEGORY))
         ) {
             val reciter = intent.getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
             val chapter = intent.getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
@@ -183,7 +182,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private suspend fun checkDataConsistency() {
-        if (sharedPrefsManager.areChapterPathsSaved) return
+        if (sharedPrefsManager.areChapterPathsSaved && sharedPrefsManager.areChapterPathsRenamed) return
 
         withContext(Dispatchers.Main) {
             val (dialog, dialogBinding) = DialogBuilder.prepareUpdateDialog(binding.root.context)
@@ -201,7 +200,7 @@ class MainActivity : AppCompatActivity() {
 
                 runOnUiThread {
                     dialogBinding.linearProgressBar.progress =
-                        ((counter.toFloat() / counterThreshold.toFloat()) * 100f).toInt()
+                            ((counter.toFloat() / counterThreshold.toFloat()) * 100f).toInt()
                 }
 
                 if (counter % counterThreshold == 0L) {
@@ -213,80 +212,95 @@ class MainActivity : AppCompatActivity() {
                     counter = 0L
                 }
 
-                if (sharedPrefsManager.areChapterPathsSaved) cancel()
+                if (sharedPrefsManager.areChapterPathsSaved && sharedPrefsManager.areChapterPathsRenamed) {
+                    cancel()
+                    Log.d(TAG, "finished")
+                    dialog.dismiss()
+                }
             }
 
             withContext(Dispatchers.IO) { updateChapterPaths(this@MainActivity) }
-
-            dialog.dismiss()
         }
-
-        sharedPrefsManager.areChapterPathsSaved = true
     }
 
     @Suppress("BlockingMethodInNonBlockingContext")
     private suspend fun updateChapterPaths(context: Context) {
-        val ioCoroutineScope = CoroutineScope(Dispatchers.IO)
-        val reciters = ioCoroutineScope.async { QuranAPI.getRecitersList(this@MainActivity) }.await()
-        val chapters = ioCoroutineScope.async { QuranAPI.getChaptersList(this@MainActivity) }.await()
+        val reciters = QuranAPI.getRecitersList(this@MainActivity)
+        val chapters = QuranAPI.getChaptersList(this@MainActivity)
         Log.d(TAG, "Checking Chapters' Paths...")
+        val filesDir = filesDir.listFiles()
+        if (!sharedPrefsManager.areChapterPathsRenamed && filesDir != null) {
+            for (file in filesDir) {
+                if ("`" in file.name) {
+                    val reciter = reciters.find { reciter: Reciter -> reciter.reciter_name == file.name }
+                                  ?: continue
 
-        for (reciter in reciters) {
-            for (chapter in chapters) {
-                val chapterFile = getChapterPath(context, reciter, chapter)
+                    for (chapter in chapters) {
+                        val chapterFilePath =
+                                sharedPrefsManager.getChapterPath(reciter, chapter) ?: continue
 
-                if (!chapterFile.exists()) {
-                    Log.d(
-                            TAG,
-                            "${chapterFile.absolutePath} doesn't exist, skipping"
-                    )
-                    continue
-                }
-
-                Log.d(TAG, "${chapterFile.absolutePath} exists, checking...")
-                val chapterAudioFileUrl =
-                    QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url ?: continue
-
-                (URL(chapterAudioFileUrl).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    setRequestProperty("Accept-Encoding", "identity")
-                    connect()
-
-                    if (responseCode !in 200..299) {
-                        return@apply
+                        Log.d(TAG, "renaming $chapterFilePath to ${chapterFilePath.replace("`", "'")}")
+                        sharedPrefsManager.setChapterPath(reciter, chapter)
                     }
-                    val chapterFileSize = Files.readAttributes(
-                            chapterFile.toPath(), BasicFileAttributes::class.java
-                    ).size()
+                    val newFileName = file.absolutePath.replace("`", "'")
+                    Log.d(TAG, "renaming ${file.absolutePath} to $newFileName")
+                    file.renameTo(File(newFileName))
+                }
+            }
+            sharedPrefsManager.areChapterPathsRenamed = true
+        }
 
-                    if (chapterFileSize != contentLength.toLong()) {
+        if (!sharedPrefsManager.areChapterPathsSaved) {
+            for (reciter in reciters) {
+                for (chapter in chapters) {
+                    val chapterFile = Constants.getChapterFile(context, reciter, chapter)
+
+                    if (!chapterFile.exists()) {
                         Log.d(
                                 TAG,
-                                "Chapter Audio File incomplete, Deleting chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\n"
+                                "${chapterFile.absolutePath} doesn't exist, skipping"
                         )
-                        chapterFile.delete()
-                    } else {
-                        Log.d(
-                                TAG,
-                                "Chapter Audio File complete, Updating chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\nsize: ${chapterFileSize / 1024 / 1024} MBs"
-                        )
-                        SharedPreferencesManager(context).setChapterPath(
-                                reciter, chapter
-                        )
+                        continue
+                    }
+
+                    Log.d(TAG, "${chapterFile.absolutePath} exists, checking...")
+                    val chapterAudioFileUrl =
+                            QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url ?: continue
+
+                    (URL(chapterAudioFileUrl).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        setRequestProperty("Accept-Encoding", "identity")
+                        connect()
+
+                        if (responseCode !in 200..299) {
+                            return@apply
+                        }
+                        val chapterFileSize = Files.readAttributes(
+                                chapterFile.toPath(), BasicFileAttributes::class.java
+                        ).size()
+
+                        if (chapterFileSize != contentLength.toLong()) {
+                            Log.d(
+                                    TAG,
+                                    "Chapter Audio File incomplete, Deleting chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\n"
+                            )
+                            chapterFile.delete()
+                        } else {
+                            Log.d(
+                                    TAG,
+                                    "Chapter Audio File complete, Updating chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\nsize: ${chapterFileSize / 1024 / 1024} MBs"
+                            )
+                            SharedPreferencesManager(context).setChapterPath(
+                                    reciter, chapter
+                            )
+                        }
                     }
                 }
             }
+
+            sharedPrefsManager.areChapterPathsSaved = true
         }
 
         Log.d(TAG, "SharedPrefs Updated!!!")
-    }
-
-    private fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): File {
-        val reciterDirectory =
-            "${context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}"
-        val chapterFileName =
-            "$reciterDirectory/${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3"
-
-        return File(chapterFileName)
     }
 }

@@ -1,12 +1,13 @@
 package com.hifnawy.quran.shared.model
 
-class Constants {
-    companion object {
+import android.content.Context
+import java.io.File
 
-        const val MAIN_ACTIVITY_INTENT_CATEGORY = "com.hifnawy.quran.ui.activities.MainActivity"
-        val NowPlayingClass: Class<*> = Class.forName("com.hifnawy.quran.ui.widgets.NowPlaying")
-        val MainActivityClass: Class<*> = Class.forName(MAIN_ACTIVITY_INTENT_CATEGORY)
-    }
+object Constants {
+
+    const val MAIN_ACTIVITY_INTENT_CATEGORY = "com.hifnawy.quran.ui.activities.MainActivity"
+    val NowPlayingClass: Class<*> = Class.forName("com.hifnawy.quran.ui.widgets.NowPlaying")
+    val MainActivityClass: Class<*> = Class.forName(MAIN_ACTIVITY_INTENT_CATEGORY)
 
     enum class ServiceUpdates {
         MEDIA_PLAYBACK_UPDATES,
@@ -42,4 +43,12 @@ class Constants {
         IS_MEDIA_PLAYING,
         IS_SINGLE_DOWNLOAD
     }
+
+    fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): String =
+            ("${context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}/" +
+             "${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3")
+                .replace("`", "'")
+
+    fun getChapterFile(context: Context, reciter: Reciter, chapter: Chapter): File =
+            File(getChapterPath(context, reciter, chapter))
 }

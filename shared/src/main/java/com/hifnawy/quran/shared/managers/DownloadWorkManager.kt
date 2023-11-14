@@ -275,7 +275,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             singleFileDownload: Boolean = true,
             threadCount: Int = 32
     ): Result {
-        val chapterFile = getChapterPath(context, reciter, chapter)
+        val chapterFile = Constants.getChapterFile(context, reciter, chapter)
 
         @Suppress("BlockingMethodInNonBlockingContext")
         (url.openConnection() as HttpURLConnection).apply {
@@ -720,15 +720,6 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         notificationManager.createNotificationChannel(channel)
 
         return notificationBuilder to notificationManager
-    }
-
-    private fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): File {
-        val reciterDirectory =
-                "${context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}"
-        val chapterFileName =
-                "$reciterDirectory/${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3"
-
-        return File(chapterFileName)
     }
 
     private data class JobOffset(
