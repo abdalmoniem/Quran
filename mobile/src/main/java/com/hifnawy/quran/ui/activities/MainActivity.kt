@@ -243,10 +243,12 @@ class MainActivity : AppCompatActivity() {
                         sharedPrefsManager.setChapterPath(reciter, chapter)
                     }
                     val newFileName = file.absolutePath.replace("`", "'")
+
                     Log.d(TAG, "renaming ${file.absolutePath} to $newFileName")
                     file.renameTo(File(newFileName))
                 }
             }
+
             sharedPrefsManager.areChapterPathsRenamed = true
         }
 

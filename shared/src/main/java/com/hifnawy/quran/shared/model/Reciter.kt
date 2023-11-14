@@ -13,7 +13,9 @@ data class Reciter(
 
     @Suppress("unused", "SpellCheckingInspection")
     enum class RecitationStyle(val style: String?) {
-        Murattal("مرتل"), Mujawwad("مجود"), Muallim("معلم")
+        Murattal("مرتل"),
+        Mujawwad("مجود"),
+        Muallim("معلم")
     }
 
     class TranslatedName(val name: String, @Suppress("unused") val language_name: String) : Serializable

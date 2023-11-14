@@ -37,7 +37,11 @@ class NowPlaying : AppWidgetProvider() {
         private var isMediaPlaying: Boolean = false
     }
 
-    enum class WidgetActions(val value: Int) { PLAY_PAUSE(0), NEXT(1), PREVIOUS(2), OPEN_MEDIA_PLAYER(3)
+    enum class WidgetActions(val value: Int) {
+        PLAY_PAUSE(0),
+        NEXT(1),
+        PREVIOUS(2),
+        OPEN_MEDIA_PLAYER(3)
     }
 
     private val views by lazy { RemoteViews(widgetContext.packageName, R.layout.now_playing) }

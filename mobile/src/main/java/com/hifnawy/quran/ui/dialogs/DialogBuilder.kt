@@ -14,7 +14,8 @@ import com.hifnawy.quran.databinding.UpdatingDataDialogBinding
 class DialogBuilder {
 
     enum class DownloadType {
-        SINGLE, BULK
+        SINGLE,
+        BULK
     }
 
     companion object {
