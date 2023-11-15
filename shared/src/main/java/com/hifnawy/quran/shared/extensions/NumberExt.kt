@@ -1,6 +1,7 @@
 package com.hifnawy.quran.shared.extensions
 
 import android.content.res.Resources
+import java.time.Duration
 
 object NumberExt {
 
@@ -12,4 +13,6 @@ object NumberExt {
         get() = (this * Resources.getSystem().displayMetrics.scaledDensity).toInt()
     inline val Float.sp: Float
         get() = this * Resources.getSystem().displayMetrics.scaledDensity
+    inline val Long.hours: Long
+        get() = Duration.ofMillis(this).toHours()
 }

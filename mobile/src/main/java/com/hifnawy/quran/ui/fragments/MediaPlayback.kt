@@ -34,6 +34,7 @@ import com.hifnawy.quran.R
 import com.hifnawy.quran.databinding.DownloadDialogBinding
 import com.hifnawy.quran.databinding.FragmentMediaPlaybackBinding
 import com.hifnawy.quran.shared.extensions.NumberExt.dp
+import com.hifnawy.quran.shared.extensions.NumberExt.hours
 import com.hifnawy.quran.shared.extensions.SerializableExt.Companion.getTypedSerializable
 import com.hifnawy.quran.shared.managers.DownloadWorkManager
 import com.hifnawy.quran.shared.model.Chapter
@@ -47,9 +48,9 @@ import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.text.NumberFormat
-import java.time.Duration
 import java.util.Locale
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 import com.hifnawy.quran.shared.R as sharedR
 import com.hoko.blur.HokoBlur as Blur
 
@@ -69,6 +70,7 @@ class MediaPlayback : Fragment() {
     private lateinit var binding: FragmentMediaPlaybackBinding
     private lateinit var sharedPrefsManager: SharedPreferencesManager
     private var appBarHeight: Int = 0
+    private var isChapterSeekTouched = false
 
     @SuppressLint(
             "DiscouragedApi", "SetTextI18n", "ClickableViewAccessibility",
@@ -125,22 +127,40 @@ class MediaPlayback : Fragment() {
 
             chapterSeek.addOnChangeListener { _, value, fromUser ->
                 if (fromUser) {
-                    val showHours = Duration.ofMillis(chapterSeek.valueTo.toLong()).toHours() > 0
+                    val showHours = chapterSeek.valueTo.toLong().hours > 0
 
-                    chapterDuration.text = "${
-                        getDuration(value.toLong(), showHours)
-                    } \\ ${
-                        getDuration(chapterSeek.valueTo.toLong(), showHours)
-                    }"
+                    chapterDuration.text = "${getDuration(value.toLong(), showHours)} \\ " +
+                                           getDuration(chapterSeek.valueTo.toLong(), showHours)
+                }
+            }
 
-                    parentActivity.startForegroundService(Intent(
-                            binding.root.context,
-                            MediaService::class.java
-                    ).apply {
-                        action = Constants.MediaServiceActions.SEEK_MEDIA.name
+            chapterSeek.setOnTouchListener { _, motionEvent ->
+                when (motionEvent.action) {
+                    MotionEvent.ACTION_UP   -> {
+                        isChapterSeekTouched = false
 
-                        putExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, value.toLong())
-                    })
+                        parentActivity.startForegroundService(Intent(
+                                binding.root.context,
+                                MediaService::class.java
+                        ).apply {
+                            action = Constants.MediaServiceActions.SEEK_MEDIA.name
+
+                            putExtra(
+                                    Constants.IntentDataKeys.CHAPTER_POSITION.name,
+                                    chapterSeek.value.toLong()
+                            )
+                        })
+
+                        return@setOnTouchListener true
+                    }
+
+                    MotionEvent.ACTION_DOWN -> {
+                        isChapterSeekTouched = true
+
+                        return@setOnTouchListener true
+                    }
+
+                    else                    -> return@setOnTouchListener false
                 }
             }
 
@@ -277,17 +297,21 @@ class MediaPlayback : Fragment() {
 
         with(binding) {
             chapterBackgroundImage.setImageDrawable(bitmap.toDrawable(resources))
+
             chapterName.text = chapter.nameArabic
             reciterName.text = reciter.nameArabic
+
             chapterImageCard.setCardBackgroundColor(
                     if (chapter.id % 2 == 0) Color.parseColor("#336e6a")
                     else Color.parseColor("#dd5f56")
             )
             chapterImage.setImageDrawable(drawable)
+
             chapterSeek.trackActiveTintList = ColorStateList.valueOf(dominantColor)
             chapterSeek.valueFrom = 0f
             chapterSeek.valueTo = chapterDuration.toFloat()
-            chapterSeek.value = chapterPosition.toFloat()
+            if (!isChapterSeekTouched) chapterSeek.value = chapterPosition.toFloat()
+
             chapterPlayPause.icon =
                     if (isMediaPlaying) AppCompatResources.getDrawable(
                             binding.root.context,
@@ -299,6 +323,7 @@ class MediaPlayback : Fragment() {
                     )
 
             chapterPlayPause.setBackgroundColor(dominantColor)
+
             chapterNext.setBackgroundColor(dominantColor)
             chapterPrevious.setBackgroundColor(dominantColor)
         }
@@ -359,7 +384,7 @@ class MediaPlayback : Fragment() {
 
         with(dialogBinding) {
             when (downloadStatus) {
-                DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD -> {
+                DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD  -> {
                     lastWorkInfoId = workInfo.id
                     dialog.show()
                     downloadDialogChapterProgress.min = 0
@@ -377,7 +402,7 @@ class MediaPlayback : Fragment() {
                     }٪)"
                 }
 
-                DownloadWorkManager.DownloadStatus.DOWNLOADING -> {
+                DownloadWorkManager.DownloadStatus.DOWNLOADING        -> {
                     downloadDialogChapterProgress.progress = progress.toInt()
                     downloadDialogChapterDownloadMessage.text = "${
                         context?.getString(
@@ -391,7 +416,7 @@ class MediaPlayback : Fragment() {
                 }
 
                 DownloadWorkManager.DownloadStatus.FILE_EXISTS,
-                DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> dialog.dismiss()
+                DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD  -> dialog.dismiss()
 
                 DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR,
                 DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED,
@@ -401,8 +426,8 @@ class MediaPlayback : Fragment() {
     }
 
     private fun getDuration(durationMs: Long, showHours: Boolean): String {
-        val duration: Duration = Duration.ofMillis(durationMs)
-        val durationS = duration.seconds
+        val duration = durationMs.milliseconds
+        val durationS = duration.inWholeSeconds
         val hours = durationS / 3600
         val minutes = (durationS % 3600) / 60
         val seconds = durationS % 60
@@ -434,19 +459,16 @@ class MediaPlayback : Fragment() {
             if ((0 > currentPosition) || (currentPosition > durationMs) || binding.chapterSeek.isFocused) return
 
             with(binding) {
-                chapterDuration.text = "${
-                    getDuration(
-                            currentPosition, (Duration.ofMillis(durationMs).toHours() > 0)
-                    )
-                } \\ ${
-                    getDuration(
-                            durationMs, (Duration.ofMillis(durationMs).toHours() > 0)
-                    )
-                }"
-
                 chapterSeek.valueFrom = 0f
                 chapterSeek.valueTo = durationMs.toFloat()
-                chapterSeek.value = currentPosition.toFloat()
+
+                if (!isChapterSeekTouched) {
+                    chapterSeek.value = currentPosition.toFloat()
+
+                    chapterDuration.text =
+                            "${getDuration(currentPosition, (durationMs.hours > 0))} \\ " +
+                            getDuration(durationMs, (durationMs.hours > 0))
+                }
             }
         }
     }
@@ -458,11 +480,6 @@ class MediaPlayback : Fragment() {
         val chapterPlayPauseIconSize = binding.chapterPlayPause.iconSize.toFloat()
         val chapterNextIconSize = binding.chapterNext.iconSize.toFloat()
         val minimizedMediaControlsIconSize = 80f.dp
-        var disableSliderTouch: Boolean = false
-
-        init {
-            binding.chapterSeek.setOnTouchListener { _, _ -> disableSliderTouch }
-        }
 
         override fun onTransitionStarted(motionLayout: MotionLayout?, startId: Int, endId: Int) = Unit
 
@@ -504,8 +521,6 @@ class MediaPlayback : Fragment() {
             }
 
             with(binding) {
-                disableSliderTouch = minimizing
-
                 chapterName.setTextSize(
                         TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
                     lerp(80f, 25f, progress)
