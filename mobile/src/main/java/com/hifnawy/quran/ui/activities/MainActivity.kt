@@ -35,7 +35,6 @@ import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
 import com.hifnawy.quran.ui.fragments.MediaPlaybackDirections
 import com.hifnawy.quran.ui.fragments.RecitersListDirections
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -232,7 +231,7 @@ class MainActivity : AppCompatActivity() {
         if (!sharedPrefsManager.areChapterPathsRenamed && filesDir != null) {
             for (file in filesDir) {
                 if ("`" in file.name) {
-                    val reciter = reciters.find { reciter: Reciter -> reciter.reciter_name == file.name }
+                    val reciter = reciters.find { reciter: Reciter -> reciter.name == file.name }
                                   ?: continue
 
                     for (chapter in chapters) {
@@ -267,7 +266,7 @@ class MainActivity : AppCompatActivity() {
 
                     Log.d(TAG, "${chapterFile.absolutePath} exists, checking...")
                     val chapterAudioFileUrl =
-                            QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url ?: continue
+                            QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.url ?: continue
 
                     (URL(chapterAudioFileUrl).openConnection() as HttpURLConnection).apply {
                         requestMethod = "GET"
@@ -284,13 +283,13 @@ class MainActivity : AppCompatActivity() {
                         if (chapterFileSize != contentLength.toLong()) {
                             Log.d(
                                     TAG,
-                                    "Chapter Audio File incomplete, Deleting chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\n"
+                                    "Chapter Audio File incomplete, Deleting chapterPath:\nreciter #${reciter.id}: ${reciter.name}\nchapter: ${chapter.nameSimple}\npath: ${chapterFile.absolutePath}\n"
                             )
                             chapterFile.delete()
                         } else {
                             Log.d(
                                     TAG,
-                                    "Chapter Audio File complete, Updating chapterPath:\nreciter #${reciter.id}: ${reciter.reciter_name}\nchapter: ${chapter.name_simple}\npath: ${chapterFile.absolutePath}\nsize: ${chapterFileSize / 1024 / 1024} MBs"
+                                    "Chapter Audio File complete, Updating chapterPath:\nreciter #${reciter.id}: ${reciter.name}\nchapter: ${chapter.nameSimple}\npath: ${chapterFile.absolutePath}\nsize: ${chapterFileSize / 1024 / 1024} MBs"
                             )
                             SharedPreferencesManager(context).setChapterPath(
                                     reciter, chapter

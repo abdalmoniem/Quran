@@ -23,7 +23,7 @@ class MediaSessionCallback(private val mediaService: MediaService) : MediaSessio
             val reciter = getTypedSerializable<Reciter>(Constants.IntentDataKeys.RECITER.name)
             val chapter = getTypedSerializable<Chapter>(Constants.IntentDataKeys.CHAPTER.name)
 
-            Log.d(TAG, "Playing ${reciter?.name_ar} / ${chapter?.name_simple}...")
+            Log.d(TAG, "Playing ${reciter?.nameArabic} / ${chapter?.nameSimple}...")
             mediaService.prepareMedia(reciter, chapter)
         }
     }

@@ -148,8 +148,8 @@ class NowPlaying : AppWidgetProvider() {
         }
 
         with(views) {
-            setTextViewText(R.id.reciter_name, currentReciter?.name_ar)
-            setTextViewText(R.id.chapter_name, currentChapter?.name_arabic)
+            setTextViewText(R.id.reciter_name, currentReciter?.nameArabic)
+            setTextViewText(R.id.chapter_name, currentChapter?.nameArabic)
             setImageViewResource(
                     R.id.media_playback,
                     if (isMediaPlaying) sharedR.drawable.media_pause_white

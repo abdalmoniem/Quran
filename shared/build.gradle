@@ -61,6 +61,16 @@ dependencies {
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     implementation 'com.google.code.gson:gson:2.10.1'
 
+    // for running scratch files, the following dependencies are required
+    // org.json is somehow not being pulled out of the gson dependency, so
+    // it has to explicitly be added
+    // https://mvnrepository.com/artifact/org.json/json
+    implementation 'org.json:json:20231013'
+
+    // this dependency adds the ability to run kotlin scripts such as scratch files
+    // https://mvnrepository.com/artifact/org.jetbrains.kotlin/kotlin-script-runtime
+    implementation 'org.jetbrains.kotlin:kotlin-script-runtime:1.9.20'
+
     // ExoPlayer dependencies
     // This allows Quran to utilize a local version of ExoPlayer, which is particularly
     // useful for extending the MediaSession extension, as well as for testing and

@@ -51,11 +51,11 @@ class ChaptersListAdapter(
             val chapter = this@ChaptersListAdapter.chapters[position]
             val nf = NumberFormat.getInstance(Locale("ar", "EG"))
 
-            chapterName.text = chapter.name_arabic
-            verseCount.text = context.getString(R.string.verse_count, nf.format(chapter.verses_count))
-            revelationPlace.text = chapter.revelation_place.place
+            chapterName.text = chapter.nameArabic
+            verseCount.text = context.getString(R.string.verse_count, nf.format(chapter.verseCount))
+            revelationPlace.text = chapter.revelationPlace.place
             revelationOrder.text =
-                context.getString(R.string.revelation_order, nf.format(chapter.revelation_order))
+                context.getString(R.string.revelation_order, nf.format(chapter.revelationOrder))
 
             cardHolder.setOnClickListener {
                 itemClickListener?.chapterItemClickListener(position, chapter, holder)

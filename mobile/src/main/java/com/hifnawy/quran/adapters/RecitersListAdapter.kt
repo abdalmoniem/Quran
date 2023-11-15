@@ -47,8 +47,8 @@ class RecitersListAdapter(
         with(holder) {
             val reciter = this@RecitersListAdapter.reciters[position]
 
-            reciterName.text = reciter.name_ar
-            recitationStyle.text = if (reciter.style != null) reciter.style!!.style else "تلاوة"
+            reciterName.text = reciter.nameArabic
+            recitationStyle.text = if (reciter.recitationStyle != null) reciter.recitationStyle!!.style else "تلاوة"
 
             cardHolder.setOnClickListener {
                 itemClickListener?.reciterItemClickListener(position, reciter, holder)

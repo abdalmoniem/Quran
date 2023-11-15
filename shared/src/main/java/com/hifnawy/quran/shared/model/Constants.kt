@@ -45,8 +45,8 @@ object Constants {
     }
 
     fun getChapterPath(context: Context, reciter: Reciter, chapter: Chapter): String =
-            ("${context.filesDir.absolutePath}/${reciter.reciter_name}/${reciter.style ?: ""}/" +
-             "${chapter.id.toString().padStart(3, '0')}_${chapter.name_simple}.mp3")
+            ("${context.filesDir.absolutePath}/${reciter.name}/${reciter.recitationStyle ?: ""}/" +
+             "${chapter.id.toString().padStart(3, '0')}_${chapter.nameSimple}.mp3")
                 .replace("`", "'")
 
     fun getChapterFile(context: Context, reciter: Reciter, chapter: Chapter): File =

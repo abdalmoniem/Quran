@@ -66,7 +66,7 @@ class RecitersList : Fragment() {
                         recitersListAdapter.setReciters(reciters)
                     } else {
                         val searchResults = reciters.filter { reciter ->
-                            return@filter reciter.name_ar.contains(charSequence.toString())
+                            return@filter reciter.nameArabic.contains(charSequence.toString())
                         }
 
                         if (searchResults.isNotEmpty()) {

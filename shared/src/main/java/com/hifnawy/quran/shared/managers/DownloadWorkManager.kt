@@ -121,7 +121,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             val chapter = toChapter(chapterJSON)
             val urlString =
                     inputData.getString(Constants.IntentDataKeys.CHAPTER_URL.name)
-                    ?: QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.audio_url
+                    ?: QuranAPI.getChapterAudioFile(reciter.id, chapter.id)?.url
                     ?: return Result.failure(
                             workDataOf(
                                     DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.DOWNLOAD_ERROR.name,
@@ -135,7 +135,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                         chapterFile.toPath(), BasicFileAttributes::class.java
                 ).size()
 
-                Log.d(TAG, "${chapter.name_simple} audio file exists in ${chapterFile.absoluteFile}")
+                Log.d(TAG, "${chapter.nameSimple} audio file exists in ${chapterFile.absoluteFile}")
 
                 return Result.success(
                         workDataOf(
@@ -147,7 +147,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                         )
                 )
             } ?: run {
-                Log.d(TAG, "${chapter.name_simple} audio file does not exist, downloading...")
+                Log.d(TAG, "${chapter.nameSimple} audio file does not exist, downloading...")
                 return downloadFile(url, reciter, chapter, true)
             }
         }
@@ -165,13 +165,13 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         if (chapterAudioFiles.isEmpty()) {
             Log.d(
                     TAG,
-                    "cannot fetch chapter audio files for reciter #${reciter.id}: ${reciter.reciter_name}"
+                    "cannot fetch chapter audio files for reciter #${reciter.id}: ${reciter.name}"
             )
             return Result.failure(
                     workDataOf(
                             DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.CONNECTION_FAILURE.name,
                             DownloadWorkerInfo.ERROR_MESSAGE.name to
-                                    "cannot fetch chapter audio files for reciter #${reciter.id}: ${reciter.reciter_name}"
+                                    "cannot fetch chapter audio files for reciter #${reciter.id}: ${reciter.name}"
                     )
             )
         } else {
@@ -203,11 +203,11 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                                 )
                         )
                     } ?: chapterAudioFiles.find { chapterAudioFile ->
-                    chapterAudioFile.chapter_id == currentChapter.id
+                    chapterAudioFile.chapterID == currentChapter.id
                 }?.let { chapterAudioFile ->
                     val result =
                             downloadFile(
-                                    URL(chapterAudioFile.audio_url),
+                                    URL(chapterAudioFile.url),
                                     reciter,
                                     currentChapter,
                                     false
@@ -216,7 +216,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                             result.outputData.getString(DownloadWorkerInfo.DOWNLOAD_STATUS.name)
 
                     if (downloadStatus == DownloadStatus.DOWNLOAD_ERROR.name) {
-                        Log.d(TAG, "failed to download ${chapterAudioFile.audio_url}")
+                        Log.d(TAG, "failed to download ${chapterAudioFile.url}")
                         downloadedChapterCount--
                     }
 
@@ -425,7 +425,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                             .setContentTitle(
                                     context.getString(
                                             R.string.loading_chapter,
-                                            chapter.name_arabic
+                                            chapter.nameArabic
                                     )
                             )
                             .setContentText(
@@ -586,7 +586,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
             Log.d(
                     TAG,
-                    "saving ${chapter.name_simple} for ${reciter.reciter_name} in " +
+                    "saving ${chapter.nameSimple} for ${reciter.name} in " +
                     "${chapterFile.absolutePath} with size of " +
                     "${numberFormat.format(chapterDownloadedBytes)} bytes"
             )
@@ -706,7 +706,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             .setPriority(NotificationManager.IMPORTANCE_MAX)
             .setContentIntent(pendingIntent)
             .setContentInfo(context.getString(R.string.app_name))
-            .setSubText("${reciter.name_ar} \\ ${chapter.name_arabic}")
+            .setSubText("${reciter.nameArabic} \\ ${chapter.nameArabic}")
             .setProgress(100, 0, false)
             .setSmallIcon(R.drawable.quran_icon_monochrome_black_64)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
@@ -714,7 +714,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                 context.getString(R.string.quran_download_notification_name),
                 context.getString(R.string.quran_download_notification_name),
                 NotificationManager.IMPORTANCE_HIGH
-        ).apply { description = chapter.name_arabic }
+        ).apply { description = chapter.nameArabic }
         val notificationManager: NotificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(channel)

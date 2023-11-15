@@ -1,25 +1,39 @@
 package com.hifnawy.quran.shared.model
 
+import com.google.gson.annotations.SerializedName
 import java.io.Serializable
 
 data class Chapter(
-    val id: Int,
-    val revelation_place: RevelationPlace,
-    val revelation_order: Int,
-    @Suppress("SpellCheckingInspection")
-    val bismillah_pre: Boolean,
-    val name_simple: String,
-    val name_complex: String,
-    val name_arabic: String,
-    val verses_count: Int,
-    val pages: List<Int>,
-    val translated_name: TranslatedName?
+        val id: Int,
+        @SerializedName("revelation_place")
+        val revelationPlace: RevelationPlace,
+        @SerializedName("revelation_order")
+        val revelationOrder: Int,
+        @SerializedName("bismillah_pre")
+        val bismillahPre: Boolean,
+        @SerializedName("name_simple")
+        val nameSimple: String,
+        @SerializedName("name_complex")
+        val nameComplex: String,
+        @SerializedName("name_arabic")
+        val nameArabic: String,
+        @SerializedName("verses_count")
+        val verseCount: Int,
+        val pages: List<Int>,
+        @SerializedName("translated_name")
+        val translatedName: TranslatedName?
 ) : Serializable {
+
     @Suppress("unused", "EnumEntryName", "SpellCheckingInspection")
     enum class RevelationPlace(val place: String) {
+
         makkah("مكية"),
         madinah("مدنية")
     }
 
-    class TranslatedName(val name: String, @Suppress("unused") val language_name: String) : Serializable
+    data class TranslatedName(
+            val name: String,
+            @SerializedName("language_name")
+            val languageName: String
+    ) : Serializable
 }

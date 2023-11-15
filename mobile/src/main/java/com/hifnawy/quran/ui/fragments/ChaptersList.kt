@@ -70,7 +70,7 @@ class ChaptersList : Fragment() {
                     ) { position, chapter, itemView ->
                         Log.d(
                                 TAG,
-                                "clicked on $position: ${chapter.translated_name?.name} ${itemView.verseCount.text}"
+                                "clicked on $position: ${chapter.translatedName?.name} ${itemView.verseCount.text}"
                         )
                         chapterSearch.text = null
                         chapterSearch.clearFocus()
@@ -97,7 +97,7 @@ class ChaptersList : Fragment() {
                             chaptersListAdapter.setChapters(chapters)
                         } else {
                             val searchResults = chapters.filter { chapter ->
-                                chapter.name_arabic.contains(charSequence.toString())
+                                chapter.nameArabic.contains(charSequence.toString())
                             }
 
                             if (searchResults.isNotEmpty()) {
@@ -120,7 +120,7 @@ class ChaptersList : Fragment() {
             title = "   ${getString(R.string.quran)}"
             // providing subtitle for the ActionBar
             subtitle =
-                    "   ${getString(R.string.chapters)}: ${reciter.name_ar} ${if (reciter.style?.style != null) "(${reciter.style?.style})" else ""}"
+                    "   ${getString(R.string.chapters)}: ${reciter.nameArabic} ${if (reciter.recitationStyle?.style != null) "(${reciter.recitationStyle?.style})" else ""}"
 
             show()
         }
@@ -267,8 +267,8 @@ class ChaptersList : Fragment() {
                 Log.d(
                         TAG,
                         "Download Status: $currentChapterDownloadStatus, " +
-                        "Reciter: ${reciter?.reciter_name}, " +
-                        "Chapter: ${currentChapter.name_simple}, " +
+                        "Reciter: ${reciter?.name}, " +
+                        "Chapter: ${currentChapter.nameSimple}, " +
                         "Index: $currentChapterIndex, " +
                         "Downloaded: ${numberFormat.format(currentChapterBytesDownloaded)}, " +
                         "Size: ${numberFormat.format(currentChapterFileSize)}, " +
@@ -337,7 +337,7 @@ class ChaptersList : Fragment() {
                 downloadDialogChapterDownloadMessage.text = "${
                     this@ChaptersList.context?.getString(
                             sharedR.string.loading_chapter,
-                            currentChapter.name_arabic
+                            currentChapter.nameArabic
                     )
                 }\n${decimalFormat.format(currentChapterBytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
                     decimalFormat.format(

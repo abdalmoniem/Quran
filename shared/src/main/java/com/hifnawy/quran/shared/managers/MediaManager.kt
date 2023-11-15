@@ -284,7 +284,7 @@ object MediaManager : LifecycleOwner {
     }
 
     private fun downloadChapter(reciter: Reciter, chapter: Chapter) {
-        Log.d(TAG, "Downloading ${reciter.reciter_name} - ${chapter.name_simple}")
+        Log.d(TAG, "Downloading ${reciter.name} - ${chapter.nameSimple}")
         val singleDownloadWorkRequest = OneTimeWorkRequestBuilder<DownloadWorkManager>()
             .setInputData(
                     workDataOf(
@@ -338,7 +338,7 @@ object MediaManager : LifecycleOwner {
 
             Log.d(
                     TAG,
-                    "DownloadWorkManager: ${value.state} - ${reciter.reciter_name} - ${chapter.name_simple}\n$dataSource"
+                    "DownloadWorkManager: ${value.state} - ${reciter.name} - ${chapter.nameSimple}\n$dataSource"
             )
             val downloadStatus = DownloadStatus.valueOf(
                     (dataSource.getString(DownloadWorkerInfo.DOWNLOAD_STATUS.name))

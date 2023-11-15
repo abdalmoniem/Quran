@@ -277,8 +277,8 @@ class MediaPlayback : Fragment() {
 
         with(binding) {
             chapterBackgroundImage.setImageDrawable(bitmap.toDrawable(resources))
-            chapterName.text = chapter.name_arabic
-            reciterName.text = reciter.name_ar
+            chapterName.text = chapter.nameArabic
+            reciterName.text = reciter.nameArabic
             chapterImageCard.setCardBackgroundColor(
                     if (chapter.id % 2 == 0) Color.parseColor("#336e6a")
                     else Color.parseColor("#dd5f56")
@@ -368,7 +368,7 @@ class MediaPlayback : Fragment() {
                     downloadDialogChapterDownloadMessage.text = "${
                         context?.getString(
                                 sharedR.string.loading_chapter,
-                                chapter.name_arabic
+                                chapter.nameArabic
                         )
                     }\n${decimalFormat.format(0)} مب. \\ ${decimalFormat.format(0)} مب. (${
                         decimalFormat.format(
@@ -381,7 +381,7 @@ class MediaPlayback : Fragment() {
                     downloadDialogChapterProgress.progress = progress.toInt()
                     downloadDialogChapterDownloadMessage.text = "${
                         context?.getString(
-                                sharedR.string.loading_chapter, chapter.name_arabic
+                                sharedR.string.loading_chapter, chapter.nameArabic
                         )
                     }\n${decimalFormat.format(bytesDownloaded.toFloat() / (1024 * 1024))} مب. \\ ${
                         decimalFormat.format(
