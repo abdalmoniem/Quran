@@ -102,25 +102,27 @@
         app:layout_constraintVertical_bias="0.5"
         tools:ignore="HardcodedText,VisualLintOverlap" />
 
-    <com.google.android.material.slider.Slider
+    <rm.com.audiowave.AudioWaveView
         android:id="@+id/chapter_seek"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="150dp"
         android:scaleX="-1"
-        android:value="23"
-        android:valueFrom="0"
-        android:valueTo="100"
-        app:labelBehavior="gone"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="30dp"
+        app:animateExpansion="true"
+        app:chunkHeight="100dp"
+        app:chunkRadius="10dp"
+        app:chunkSpacing="3dp"
+        app:chunkWidth="1dp"
         app:layout_constraintBottom_toTopOf="@+id/chapter_play_pause"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/chapter_duration"
         app:layout_constraintVertical_bias="0.5"
-        app:thumbColor="@color/white"
-        app:thumbRadius="4dp"
-        app:tickVisible="false"
-        app:trackColorActive="#18554c"
-        app:trackHeight="20dp" />
+        app:progress="50"
+        app:minChunkHeight="2dp"
+        app:touchable="true"
+        app:waveColor="@color/white" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/chapter_next"

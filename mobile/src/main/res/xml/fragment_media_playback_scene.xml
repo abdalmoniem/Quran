@@ -23,8 +23,13 @@
                 motion:motionTarget="@+id/chapter_seek" />
 
             <KeyAttribute
+                android:alpha="0"
+                motion:framePosition="85"
+                motion:motionTarget="@+id/chapter_seek" />
+
+            <KeyAttribute
                 android:alpha="1"
-                motion:framePosition="350"
+                motion:framePosition="95"
                 motion:motionTarget="@+id/chapter_seek" />
         </KeyFrameSet>
     </Transition>
@@ -45,8 +50,13 @@
                 motion:motionTarget="@+id/chapter_seek" />
 
             <KeyAttribute
+                android:alpha="0"
+                motion:framePosition="85"
+                motion:motionTarget="@+id/chapter_seek" />
+
+            <KeyAttribute
                 android:alpha="1"
-                motion:framePosition="350"
+                motion:framePosition="95"
                 motion:motionTarget="@+id/chapter_seek" />
         </KeyFrameSet>
     </Transition>
@@ -149,8 +159,10 @@
         <Constraint
             android:id="@+id/chapter_seek"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="-20dp"
+            android:layout_height="30dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:layout_marginBottom="-10dp"
             android:scaleX="-1"
             motion:layout_constraintBottom_toBottomOf="@id/chapter_background_image_container"
             motion:layout_constraintEnd_toStartOf="@id/chapter_image_card"
