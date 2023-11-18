@@ -1,5 +1,6 @@
 package com.hifnawy.quran.ui.fragments
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -9,6 +10,9 @@ import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import android.util.TypedValue
 import android.view.LayoutInflater
@@ -17,6 +21,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
+import android.widget.ImageView
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
@@ -57,6 +62,7 @@ import java.text.NumberFormat
 import java.time.Duration
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 import com.hifnawy.quran.shared.R as sharedR
 import com.hoko.blur.HokoBlur as Blur
@@ -88,6 +94,8 @@ class MediaPlayback : Fragment() {
     private var isChapterSeekTouched = false
     private var waveFormLoaded = false
     private var fileBytesFetcherJob: Job? = null
+    private var previousProgress = 0f
+    private var isMinimizing = false
 
     @SuppressLint(
             "DiscouragedApi", "SetTextI18n", "ClickableViewAccessibility",
@@ -144,15 +152,81 @@ class MediaPlayback : Fragment() {
                 })
             }
 
-            chapterSeek.onProgressChanged = { progress, fromUser ->
-                if (fromUser) {
-                    val showHours = chapterDurationMs.hours > 0
+            root.viewTreeObserver.addOnGlobalLayoutListener(object :
+                                                                    ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    root.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    val chapterBackgroundImageWidth =
+                            abs(chapterBackgroundImage.measuredWidth * chapterBackgroundImage.scaleX)
+                    val chapterSeekWidth = abs(chapterSeek.measuredWidth * chapterSeek.scaleX)
 
-                    chapterDuration.text =
-                            "${getDuration(progress.toValue(chapterDurationMs), showHours)} \\ " +
-                            getDuration(chapterDurationMs, showHours)
+                    chapterSeek.onProgressChanged = { progress, fromUser ->
+                        if (fromUser) {
+                            val showHours = chapterDurationMs.hours > 0
+
+                            chapterDuration.text =
+                                    "${
+                                        getDuration(
+                                                progress.toValue(chapterDurationMs),
+                                                showHours
+                                        )
+                                    } \\ " +
+                                    getDuration(chapterDurationMs, showHours)
+                            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                (root.context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+                            } else {
+                                @Suppress("DEPRECATION")
+                                root.context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                            }
+
+                            vibrator.vibrate(VibrationEffect.createOneShot(30, 64))
+                        }
+
+                        if (!isMinimizing) {
+                            ValueAnimator.ofFloat(
+                                    lerp(
+                                            chapterBackgroundImageWidth - (chapterBackgroundImageWidth * 1.2f),
+                                            chapterBackgroundImageWidth - (chapterBackgroundImageWidth * 0.8f),
+                                            previousProgress / 100f
+                                    ),
+                                    lerp(
+                                            chapterBackgroundImageWidth - (chapterBackgroundImageWidth * 1.2f),
+                                            chapterBackgroundImageWidth - (chapterBackgroundImageWidth * 0.8f),
+                                            progress / 100f
+                                    )
+                            ).apply {
+                                duration = 500
+                                addUpdateListener { value ->
+                                    chapterBackgroundImage.translationX = value.animatedValue as Float
+                                }
+
+                                start()
+                            }
+
+                            ValueAnimator.ofFloat(
+                                    lerp(
+                                            chapterSeekWidth - (chapterSeekWidth * 1.37f),
+                                            chapterSeekWidth - (chapterSeekWidth * 0.63f),
+                                            previousProgress / 100f
+                                    ),
+                                    lerp(
+                                            chapterSeekWidth - (chapterSeekWidth * 1.37f),
+                                            chapterSeekWidth - (chapterSeekWidth * 0.63f),
+                                            progress / 100f
+                                    )
+                            ).apply {
+                                duration = 500
+                                addUpdateListener { value ->
+                                    chapterSeek.translationX = value.animatedValue as Float
+                                }
+
+                                start()
+                            }
+                        }
+                        previousProgress = progress
+                    }
                 }
-            }
+            })
 
             chapterSeek.onStartTracking = { _ ->
                 isChapterSeekTouched = true
@@ -328,7 +402,7 @@ class MediaPlayback : Fragment() {
                         val chapterFile =
                                 Constants.getChapterFile(binding.root.context, reciter, chapter)
                         if (chapterFile.exists()) {
-                            binding.chapterSeek.setRawData(chapterFile.toBytes())
+                            binding.chapterSeek.setRawData(chapterFile.byteArray)
                             waveFormLoaded = true
                         }
                     }
@@ -354,6 +428,7 @@ class MediaPlayback : Fragment() {
 
         with(binding) {
             chapterBackgroundImage.setImageDrawable(bitmap.toDrawable(resources))
+            chapterBackgroundImageContainer.setBackgroundColor(dominantColor)
 
             chapterName.text = chapter.nameArabic
             reciterName.text = reciter.nameArabic
@@ -367,8 +442,8 @@ class MediaPlayback : Fragment() {
             // chapterSeek.valueFrom = 0f
             // chapterSeek.valueTo = chapterDuration.toFloat()
             // chapterSeek.waveColor = dominantColor
-            if (!isChapterSeekTouched) chapterSeek.progress =
-                    chapterPosition.toPercentage(chapterDuration)
+            // if (!isChapterSeekTouched) chapterSeek.progress =
+            //         chapterPosition.toPercentage(chapterDuration)
             chapterPlayPause.icon =
                     if (isMediaPlaying) pauseDrawable
                     else playDrawable
@@ -532,10 +607,12 @@ class MediaPlayback : Fragment() {
     @SuppressLint("ClickableViewAccessibility")
     private inner class MotionLayoutTransitionListener : MotionLayout.TransitionListener {
 
-        val chapterPreviousIconSize = binding.chapterPrevious.iconSize.toFloat()
-        val chapterPlayPauseIconSize = binding.chapterPlayPause.iconSize.toFloat()
-        val chapterNextIconSize = binding.chapterNext.iconSize.toFloat()
-        val minimizedMediaControlsIconSize = 80f.dp
+        private val chapterPreviousIconSize = binding.chapterPrevious.iconSize.toFloat()
+        private val chapterPlayPauseIconSize = binding.chapterPlayPause.iconSize.toFloat()
+        private val chapterNextIconSize = binding.chapterNext.iconSize.toFloat()
+        private val chapterBackgroundImageScaleX = binding.chapterBackgroundImage.scaleX
+        private val chapterBackgroundImageScaleY = binding.chapterBackgroundImage.scaleY
+        private val minimizedMediaControlsIconSize = 80f.dp
 
         override fun onTransitionStarted(motionLayout: MotionLayout?, startId: Int, endId: Int) = Unit
 
@@ -545,19 +622,19 @@ class MediaPlayback : Fragment() {
                 endId: Int,
                 progress: Float
         ) {
-            val minimizing = (startId == R.id.maximized) && (endId == R.id.minimized)
+            isMinimizing = (startId == R.id.maximized) && (endId == R.id.minimized)
             with(parentActivity.binding) {
                 if (!appBar.isInLayout) {
                     appBar.updateLayoutParams {
                         height =
-                                (if (minimizing) lerp(1f.dp, appBarHeight.toFloat(), progress)
+                                (if (isMinimizing) lerp(1f.dp, appBarHeight.toFloat(), progress)
                                 else lerp(appBarHeight.toFloat(), 1f.dp, progress)).toInt()
                     }
                 }
 
                 if (!fragmentContainer.isInLayout) {
                     fragmentContainer.updateLayoutParams<FrameLayout.LayoutParams> {
-                        bottomMargin = (if (minimizing) lerp(
+                        bottomMargin = (if (isMinimizing) lerp(
                                 resources.getDimension(R.dimen.media_player_minimized_height),
                                 0f.dp,
                                 progress
@@ -571,20 +648,46 @@ class MediaPlayback : Fragment() {
             }
 
             with(binding) {
-                chapterSeek.isTouchable = !minimizing
+                Log.d(TAG, chapterBackgroundImage.alpha.toString())
+
+                chapterBackgroundImage.scaleX =
+                        if (isMinimizing) lerp(chapterBackgroundImageScaleX, 1f, progress)
+                        else lerp(1f, chapterBackgroundImageScaleX, progress)
+
+                chapterBackgroundImage.scaleY =
+                        if (isMinimizing) lerp(chapterBackgroundImageScaleY, 1f, progress)
+                        else lerp(1f, chapterBackgroundImageScaleY, progress)
+
+                chapterBackgroundImage.translationX =
+                        if (isMinimizing) lerp(
+                                chapterBackgroundImage.translationX,
+                                0f,
+                                progress
+                        )
+                        else chapterBackgroundImage.translationX
+
+                chapterSeek.translationX =
+                        if (isMinimizing) lerp(
+                                chapterSeek.translationX,
+                                0f,
+                                progress
+                        )
+                        else chapterSeek.translationX
+
+                chapterSeek.isTouchable = !isMinimizing
                 chapterName.setTextSize(
                         TypedValue.COMPLEX_UNIT_SP,
-                        if (minimizing) lerp(80f, 25f, progress)
+                        if (isMinimizing) lerp(80f, 25f, progress)
                         else lerp(25f, 80f, progress)
                 )
 
                 reciterName.setTextSize(
                         TypedValue.COMPLEX_UNIT_SP,
-                        if (minimizing) lerp(25f, 15f, progress)
+                        if (isMinimizing) lerp(25f, 15f, progress)
                         else lerp(15f, 25f, progress)
                 )
                 chapterPrevious.iconSize =
-                        (if (minimizing) lerp(
+                        (if (isMinimizing) lerp(
                                 chapterPreviousIconSize,
                                 minimizedMediaControlsIconSize,
                                 progress
@@ -596,11 +699,11 @@ class MediaPlayback : Fragment() {
                         )).toInt()
 
                 chapterPrevious.background.alpha =
-                        (if (minimizing) lerp(255f, 0f, progress)
+                        (if (isMinimizing) lerp(255f, 0f, progress)
                         else lerp(0f, 255f, progress)).toInt()
 
                 chapterPlayPause.iconSize =
-                        (if (minimizing) lerp(
+                        (if (isMinimizing) lerp(
                                 chapterPlayPauseIconSize,
                                 minimizedMediaControlsIconSize,
                                 progress
@@ -610,18 +713,18 @@ class MediaPlayback : Fragment() {
                                 progress
                         )).toInt()
                 chapterPlayPause.background.alpha =
-                        (if (minimizing) lerp(255f, 0f, progress)
+                        (if (isMinimizing) lerp(255f, 0f, progress)
                         else lerp(0f, 255f, progress)).toInt()
 
                 chapterNext.iconSize =
-                        (if (minimizing) lerp(
+                        (if (isMinimizing) lerp(
                                 chapterNextIconSize,
                                 minimizedMediaControlsIconSize,
                                 progress
                         )
                         else lerp(minimizedMediaControlsIconSize, chapterNextIconSize, progress)).toInt()
                 chapterNext.background.alpha =
-                        (if (minimizing) lerp(255f, 0f, progress)
+                        (if (isMinimizing) lerp(255f, 0f, progress)
                         else lerp(0f, 255f, progress)).toInt()
             }
         }
@@ -648,6 +751,16 @@ class MediaPlayback : Fragment() {
                 chapterPrevious.background.alpha = if (minimized) 0 else 255
                 chapterPlayPause.background.alpha = if (minimized) 0 else 255
                 chapterNext.background.alpha = if (minimized) 0 else 255
+                if (minimized) {
+                    chapterBackgroundImage.translationX = 0f
+                    chapterSeek.translationX = 0f
+                }
+
+                if (minimized) {
+                    binding.chapterBackgroundImage.scaleType = ImageView.ScaleType.CENTER_CROP
+                } else {
+                    binding.chapterBackgroundImage.scaleType = ImageView.ScaleType.FIT_XY
+                }
             }
         }
 
@@ -659,16 +772,15 @@ class MediaPlayback : Fragment() {
         ) = Unit
     }
 
-    private fun File.toBytes(): ByteArray {
-        val file = this
-        val fileIO = RandomAccessFile(file, "r")
-        val byteArray = ByteArray(fileIO.length().toInt())
+    private val File.byteArray: ByteArray
+        get() {
+            val fileIO = RandomAccessFile(this, "r")
+            val byteArray = ByteArray(fileIO.length().toInt())
 
-        fileIO.readFully(byteArray)
-        fileIO.close()
-
-        return byteArray
-    }
+            fileIO.readFully(byteArray)
+            fileIO.close()
+            return byteArray
+        }
 
     private infix fun Long.toPercentage(max: Long): Float = (this.toFloat() / max) * 100f
     private infix fun Float.toValue(max: Long): Long = ((this * max) / 100f).toLong()
