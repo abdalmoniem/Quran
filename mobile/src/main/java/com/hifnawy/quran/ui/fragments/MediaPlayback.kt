@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.os.Build
@@ -26,6 +25,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.palette.graphics.Palette
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -45,9 +45,16 @@ import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.activities.MainActivity
 import com.hifnawy.quran.ui.activities.MainActivityDirections
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import java.io.File
+import java.io.RandomAccessFile
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.text.NumberFormat
+import java.time.Duration
 import java.util.Locale
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
@@ -65,12 +72,22 @@ class MediaPlayback : Fragment() {
     private var chapterPosition: Long = 0L
     private val parentActivity: MainActivity by lazy { (activity as MainActivity) }
     private val downloadRequestID by lazy { UUID.fromString(getString(sharedR.string.SINGLE_DOWNLOAD_WORK_REQUEST_ID)) }
+    private val pauseDrawable by lazy {
+        AppCompatResources.getDrawable(binding.root.context, sharedR.drawable.media_pause_black)
+    }
+    private val playDrawable by lazy {
+        AppCompatResources.getDrawable(binding.root.context, sharedR.drawable.media_play_black)
+    }
     private lateinit var reciter: Reciter
     private lateinit var chapter: Chapter
+    private lateinit var currentChapter: Chapter
     private lateinit var binding: FragmentMediaPlaybackBinding
     private lateinit var sharedPrefsManager: SharedPreferencesManager
+    private var chapterDurationMs: Long = 0L
     private var appBarHeight: Int = 0
     private var isChapterSeekTouched = false
+    private var waveFormLoaded = false
+    private var fileBytesFetcherJob: Job? = null
 
     @SuppressLint(
             "DiscouragedApi", "SetTextI18n", "ClickableViewAccessibility",
@@ -110,6 +127,7 @@ class MediaPlayback : Fragment() {
             }
 
             chapterNext.setOnClickListener {
+                waveFormLoaded = false
                 parentActivity.startForegroundService(Intent(
                         binding.root.context, MediaService::class.java
                 ).apply {
@@ -118,6 +136,7 @@ class MediaPlayback : Fragment() {
             }
 
             chapterPrevious.setOnClickListener {
+                waveFormLoaded = false
                 parentActivity.startForegroundService(Intent(
                         binding.root.context, MediaService::class.java
                 ).apply {
@@ -125,45 +144,64 @@ class MediaPlayback : Fragment() {
                 })
             }
 
-            chapterSeek.addOnChangeListener { _, value, fromUser ->
+            chapterSeek.onProgressChanged = { progress, fromUser ->
                 if (fromUser) {
-                    val showHours = chapterSeek.valueTo.toLong().hours > 0
+                    val showHours = chapterDurationMs.hours > 0
 
-                    chapterDuration.text = "${getDuration(value.toLong(), showHours)} \\ " +
-                                           getDuration(chapterSeek.valueTo.toLong(), showHours)
+                    chapterDuration.text =
+                            "${getDuration(progress.toValue(chapterDurationMs), showHours)} \\ " +
+                            getDuration(chapterDurationMs, showHours)
                 }
             }
 
-            chapterSeek.setOnTouchListener { _, motionEvent ->
-                when (motionEvent.action) {
-                    MotionEvent.ACTION_UP   -> {
-                        isChapterSeekTouched = false
-
-                        parentActivity.startForegroundService(Intent(
-                                binding.root.context,
-                                MediaService::class.java
-                        ).apply {
-                            action = Constants.MediaServiceActions.SEEK_MEDIA.name
-
-                            putExtra(
-                                    Constants.IntentDataKeys.CHAPTER_POSITION.name,
-                                    chapterSeek.value.toLong()
-                            )
-                        })
-
-                        return@setOnTouchListener true
-                    }
-
-                    MotionEvent.ACTION_DOWN -> {
-                        isChapterSeekTouched = true
-
-                        return@setOnTouchListener true
-                    }
-
-                    else                    -> return@setOnTouchListener false
-                }
+            chapterSeek.onStartTracking = { _ ->
+                isChapterSeekTouched = true
             }
 
+            chapterSeek.onStopTracking = { progress ->
+                isChapterSeekTouched = false
+
+                parentActivity.startForegroundService(Intent(
+                        binding.root.context,
+                        MediaService::class.java
+                ).apply {
+                    action = Constants.MediaServiceActions.SEEK_MEDIA.name
+
+                    putExtra(
+                            Constants.IntentDataKeys.CHAPTER_POSITION.name,
+                            progress.toValue(chapterDurationMs)
+                    )
+                })
+            }
+            // chapterSeek.setOnTouchListener { _, motionEvent ->
+            //     when (motionEvent.action) {
+            //         MotionEvent.ACTION_UP   -> {
+            //             isChapterSeekTouched = false
+            //
+            //             parentActivity.startForegroundService(Intent(
+            //                     binding.root.context,
+            //                     MediaService::class.java
+            //             ).apply {
+            //                 action = Constants.MediaServiceActions.SEEK_MEDIA.name
+            //
+            //                 putExtra(
+            //                         Constants.IntentDataKeys.CHAPTER_POSITION.name,
+            //                         chapterSeek.progress.fromPercentage(chapterDurationMs)
+            //                 )
+            //             })
+            //
+            //             return@setOnTouchListener true
+            //         }
+            //
+            //         MotionEvent.ACTION_DOWN -> {
+            //             isChapterSeekTouched = true
+            //
+            //             return@setOnTouchListener true
+            //         }
+            //
+            //         else                    -> return@setOnTouchListener false
+            //     }
+            // }
             chapterBackgroundImageContainer.setOnTouchListener { _, motionEvent ->
                 if (motionEvent.action == MotionEvent.ACTION_DOWN) root.isInteractionEnabled = true
                 false
@@ -278,6 +316,25 @@ class MediaPlayback : Fragment() {
             chapterDuration: Long = 100L,
             isMediaPlaying: Boolean = false
     ) {
+        if (!::currentChapter.isInitialized || currentChapter != chapter) {
+            waveFormLoaded = false
+            currentChapter = chapter
+        }
+
+        if (!waveFormLoaded && fileBytesFetcherJob == null) {
+            fileBytesFetcherJob =
+                    lifecycleScope.launch(context = Dispatchers.IO, start = CoroutineStart.LAZY) {
+                        fileBytesFetcherJob = null
+                        val chapterFile =
+                                Constants.getChapterFile(binding.root.context, reciter, chapter)
+                        if (chapterFile.exists()) {
+                            binding.chapterSeek.setRawData(chapterFile.toBytes())
+                            waveFormLoaded = true
+                        }
+                    }
+
+            fileBytesFetcherJob?.start()
+        }
         @SuppressLint("DiscouragedApi")
         val drawableId = resources.getIdentifier(
                 "chapter_${chapter.id.toString().padStart(3, '0')}",
@@ -306,22 +363,15 @@ class MediaPlayback : Fragment() {
                     else Color.parseColor("#dd5f56")
             )
             chapterImage.setImageDrawable(drawable)
-
-            chapterSeek.trackActiveTintList = ColorStateList.valueOf(dominantColor)
-            chapterSeek.valueFrom = 0f
-            chapterSeek.valueTo = chapterDuration.toFloat()
-            if (!isChapterSeekTouched) chapterSeek.value = chapterPosition.toFloat()
-
+            // chapterSeek.trackActiveTintList = ColorStateList.valueOf(dominantColor)
+            // chapterSeek.valueFrom = 0f
+            // chapterSeek.valueTo = chapterDuration.toFloat()
+            // chapterSeek.waveColor = dominantColor
+            if (!isChapterSeekTouched) chapterSeek.progress =
+                    chapterPosition.toPercentage(chapterDuration)
             chapterPlayPause.icon =
-                    if (isMediaPlaying) AppCompatResources.getDrawable(
-                            binding.root.context,
-                            sharedR.drawable.media_pause_black
-                    )
-                    else AppCompatResources.getDrawable(
-                            binding.root.context,
-                            sharedR.drawable.media_play_black
-                    )
-
+                    if (isMediaPlaying) pauseDrawable
+                    else playDrawable
             chapterPlayPause.setBackgroundColor(dominantColor)
 
             chapterNext.setBackgroundColor(dominantColor)
@@ -384,7 +434,7 @@ class MediaPlayback : Fragment() {
 
         with(dialogBinding) {
             when (downloadStatus) {
-                DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD  -> {
+                DownloadWorkManager.DownloadStatus.STARTING_DOWNLOAD -> {
                     lastWorkInfoId = workInfo.id
                     dialog.show()
                     downloadDialogChapterProgress.min = 0
@@ -402,7 +452,7 @@ class MediaPlayback : Fragment() {
                     }٪)"
                 }
 
-                DownloadWorkManager.DownloadStatus.DOWNLOADING        -> {
+                DownloadWorkManager.DownloadStatus.DOWNLOADING -> {
                     downloadDialogChapterProgress.progress = progress.toInt()
                     downloadDialogChapterDownloadMessage.text = "${
                         context?.getString(
@@ -416,7 +466,7 @@ class MediaPlayback : Fragment() {
                 }
 
                 DownloadWorkManager.DownloadStatus.FILE_EXISTS,
-                DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD  -> dialog.dismiss()
+                DownloadWorkManager.DownloadStatus.FINISHED_DOWNLOAD -> dialog.dismiss()
 
                 DownloadWorkManager.DownloadStatus.DOWNLOAD_ERROR,
                 DownloadWorkManager.DownloadStatus.DOWNLOAD_INTERRUPTED,
@@ -449,25 +499,31 @@ class MediaPlayback : Fragment() {
             chapter = intent.getTypedSerializable(Constants.IntentDataKeys.CHAPTER.name) ?: return
             val isMediaPlaying =
                     intent.getBooleanExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, false)
-            val durationMs = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_DURATION.name, -1L)
+            chapterDurationMs = intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_DURATION.name, -1L)
             val currentPosition =
                     intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
             updateUI(reciter, chapter, isMediaPlaying = isMediaPlaying)
 
-            if ((durationMs == -1L) || (currentPosition == -1L)) return
-            if ((0 > currentPosition) || (currentPosition > durationMs) || binding.chapterSeek.isFocused) return
+            if ((chapterDurationMs == -1L) || (currentPosition == -1L)) return
+            if ((0 > currentPosition) || (currentPosition > chapterDurationMs) || binding.chapterSeek.isFocused) return
 
             with(binding) {
-                chapterSeek.valueFrom = 0f
-                chapterSeek.valueTo = durationMs.toFloat()
-
+                // chapterSeek.valueFrom = 0f
+                // chapterSeek.valueTo = durationMs.toFloat()
                 if (!isChapterSeekTouched) {
-                    chapterSeek.value = currentPosition.toFloat()
+                    chapterDuration.text = "${
+                        getDuration(
+                                currentPosition, (Duration.ofMillis(chapterDurationMs).toHours() > 0)
+                        )
+                    } \\ ${
+                        getDuration(
+                                chapterDurationMs, (Duration.ofMillis(chapterDurationMs).toHours() > 0)
+                        )
+                    }"
 
-                    chapterDuration.text =
-                            "${getDuration(currentPosition, (durationMs.hours > 0))} \\ " +
-                            getDuration(durationMs, (durationMs.hours > 0))
+                    chapterSeek.progress = currentPosition.toPercentage(chapterDurationMs)
+                    // chapterSeek.value = currentPosition.toFloat()
                 }
             }
         }
@@ -493,102 +549,80 @@ class MediaPlayback : Fragment() {
             with(parentActivity.binding) {
                 if (!appBar.isInLayout) {
                     appBar.updateLayoutParams {
-                        height = if (minimizing) {
-                            lerp(1f.dp, appBarHeight.toFloat(), progress)
-                        } else {
-                            lerp(appBarHeight.toFloat(), 1f.dp, progress)
-                        }.toInt()
+                        height =
+                                (if (minimizing) lerp(1f.dp, appBarHeight.toFloat(), progress)
+                                else lerp(appBarHeight.toFloat(), 1f.dp, progress)).toInt()
                     }
                 }
 
                 if (!fragmentContainer.isInLayout) {
                     fragmentContainer.updateLayoutParams<FrameLayout.LayoutParams> {
-                        bottomMargin = if (minimizing) {
-                            lerp(
-                                    resources.getDimension(R.dimen.media_player_minimized_height),
-                                    0f.dp,
-                                    progress
-                            )
-                        } else {
-                            lerp(
-                                    0f.dp,
-                                    resources.getDimension(R.dimen.media_player_minimized_height),
-                                    progress
-                            )
-                        }.toInt()
+                        bottomMargin = (if (minimizing) lerp(
+                                resources.getDimension(R.dimen.media_player_minimized_height),
+                                0f.dp,
+                                progress
+                        ) else lerp(
+                                0f.dp,
+                                resources.getDimension(R.dimen.media_player_minimized_height),
+                                progress
+                        )).toInt()
                     }
                 }
             }
 
             with(binding) {
+                chapterSeek.isTouchable = !minimizing
                 chapterName.setTextSize(
-                        TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
-                    lerp(80f, 25f, progress)
-                } else {
-                    lerp(25f, 80f, progress)
-                }
+                        TypedValue.COMPLEX_UNIT_SP,
+                        if (minimizing) lerp(80f, 25f, progress)
+                        else lerp(25f, 80f, progress)
                 )
 
                 reciterName.setTextSize(
-                        TypedValue.COMPLEX_UNIT_SP, if (minimizing) {
-                    lerp(25f, 15f, progress)
-                } else {
-                    lerp(15f, 25f, progress)
-                }
+                        TypedValue.COMPLEX_UNIT_SP,
+                        if (minimizing) lerp(25f, 15f, progress)
+                        else lerp(15f, 25f, progress)
                 )
+                chapterPrevious.iconSize =
+                        (if (minimizing) lerp(
+                                chapterPreviousIconSize,
+                                minimizedMediaControlsIconSize,
+                                progress
+                        )
+                        else lerp(
+                                minimizedMediaControlsIconSize,
+                                chapterPreviousIconSize,
+                                progress
+                        )).toInt()
 
-                chapterSeek.trackInactiveTintList = chapterSeek.trackInactiveTintList.withAlpha(
-                        if (minimizing) {
-                            lerp(255f, 0f, progress)
-                        } else {
-                            lerp(0f, 255f, progress)
-                        }.toInt()
-                )
-                chapterSeek.thumbTintList = chapterSeek.thumbTintList.withAlpha(
-                        if (minimizing) {
-                            lerp(255f, 0f, progress)
-                        } else {
-                            lerp(0f, 255f, progress)
-                        }.toInt()
-                )
-                chapterSeek.trackHeight = if (minimizing) {
-                    lerp(20f.dp, 10f.dp, progress)
-                } else {
-                    lerp(10f.dp, 20f.dp, progress)
-                }.toInt()
+                chapterPrevious.background.alpha =
+                        (if (minimizing) lerp(255f, 0f, progress)
+                        else lerp(0f, 255f, progress)).toInt()
 
-                chapterPrevious.iconSize = if (minimizing) {
-                    lerp(chapterPreviousIconSize, minimizedMediaControlsIconSize, progress)
-                } else {
-                    lerp(minimizedMediaControlsIconSize, chapterPreviousIconSize, progress)
-                }.toInt()
-                chapterPrevious.background.alpha = if (minimizing) {
-                    lerp(255f, 0f, progress)
-                } else {
-                    lerp(0f, 255f, progress)
-                }.toInt()
+                chapterPlayPause.iconSize =
+                        (if (minimizing) lerp(
+                                chapterPlayPauseIconSize,
+                                minimizedMediaControlsIconSize,
+                                progress
+                        ) else lerp(
+                                minimizedMediaControlsIconSize,
+                                chapterPlayPauseIconSize,
+                                progress
+                        )).toInt()
+                chapterPlayPause.background.alpha =
+                        (if (minimizing) lerp(255f, 0f, progress)
+                        else lerp(0f, 255f, progress)).toInt()
 
-                chapterPlayPause.iconSize = if (minimizing) {
-                    lerp(chapterPlayPauseIconSize, minimizedMediaControlsIconSize, progress)
-                } else {
-                    lerp(minimizedMediaControlsIconSize, chapterPlayPauseIconSize, progress)
-                }.toInt()
-                chapterPlayPause.background.alpha = if (minimizing) {
-                    lerp(255f, 0f, progress)
-                } else {
-                    lerp(0f, 255f, progress)
-                }.toInt()
-
-                chapterNext.iconSize = if (minimizing) {
-                    lerp(chapterNextIconSize, minimizedMediaControlsIconSize, progress)
-                } else {
-                    lerp(minimizedMediaControlsIconSize, chapterNextIconSize, progress)
-                }.toInt()
-                chapterNext.background.alpha = if (minimizing) {
-                    lerp(255f, 0f, progress)
-                } else {
-                    lerp(0f, 255f, progress)
-                }.toInt()
+                chapterNext.iconSize =
+                        (if (minimizing) lerp(
+                                chapterNextIconSize,
+                                minimizedMediaControlsIconSize,
+                                progress
+                        )
+                        else lerp(minimizedMediaControlsIconSize, chapterNextIconSize, progress)).toInt()
+                chapterNext.background.alpha =
+                        (if (minimizing) lerp(255f, 0f, progress)
+                        else lerp(0f, 255f, progress)).toInt()
             }
         }
 
@@ -624,4 +658,18 @@ class MediaPlayback : Fragment() {
                 progress: Float
         ) = Unit
     }
+
+    private fun File.toBytes(): ByteArray {
+        val file = this
+        val fileIO = RandomAccessFile(file, "r")
+        val byteArray = ByteArray(fileIO.length().toInt())
+
+        fileIO.readFully(byteArray)
+        fileIO.close()
+
+        return byteArray
+    }
+
+    private infix fun Long.toPercentage(max: Long): Float = (this.toFloat() / max) * 100f
+    private infix fun Float.toValue(max: Long): Long = ((this * max) / 100f).toLong()
 }
