@@ -318,7 +318,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
             }
         }
         playbackMonitorTimer = Timer()
-        playbackMonitorTimer.scheduleAtFixedRate(timerTask, 0, 500)
+        playbackMonitorTimer.scheduleAtFixedRate(timerTask, 0, 10)
     }
 
     private fun stopPlaybackMonitoring() {

@@ -1,6 +1,5 @@
 package com.hifnawy.quran.ui.fragments
 
-import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -30,7 +29,6 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
 import androidx.palette.graphics.Palette
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -50,10 +48,6 @@ import com.hifnawy.quran.shared.storage.SharedPreferencesManager
 import com.hifnawy.quran.ui.activities.MainActivity
 import com.hifnawy.quran.ui.activities.MainActivityDirections
 import com.hifnawy.quran.ui.dialogs.DialogBuilder
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import java.io.File
 import java.io.RandomAccessFile
 import java.text.DecimalFormat
@@ -92,8 +86,7 @@ class MediaPlayback : Fragment() {
     private var chapterDurationMs: Long = 0L
     private var appBarHeight: Int = 0
     private var isChapterSeekTouched = false
-    private var waveFormLoaded = false
-    private var fileBytesFetcherJob: Job? = null
+    private var isWaveFormLoaded = false
     private var previousProgress = 0f
     private var isMinimizing = false
 
@@ -135,7 +128,7 @@ class MediaPlayback : Fragment() {
             }
 
             chapterNext.setOnClickListener {
-                waveFormLoaded = false
+                isWaveFormLoaded = false
                 parentActivity.startForegroundService(Intent(
                         binding.root.context, MediaService::class.java
                 ).apply {
@@ -144,7 +137,7 @@ class MediaPlayback : Fragment() {
             }
 
             chapterPrevious.setOnClickListener {
-                waveFormLoaded = false
+                isWaveFormLoaded = false
                 parentActivity.startForegroundService(Intent(
                         binding.root.context, MediaService::class.java
                 ).apply {
@@ -183,45 +176,17 @@ class MediaPlayback : Fragment() {
                         }
 
                         if (!isMinimizing) {
-                            ValueAnimator.ofFloat(
-                                    lerp(
-                                            chapterBackgroundImageWidth - (chapterBackgroundImageWidth * 1.2f),
-                                            chapterBackgroundImageWidth - (chapterBackgroundImageWidth * 0.8f),
-                                            previousProgress / 100f
-                                    ),
-                                    lerp(
-                                            chapterBackgroundImageWidth - (chapterBackgroundImageWidth * 1.2f),
-                                            chapterBackgroundImageWidth - (chapterBackgroundImageWidth * 0.8f),
-                                            progress / 100f
-                                    )
-                            ).apply {
-                                duration = 500
-                                addUpdateListener { value ->
-                                    chapterBackgroundImage.translationX = value.animatedValue as Float
-                                }
+                            chapterBackgroundImage.translationX = lerp(
+                                    chapterBackgroundImageWidth - (chapterBackgroundImageWidth * 1.2f),
+                                    chapterBackgroundImageWidth - (chapterBackgroundImageWidth * 0.8f),
+                                    progress / 100f
+                            )
 
-                                start()
-                            }
-
-                            ValueAnimator.ofFloat(
-                                    lerp(
-                                            chapterSeekWidth - (chapterSeekWidth * 1.37f),
-                                            chapterSeekWidth - (chapterSeekWidth * 0.63f),
-                                            previousProgress / 100f
-                                    ),
-                                    lerp(
-                                            chapterSeekWidth - (chapterSeekWidth * 1.37f),
-                                            chapterSeekWidth - (chapterSeekWidth * 0.63f),
-                                            progress / 100f
-                                    )
-                            ).apply {
-                                duration = 500
-                                addUpdateListener { value ->
-                                    chapterSeek.translationX = value.animatedValue as Float
-                                }
-
-                                start()
-                            }
+                            chapterSeek.translationX = lerp(
+                                    chapterSeekWidth - (chapterSeekWidth * 1.37f),
+                                    chapterSeekWidth - (chapterSeekWidth * 0.63f),
+                                    progress / 100f
+                            )
                         }
                         previousProgress = progress
                     }
@@ -247,35 +212,7 @@ class MediaPlayback : Fragment() {
                     )
                 })
             }
-            // chapterSeek.setOnTouchListener { _, motionEvent ->
-            //     when (motionEvent.action) {
-            //         MotionEvent.ACTION_UP   -> {
-            //             isChapterSeekTouched = false
-            //
-            //             parentActivity.startForegroundService(Intent(
-            //                     binding.root.context,
-            //                     MediaService::class.java
-            //             ).apply {
-            //                 action = Constants.MediaServiceActions.SEEK_MEDIA.name
-            //
-            //                 putExtra(
-            //                         Constants.IntentDataKeys.CHAPTER_POSITION.name,
-            //                         chapterSeek.progress.fromPercentage(chapterDurationMs)
-            //                 )
-            //             })
-            //
-            //             return@setOnTouchListener true
-            //         }
-            //
-            //         MotionEvent.ACTION_DOWN -> {
-            //             isChapterSeekTouched = true
-            //
-            //             return@setOnTouchListener true
-            //         }
-            //
-            //         else                    -> return@setOnTouchListener false
-            //     }
-            // }
+
             chapterBackgroundImageContainer.setOnTouchListener { _, motionEvent ->
                 if (motionEvent.action == MotionEvent.ACTION_DOWN) root.isInteractionEnabled = true
                 false
@@ -316,9 +253,13 @@ class MediaPlayback : Fragment() {
 
         playChapter(
                 chapter,
-                if ((reciter.id == sharedPrefsManager.lastReciter?.id) && (chapter.id == sharedPrefsManager.lastChapter?.id)) sharedPrefsManager.lastChapterPosition
+                if ((reciter.id == sharedPrefsManager.lastReciter?.id) &&
+                    (chapter.id == sharedPrefsManager.lastChapter?.id)
+                ) sharedPrefsManager.lastChapterPosition
                 else chapterPosition,
-                if ((reciter.id == sharedPrefsManager.lastReciter?.id) && (chapter.id == sharedPrefsManager.lastChapter?.id)) sharedPrefsManager.lastChapterDuration
+                if ((reciter.id == sharedPrefsManager.lastReciter?.id) &&
+                    (chapter.id == sharedPrefsManager.lastChapter?.id)
+                ) sharedPrefsManager.lastChapterDuration
                 else 100L
         )
 
@@ -391,23 +332,15 @@ class MediaPlayback : Fragment() {
             isMediaPlaying: Boolean = false
     ) {
         if (!::currentChapter.isInitialized || currentChapter != chapter) {
-            waveFormLoaded = false
+            isWaveFormLoaded = false
             currentChapter = chapter
         }
 
-        if (!waveFormLoaded && fileBytesFetcherJob == null) {
-            fileBytesFetcherJob =
-                    lifecycleScope.launch(context = Dispatchers.IO, start = CoroutineStart.LAZY) {
-                        fileBytesFetcherJob = null
-                        val chapterFile =
-                                Constants.getChapterFile(binding.root.context, reciter, chapter)
-                        if (chapterFile.exists()) {
-                            binding.chapterSeek.setRawData(chapterFile.byteArray)
-                            waveFormLoaded = true
-                        }
-                    }
-
-            fileBytesFetcherJob?.start()
+        if (!isWaveFormLoaded) {
+            isWaveFormLoaded = true
+            val chapterFile =
+                    Constants.getChapterFile(binding.root.context, reciter, chapter)
+            if (chapterFile.exists()) binding.chapterSeek.setRawData(chapterFile.byteArray)
         }
         @SuppressLint("DiscouragedApi")
         val drawableId = resources.getIdentifier(
@@ -438,12 +371,6 @@ class MediaPlayback : Fragment() {
                     else Color.parseColor("#dd5f56")
             )
             chapterImage.setImageDrawable(drawable)
-            // chapterSeek.trackActiveTintList = ColorStateList.valueOf(dominantColor)
-            // chapterSeek.valueFrom = 0f
-            // chapterSeek.valueTo = chapterDuration.toFloat()
-            // chapterSeek.waveColor = dominantColor
-            // if (!isChapterSeekTouched) chapterSeek.progress =
-            //         chapterPosition.toPercentage(chapterDuration)
             chapterPlayPause.icon =
                     if (isMediaPlaying) pauseDrawable
                     else playDrawable
@@ -648,8 +575,6 @@ class MediaPlayback : Fragment() {
             }
 
             with(binding) {
-                Log.d(TAG, chapterBackgroundImage.alpha.toString())
-
                 chapterBackgroundImage.scaleX =
                         if (isMinimizing) lerp(chapterBackgroundImageScaleX, 1f, progress)
                         else lerp(1f, chapterBackgroundImageScaleX, progress)
@@ -774,6 +699,7 @@ class MediaPlayback : Fragment() {
 
     private val File.byteArray: ByteArray
         get() {
+            Log.d(TAG, "Getting: audio bytes from $this...")
             val fileIO = RandomAccessFile(this, "r")
             val byteArray = ByteArray(fileIO.length().toInt())
 
