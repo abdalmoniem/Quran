@@ -27,14 +27,20 @@ import com.hifnawy.quran.shared.R as sharedR
 /**
  * Implementation of App Widget functionality.
  */
+private val TAG = NowPlaying::class.simpleName
+
 class NowPlaying : AppWidgetProvider() {
 
     companion object {
 
-        private var currentReciter: Reciter? = null
-        private var currentChapter: Chapter? = null
+        private lateinit var currentReciter: Reciter
+        private lateinit var currentChapter: Chapter
         private var currentChapterPosition: Long = -1L
         private var isMediaPlaying: Boolean = false
+        private val isCurrentReciterInitialized
+            get() = ::currentReciter.isInitialized
+        private val isCurrentChapterInitialized
+            get() = ::currentChapter.isInitialized
     }
 
     enum class WidgetActions(val value: Int) {
@@ -68,18 +74,15 @@ class NowPlaying : AppWidgetProvider() {
 
         if (context == null) return
         if (intent == null) return
+
         widgetContext = context
 
         when (intent.action) {
-            WidgetActions.PLAY_PAUSE.name            -> {
-                val state = if (isMediaPlaying) Constants.MediaServiceActions.PAUSE_MEDIA
-                else Constants.MediaServiceActions.PLAY_MEDIA
-
-                Log.d(NowPlaying::class.simpleName, "new state: $state")
-                changeMediaState(
-                        context, state
-                )
-            }
+            WidgetActions.PLAY_PAUSE.name            -> changeMediaState(
+                    context,
+                    if (isMediaPlaying) Constants.MediaServiceActions.PAUSE_MEDIA
+                    else Constants.MediaServiceActions.PLAY_MEDIA
+            )
 
             WidgetActions.NEXT.name                  -> changeMediaState(
                     context,
@@ -100,7 +103,8 @@ class NowPlaying : AppWidgetProvider() {
                 isMediaPlaying =
                         intent.getBooleanExtra(Constants.IntentDataKeys.IS_MEDIA_PLAYING.name, false)
 
-                if ((reciter == null) && (chapter == null)) return
+                if (reciter == null) return
+                if (chapter == null) return
 
                 currentReciter = reciter
                 currentChapter = chapter
@@ -123,10 +127,11 @@ class NowPlaying : AppWidgetProvider() {
 
     private fun updateUI(context: Context) {
         sharedPrefsManager.apply {
-            if (currentReciter == null) currentReciter = lastReciter
-            if (currentChapter == null) currentChapter = lastChapter
+            if (!isCurrentReciterInitialized) currentReciter = lastReciter ?: return@apply
+            if (!isCurrentChapterInitialized) currentChapter = lastChapter ?: return@apply
         }
-        currentChapter?.let { chapter ->
+
+        currentChapter.let { chapter ->
             @SuppressLint("DiscouragedApi")
             val chapterImageDrawableId = context.resources.getIdentifier(
                     "chapter_${chapter.id.toString().padStart(3, '0')}",
@@ -148,8 +153,8 @@ class NowPlaying : AppWidgetProvider() {
         }
 
         with(views) {
-            setTextViewText(R.id.reciter_name, currentReciter?.nameArabic)
-            setTextViewText(R.id.chapter_name, currentChapter?.nameArabic)
+            setTextViewText(R.id.reciter_name, currentReciter.nameArabic)
+            setTextViewText(R.id.chapter_name, currentChapter.nameArabic)
             setImageViewResource(
                     R.id.media_playback,
                     if (isMediaPlaying) sharedR.drawable.media_pause_white
@@ -199,14 +204,14 @@ class NowPlaying : AppWidgetProvider() {
 
     private fun openMediaPlayer(context: Context) {
         sharedPrefsManager.apply {
-            if (currentReciter == null) currentReciter = lastReciter
-            if (currentChapter == null) currentChapter = lastChapter
             if (currentChapterPosition == -1L) currentChapterPosition = lastChapterPosition
+            if (!isCurrentReciterInitialized) currentReciter = lastReciter ?: return@apply
+            if (!isCurrentChapterInitialized) currentChapter = lastChapter ?: return@apply
         }
 
         startActivity(context, Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            addCategory(NowPlaying::class.simpleName)
+            addCategory(TAG)
 
             putExtra(Constants.IntentDataKeys.RECITER.name, currentReciter)
             putExtra(Constants.IntentDataKeys.CHAPTER.name, currentChapter)
@@ -215,14 +220,16 @@ class NowPlaying : AppWidgetProvider() {
     }
 
     private fun changeMediaState(context: Context, action: Constants.MediaServiceActions) {
+        Log.d(TAG, "changing widget media state to $action")
+
         views.setViewVisibility(R.id.chapter_loading, View.VISIBLE)
         views.setViewVisibility(R.id.media_playback, View.INVISIBLE)
         pushUIUpdates(context)
 
         sharedPrefsManager.apply {
-            if (currentReciter == null) currentReciter = lastReciter
-            if (currentChapter == null) currentChapter = lastChapter
             if (currentChapterPosition == -1L) currentChapterPosition = lastChapterPosition
+            if (!isCurrentReciterInitialized) currentReciter = lastReciter ?: return@apply
+            if (!isCurrentChapterInitialized) currentChapter = lastChapter ?: return@apply
         }
 
         context.startForegroundService(Intent(

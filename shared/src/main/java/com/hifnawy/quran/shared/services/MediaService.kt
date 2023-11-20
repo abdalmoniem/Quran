@@ -307,8 +307,13 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
     private fun startPlaybackMonitoring() {
         stopPlaybackMonitoring()
+        val mediaPlayerUpdatePeriod = 10L
         val mainCoroutineScope = CoroutineScope(Dispatchers.Main)
         val timerTask = object : TimerTask() {
+            private val widgetUpdatePeriod = 100
+            private var widgetUpdateCounter = 0
+            private val widgetUpdateCounterMax = widgetUpdatePeriod  / mediaPlayerUpdatePeriod
+
             override fun run() {
                 mainCoroutineScope.launch {
                     isMediaPlaying = exoPlayer.isPlaying
@@ -323,12 +328,15 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                             exoPlayer.currentPosition
                     )
 
+                    widgetUpdateCounter += 1
+                    if (widgetUpdateCounter < widgetUpdateCounterMax) return@launch
+                    widgetUpdateCounter = 0
                     updateWidget(currentReciter!!, currentChapter!!)
                 }
             }
         }
         playbackMonitorTimer = Timer()
-        playbackMonitorTimer.scheduleAtFixedRate(timerTask, 0, 10)
+        playbackMonitorTimer.scheduleAtFixedRate(timerTask, 0, mediaPlayerUpdatePeriod)
     }
 
     private fun stopPlaybackMonitoring() {
