@@ -152,29 +152,29 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                     intent.getLongExtra(IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
             when (intent.action) {
-                DOWNLOAD_CHAPTERS.name        -> {
+                DOWNLOAD_CHAPTERS.name      -> {
                     if (reciter == null) return@whenReady
                     showDownloadForegroundNotification(reciter)
                     mediaManager.downloadChapters(reciter)
                 }
 
-                CANCEL_DOWNLOADS.name -> {
+                CANCEL_DOWNLOADS.name       -> {
                     MediaManager.cancelPendingDownloads()
                     stopForeground(STOP_FOREGROUND_REMOVE)
                 }
 
-                PLAY_MEDIA.name               -> {
+                PLAY_MEDIA.name             -> {
                     if (reciter == null || chapter == null) return@whenReady
                     showMediaForegroundNotification(reciter, chapter)
                     prepareMedia(reciter, chapter, chapterPosition)
                 }
 
-                PAUSE_MEDIA.name              -> pauseMedia()
-                TOGGLE_MEDIA.name             -> toggleMedia()
-                STOP_MEDIA.name               -> stopSelf()
-                SKIP_TO_NEXT_MEDIA.name       -> skipToNextChapter()
-                SKIP_TO_PREVIOUS_MEDIA.name   -> skipToPreviousChapter()
-                SEEK_MEDIA.name               -> seekChapterToPosition(chapterPosition)
+                PAUSE_MEDIA.name            -> pauseMedia()
+                TOGGLE_MEDIA.name           -> toggleMedia()
+                STOP_MEDIA.name             -> stopSelf()
+                SKIP_TO_NEXT_MEDIA.name     -> skipToNextChapter()
+                SKIP_TO_PREVIOUS_MEDIA.name -> skipToPreviousChapter()
+                SEEK_MEDIA.name             -> seekChapterToPosition(chapterPosition)
             }
         }
 
@@ -297,8 +297,13 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
 
     private fun startPlaybackMonitoring() {
         stopPlaybackMonitoring()
+        val mediaPlayerUpdatePeriod = 10L
         val mainCoroutineScope = CoroutineScope(Dispatchers.Main)
         val timerTask = object : TimerTask() {
+            private val widgetUpdatePeriod = 100
+            private var widgetUpdateCounter = 0
+            private val widgetUpdateCounterMax = widgetUpdatePeriod  / mediaPlayerUpdatePeriod
+
             override fun run() {
                 mainCoroutineScope.launch {
                     isMediaPlaying = exoPlayer.isPlaying
@@ -313,12 +318,15 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                             exoPlayer.currentPosition
                     )
 
+                    widgetUpdateCounter += 1
+                    if (widgetUpdateCounter < widgetUpdateCounterMax) return@launch
+                    widgetUpdateCounter = 0
                     updateWidget(currentReciter!!, currentChapter!!)
                 }
             }
         }
         playbackMonitorTimer = Timer()
-        playbackMonitorTimer.scheduleAtFixedRate(timerTask, 0, 10)
+        playbackMonitorTimer.scheduleAtFixedRate(timerTask, 0, mediaPlayerUpdatePeriod)
     }
 
     private fun stopPlaybackMonitoring() {
