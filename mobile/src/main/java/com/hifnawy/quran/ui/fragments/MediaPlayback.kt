@@ -87,10 +87,9 @@ class MediaPlayback : Fragment() {
     private var lastWorkInfoId: UUID = UUID.randomUUID()
     private var chapterDurationMs: Long = 0L
     private var appBarHeight: Int = 0
-    private var isChapterSeekTouched = false
-    private var isWaveFormLoaded = false
-    private var previousProgress = 0f
+    private var isUpdatedUI = false
     private var isMinimizing = false
+    private var isChapterSeekTouched = false
 
     @SuppressLint(
             "DiscouragedApi", "SetTextI18n", "ClickableViewAccessibility",
@@ -130,7 +129,7 @@ class MediaPlayback : Fragment() {
             }
 
             chapterNext.setOnClickListener {
-                isWaveFormLoaded = false
+                isUpdatedUI = false
                 resetViewsTranslation()
                 parentActivity.startForegroundService(Intent(
                         binding.root.context, MediaService::class.java
@@ -140,7 +139,7 @@ class MediaPlayback : Fragment() {
             }
 
             chapterPrevious.setOnClickListener {
-                isWaveFormLoaded = false
+                isUpdatedUI = false
                 resetViewsTranslation()
                 parentActivity.startForegroundService(Intent(
                         binding.root.context, MediaService::class.java
@@ -192,7 +191,6 @@ class MediaPlayback : Fragment() {
                                     progress / 100f
                             )
                         }
-                        previousProgress = progress
                     }
                 }
             })
@@ -323,22 +321,22 @@ class MediaPlayback : Fragment() {
         })
     }
 
-    private fun updateUI(
-            reciter: Reciter,
-            chapter: Chapter,
-            isMediaPlaying: Boolean = false
-    ) {
+    private fun updateUI(reciter: Reciter, chapter: Chapter) {
         if (!::currentChapter.isInitialized || currentChapter != chapter) {
-            isWaveFormLoaded = false
+            isUpdatedUI = false
             currentChapter = chapter
         }
 
-        if (!isWaveFormLoaded) {
-            isWaveFormLoaded = true
-            val chapterFile =
-                    Constants.getChapterFile(binding.root.context, reciter, chapter)
-            if (chapterFile.exists()) binding.chapterSeek.setRawData(chapterFile.byteArray)
-        }
+        if (isUpdatedUI) return
+
+        Log.d(TAG, "refreshing UI...")
+
+        resetViewsTranslation()
+
+        isUpdatedUI = true
+        val chapterFile =
+                Constants.getChapterFile(binding.root.context, reciter, chapter)
+        if (chapterFile.exists()) binding.chapterSeek.setRawData(chapterFile.byteArray)
         @SuppressLint("DiscouragedApi")
         val drawableId = resources.getIdentifier(
                 "chapter_${chapter.id.toString().padStart(3, '0')}",
@@ -368,11 +366,7 @@ class MediaPlayback : Fragment() {
                     else Color.parseColor("#dd5f56")
             )
             chapterImage.setImageDrawable(drawable)
-            chapterPlayPause.icon =
-                    if (isMediaPlaying) pauseDrawable
-                    else playDrawable
             chapterPlayPause.setBackgroundColor(dominantColor)
-
             chapterNext.setBackgroundColor(dominantColor)
             chapterPrevious.setBackgroundColor(dominantColor)
         }
@@ -518,25 +512,24 @@ class MediaPlayback : Fragment() {
             val currentPosition =
                     intent.getLongExtra(Constants.IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
-            updateUI(reciter, chapter, isMediaPlaying = isMediaPlaying)
+            updateUI(reciter, chapter)
 
             if ((chapterDurationMs == -1L) || (currentPosition == -1L)) return
-            if ((0 > currentPosition) || (currentPosition > chapterDurationMs) || binding.chapterSeek.isFocused) return
+            if ((0 > currentPosition) || (currentPosition > chapterDurationMs) || isChapterSeekTouched) return
 
             with(binding) {
-                if (!isChapterSeekTouched) {
-                    chapterDuration.text = "${
-                        getDuration(
-                                currentPosition, (Duration.ofMillis(chapterDurationMs).toHours() > 0)
-                        )
-                    } \\ ${
-                        getDuration(
-                                chapterDurationMs, (Duration.ofMillis(chapterDurationMs).toHours() > 0)
-                        )
-                    }"
+                chapterPlayPause.icon = if (isMediaPlaying) pauseDrawable else playDrawable
+                chapterDuration.text = "${
+                    getDuration(
+                            currentPosition, (Duration.ofMillis(chapterDurationMs).toHours() > 0)
+                    )
+                } \\ ${
+                    getDuration(
+                            chapterDurationMs, (Duration.ofMillis(chapterDurationMs).toHours() > 0)
+                    )
+                }"
 
-                    chapterSeek.progress = currentPosition.toPercentage(chapterDurationMs)
-                }
+                chapterSeek.progress = currentPosition.toPercentage(chapterDurationMs)
             }
         }
     }
