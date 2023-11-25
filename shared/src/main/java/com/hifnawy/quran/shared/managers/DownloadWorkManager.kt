@@ -12,6 +12,9 @@ import androidx.work.Data
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import com.hifnawy.quran.shared.R
 import com.hifnawy.quran.shared.api.QuranAPI
 import com.hifnawy.quran.shared.model.Chapter
@@ -32,6 +35,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
+import java.io.Serializable
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Files
@@ -94,7 +98,6 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
     }
 
     private val sharedPrefsManager: SharedPreferencesManager by lazy { SharedPreferencesManager(context) }
-    private val numberFormat = NumberFormat.getNumberInstance(Locale.ENGLISH)
     private val decimalFormat =
             DecimalFormat("#.#", DecimalFormatSymbols.getInstance(Locale("ar", "EG")))
 
@@ -137,14 +140,13 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                     )
             val url = URL(urlString)
 
-            sharedPrefsManager.getChapterFile(reciter, chapter)?.let { chapterFile ->
-                val chapterFileSize = Files.readAttributes(
-                        chapterFile.toPath(), BasicFileAttributes::class.java
-                ).size()
+            return sharedPrefsManager.getChapterFile(reciter, chapter)?.let { chapterFile ->
+                // val chapterFileSize = Files.readAttributes(chapterFile.toPath(), BasicFileAttributes::class.java).size()
+                val chapterFileSize = chapterFile.length()
 
                 Log.d(TAG, "[$timestamp] ${chapter.nameSimple} audio file exists in ${chapterFile.absoluteFile}")
 
-                return Result.success(
+                return@let Result.success(
                         workDataOf(
                                 DownloadWorkerInfo.DOWNLOAD_STATUS.name to DownloadStatus.FILE_EXISTS.name,
                                 DownloadWorkerInfo.BYTES_DOWNLOADED.name to chapterFileSize,
@@ -153,11 +155,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                                 DownloadWorkerInfo.PROGRESS.name to 100f
                         )
                 )
-            } ?: run {
-                Log.d(TAG, "[$timestamp] ${chapter.nameSimple} audio file does not exist, downloading...")
-
-                return withContext(NonCancellable) { downloadFile(url, reciter, chapter, true) }
-            }
+            } ?: withContext(NonCancellable) { downloadFile(url, reciter, chapter, true) }
         }
 
         if (chapters.isEmpty()) {
@@ -280,9 +278,22 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             reciter: Reciter,
             chapter: Chapter,
             isSingleFileDownload: Boolean = true,
-            threadCount: Int = 32
+            chunkCount: Int = 32
     ): Result {
         val chapterFile = Constants.getChapterFile(context, reciter, chapter)
+
+        if (chapterFile.exists()) {
+            return Result.success(
+                    getWorkData(
+                            DownloadStatus.FILE_EXISTS,
+                            chapterFile.length(),
+                            chapterFile.length().toInt(),
+                            chapterFile.absolutePath,
+                            100f,
+                            if (isSingleFileDownload) null else chapter
+                    )
+            )
+        }
 
         (withContext(Dispatchers.IO) { url.openConnection() } as HttpURLConnection).apply {
             connectTimeout = 0 // set connection timeout to infinity
@@ -315,106 +326,90 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
             val (notificationBuilder, notificationManager) =
                     createDownloadNotification(reciter, chapter)
-            val qcDownloadFile = File("${chapterFile.absolutePath}.qcdownload")
-            var offset = 0L
-            if (chapterFile.exists()) {
-                offset =
-                        Files.readAttributes(
-                                chapterFile.toPath(),
-                                BasicFileAttributes::class.java
-                        ).size()
-                val progress = (offset.toFloat() / chapterAudioFileSize.toFloat() * 100)
+            var chunks = Array(chunkCount) { Chunk() }
+            val qcdFile = File("${chapterFile.absolutePath}.qcd")
+            val chunksFile = File("${chapterFile.absolutePath}.chunks.json")
+            if (qcdFile.exists()) {
+                val chunksText = chunksFile.readText()
+                val chunksJsonObject = gsonParser.fromJson(chunksText, JsonObject::class.java)
+                chunks = gsonParser.fromJson(chunksJsonObject.get("chunks"), Array<Chunk>::class.java)
+                val downloaded = chunksJsonObject.get("totalDownloaded").asLong
+                val progress = downloaded.toFloat() / chapterAudioFileSize.toFloat() * 100f
 
                 Log.d(
-                        TAG,
-                        "[$timestamp] file ${chapterFile.name} ${offset.formatted} bytes / ${chapterAudioFileSize.formatted} bytes " +
-                        "(${DecimalFormat("000.000").format(progress)}%) exists but is not complete, resuming download..."
+                        TAG, "[$timestamp] file ${chapterFile.name} ${downloaded.formatted} bytes / " +
+                             "${chapterAudioFileSize.formatted} bytes (${DecimalFormat("000.000").format(progress)}%)" +
+                             "exists but is not complete, resuming download..."
                 )
-
-                chapterFile.copyTo(qcDownloadFile, true)
-                chapterFile.delete()
             } else {
                 chapterFile.toPath().createParentDirectories()
 
                 Log.d(
-                        TAG,
-                        "[$timestamp] file ${chapterFile.name} 0 / ${(chapterAudioFileSize - 1).formatted} " +
-                        "bytes (0%) does not exist, starting download..."
+                        TAG, "[$timestamp] file ${chapterFile.name} 0 bytes / ${chapterAudioFileSize.formatted} bytes" +
+                             "(000.000%) does not exist, starting download..."
                 )
             }
-
-            if (offset == chapterAudioFileSize.toLong()) {
-                return Result.success(
-                        getWorkData(
-                                DownloadStatus.FILE_EXISTS,
-                                chapterAudioFileSize.toLong(),
-                                chapterAudioFileSize,
-                                chapterFile.absolutePath,
-                                100f,
-                                if (isSingleFileDownload) null else chapter
-                        )
-                )
-            }
-
-            Log.d(TAG, "[$timestamp] skipping ${offset.formatted} bytes from $url...")
 
             disconnect()
-            val totalDownloadSize = chapterAudioFileSize - offset
-            val quantumSize = totalDownloadSize / threadCount
+            val chunkSize = (chapterAudioFileSize / chunkCount).toLong()
             var chapterDownloadedBytes = 0L
-            var chapterProgress: Float
-            val qcDownloadFileStream =
-                    RandomAccessFile(qcDownloadFile, "rw")
+            val qcdFileStream =
+                    RandomAccessFile(qcdFile, "rw")
             val jobs = mutableListOf<Deferred<Unit>>()
-            val jobDownloadedBytesArray = LongArray(threadCount) { 0L }
-            val jobOffsets = Array(threadCount) { JobOffset(0, 0, 0, 0) }
+            val jobDownloadedBytesArray = LongArray(chunkCount) { 0L }
+            var chapterProgress: Float
 
             Log.d(
                     TAG,
-                    "[$timestamp] download of ${(totalDownloadSize - 1).formatted} bytes is scheduled on $threadCount threads, " +
-                    "quantumSize: ${quantumSize.formatted} bytes"
+                    "[$timestamp] download of ${(chapterAudioFileSize).formatted} bytes is scheduled on $chunkCount threads, " +
+                    "chunkSize: ${chunkSize.formatted} bytes"
             )
 
-            for (jobID in 0..<threadCount) {
-                val startOffset = offset + (quantumSize * jobID)
-                val endOffset = startOffset + quantumSize - 1
+            for (chunkID in 0..<chunkCount) {
+                if ((chunks[chunkID].currentOffset == chunks[chunkID].endOffset) && chunks[chunkID].endOffset != -1L) continue
+                val startOffset =
+                        if (chunks[chunkID].startOffset == -1L) chunkSize * chunkID
+                        else chunks[chunkID].currentOffset
+                val endOffset =
+                        if (chunks[chunkID].endOffset == -1L) startOffset + chunkSize - 1
+                        else chunks[chunkID].endOffset
 
-                jobOffsets[jobID] = JobOffset(jobID, startOffset, endOffset, 0)
+                chunks[chunkID].apply {
+                    this.id = chunkID
+                    this.startOffset = startOffset
+                    this.endOffset = endOffset
+                }
+                val chunk = chunks[chunkID]
                 val job = CoroutineScope(context = Dispatchers.IO).async(
                         context = CoroutineName(
-                                "Thread #" +
-                                jobID.toString().padStart(3, '0')
+                                "Chunk #" +
+                                chunkID.toString().padStart(3, '0')
                         ),
                         start = CoroutineStart.LAZY
                 ) {
-                    val threadName = "${coroutineContext[CoroutineName.Key]?.name}"
+                    val chunkJobName = "${coroutineContext[CoroutineName.Key]?.name}"
 
                     Log.d(
                             TAG,
-                            "[$timestamp] $threadName: starting download from offset ${startOffset.formatted} " +
-                            "to offset ${endOffset.formatted}..."
+                            "[$timestamp] $chunkJobName: starting download from offset ${chunk.startOffset.formatted} " +
+                            "to offset ${chunk.endOffset.formatted}..."
                     )
 
-                    executeDownload(
-                            jobID,
+                    downloadChunk(
                             url,
-                            qcDownloadFileStream,
-                            startOffset,
-                            endOffset
-                    ) { jobID, jobName, downloadedBytes, currentOffset ->
-                        jobOffsets[jobID].currentOffset = currentOffset
-
-                        jobDownloadedBytesArray[jobID] = downloadedBytes
-                        val totalDownloadedBytes = jobDownloadedBytesArray.sum()
-                        chapterDownloadedBytes = offset + totalDownloadedBytes
+                            qcdFileStream,
+                            chunks[chunkID]
+                    ) { chunkName, chunk ->
+                        jobDownloadedBytesArray[chunkID] = chunk.downloaded
+                        chapterDownloadedBytes = jobDownloadedBytesArray.sum()
                         chapterProgress =
-                                (chapterDownloadedBytes.toFloat() / (chapterAudioFileSize.toFloat() - 1)) * 100f
-                        // Log.d(
-                        //         TAG,
-                        //         "[$timestamp] $jobName: downloading ${chapterFile.name} " +
-                        //         "${chapterDownloadedBytes.formatted} bytes / ${(chapterAudioFileSize - 1).formatted} " +
-                        //         "bytes (${DecimalFormat("000.000").format(chapterProgress)}%)..."
-                        // )
+                                (chapterDownloadedBytes.toFloat() / chapterAudioFileSize.toFloat()) * 100f
+                        Log.d(
+                                TAG,
+                                "[$timestamp] $chunkName: downloading ${chapterFile.name} " +
+                                "${chapterDownloadedBytes.formatted} bytes / ${chapterAudioFileSize.formatted} " +
+                                "bytes (${DecimalFormat("000.000").format(chapterProgress)}%)..."
+                        )
                         setProgress(
                                 getWorkData(
                                         DownloadStatus.DOWNLOADING,
@@ -426,23 +421,13 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                                 )
                         )
 
-                        notificationBuilder
-                            .setContentTitle(
-                                    context.getString(
-                                            R.string.loading_chapter,
-                                            chapter.nameArabic
-                                    )
-                            )
-                            .setContentText(
-                                    "${decimalFormat.format(chapterDownloadedBytes.toFloat() / (1024f * 1024f))} مب." +
-                                    " \\ ${decimalFormat.format(chapterAudioFileSize.toFloat() - 1 / (1024f * 1024f))}" +
-                                    " مب. (${decimalFormat.format(chapterProgress)}٪)"
-                            )
-                            .setProgress(100, chapterProgress.toInt(), false)
-
-                        notificationManager.notify(
-                                R.integer.quran_chapter_download_notification_channel_id,
-                                notificationBuilder.build()
+                        updateDownloadNotification(
+                                notificationBuilder,
+                                notificationManager,
+                                chapter,
+                                chapterDownloadedBytes,
+                                chapterAudioFileSize,
+                                chapterProgress
                         )
                     }
                 }
@@ -451,26 +436,27 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             }
 
             return withContext(NonCancellable) {
-                jobOffsets.forEach { jobOffset -> Log.d(TAG, "[$timestamp] $jobOffset") }
+                chunks.forEach { chunk -> Log.d(TAG, "[$timestamp] $chunk") }
                 jobs.forEach(Deferred<Unit>::start)
                 jobs.joinAll()
 
                 if (!isStopped) {
                     postDownloadCleanup(
-                            downloadInterrupted = false,
-                            offset = offset,
                             reciter = reciter,
                             chapter = chapter,
                             chapterDownloadedBytes = chapterDownloadedBytes,
                             chapterAudioFileSize = chapterAudioFileSize,
                             chapterFile = chapterFile,
-                            qcDownloadFileStream = qcDownloadFileStream,
-                            jobOffsets = jobOffsets,
+                            qcdFile = qcdFile,
+                            qcdFileStream = qcdFileStream,
+                            chunks = chunks,
                             notificationManager = notificationManager,
-                            cancelNotification = isSingleFileDownload
+                            cancelNotification = isSingleFileDownload,
+                            downloadInterrupted = false
                     )
 
-                    qcDownloadFile.renameTo(chapterFile)
+                    qcdFile.renameTo(chapterFile)
+                    chunksFile.delete()
 
                     Result.success(
                             getWorkData(
@@ -484,18 +470,17 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                     )
                 } else {
                     postDownloadCleanup(
-                            downloadInterrupted = true,
-                            offset = offset,
                             chapterDownloadedBytes = chapterDownloadedBytes,
                             chapterAudioFileSize = chapterAudioFileSize,
                             chapterFile = chapterFile,
-                            qcDownloadFileStream = qcDownloadFileStream,
-                            jobOffsets = jobOffsets,
+                            chunksFile = chunksFile,
+                            qcdFile = qcdFile,
+                            qcdFileStream = qcdFileStream,
+                            chunks = chunks,
                             notificationManager = notificationManager,
-                            cancelNotification = isSingleFileDownload
+                            cancelNotification = isSingleFileDownload,
+                            downloadInterrupted = true
                     )
-
-                    qcDownloadFile.delete()
 
                     Result.failure(
                             getWorkData(
@@ -512,88 +497,97 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         }
     }
 
-    private suspend fun executeDownload(
-            jobID: Int,
+    private suspend fun downloadChunk(
             url: URL,
             chapterFileStream: RandomAccessFile,
-            startOffset: Long,
-            endOffset: Long,
-            onProgressChanged: (suspend (jobID: Int, jobName: String, bytesDownloaded: Long, currentOffset: Long) -> Unit)? = null
+            chunk: Chunk,
+            onProgressChanged: (suspend (chunkName: String, chunk: Chunk) -> Unit)? = null
     ) {
-        val jobName = "${currentCoroutineContext[CoroutineName.Key]?.name}"
+        val chunkName = "${currentCoroutineContext[CoroutineName.Key]?.name}"
 
         (withContext(Dispatchers.IO) { url.openConnection() } as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 0 // infinite timeout
             readTimeout = 0 // infinite timeout
             setRequestProperty("Accept-Encoding", "identity")
-            setRequestProperty("Range", "bytes=$startOffset-")
+            setRequestProperty("Range", "bytes=${chunk.startOffset}-${chunk.endOffset}")
             connect()
-            var seekOffset = startOffset
-            var bytesDownloaded = startOffset
             val buffer = ByteArray(32_768) // 32KB buffer size
-            var bytes: Int
+            // val buffer = ByteArray(4_096) // 4KB buffer size
+            val chunkDownloaded = if (chunk.downloaded == -1L) 0 else chunk.downloaded
+            chunk.currentOffset = chunk.startOffset
+
+            chunk.downloaded = chunkDownloaded
+            onProgressChanged?.invoke(chunkName, chunk)
 
             do {
-                bytes = inputStream.read(buffer)
-                bytesDownloaded = (bytesDownloaded + bytes).cap(endOffset)
                 // wait for the thread lock to be unlocked
                 while (mutex.isLocked) Unit
                 mutex.withLock {
-                    chapterFileStream.seek(seekOffset)
-                    chapterFileStream.write(buffer)
-                    onProgressChanged?.invoke(
-                            jobID,
-                            jobName,
-                            bytesDownloaded - startOffset,
-                            chapterFileStream.filePointer - 1
-                    )
+                    val bytes = inputStream.read(buffer)
+                    // Log.d(
+                    //         TAG,
+                    //         "[$timestamp] $chunkName - read ${bytes.formatted} bytes, total: ${(chunk.currentOffset + bytes).formatted} bytes!"
+                    // )
+                    chapterFileStream.seek(chunk.currentOffset)
+                    chapterFileStream.write(buffer, 0, bytes)
 
-                    // Log.d(TAG, "$jobName: ${bytesDownloaded.formatted} bytes / ${endOffset.formatted} bytes")
+                    chunk.currentOffset += bytes
+
+                    chunk.downloaded = chunkDownloaded + chunk.currentOffset - chunk.startOffset
+
+                    onProgressChanged?.invoke(chunkName, chunk)
+                    // Log.d(
+                    //         TAG,
+                    //         "[$timestamp] $chunkName - ${chunk.startOffset.formatted}: " +
+                    //         "${chunk.downloaded.formatted} bytes / ${chunk.endOffset.formatted} bytes"
+                    // )
                 }
-                seekOffset += bytes
-            } while (!isStopped && (bytesDownloaded < endOffset))
+            } while (!isStopped && (chunk.currentOffset < chunk.endOffset))
 
             Log.d(
                     TAG,
-                    "[$timestamp] $jobName: ${
-                        if (isStopped) "DOWNLOAD JOB INTERRUPTED at offset ${seekOffset.formatted}!!!"
+                    "[$timestamp] $chunkName: ${
+                        if (isStopped) "DOWNLOAD JOB INTERRUPTED at offset ${chunk.currentOffset.formatted}!!!"
                         else "DOWNLOAD JOB COMPLETE!"
-                    } closing input stream..."
+                    }"
             )
+            Log.d(TAG, "[$timestamp] $chunkName: closing input stream...")
             inputStream.close()
 
             Log.d(
                     TAG,
-                    "[$timestamp] $jobName: ${
-                        if (isStopped) "DOWNLOAD JOB INTERRUPTED at offset ${seekOffset.formatted}!!!"
+                    "[$timestamp] $chunkName: ${
+                        if (isStopped) "DOWNLOAD JOB INTERRUPTED at offset ${chunk.currentOffset.formatted}!!!"
                         else "DOWNLOAD JOB COMPLETE!"
-                    } disconnecting from $url..."
+                    }"
             )
+            Log.d(TAG, "[$timestamp] $chunkName: disconnecting from $url...")
             disconnect()
         }
     }
 
     @OptIn(ExperimentalStdlibApi::class)
     private fun postDownloadCleanup(
-            downloadInterrupted: Boolean,
             reciter: Reciter? = null,
             chapter: Chapter? = null,
-            offset: Long,
             chapterDownloadedBytes: Long,
             chapterAudioFileSize: Int,
             chapterFile: File,
-            qcDownloadFileStream: RandomAccessFile,
-            jobOffsets: Array<JobOffset>,
+            chunksFile: File? = null,
+            qcdFile: File,
+            qcdFileStream: RandomAccessFile,
+            chunks: Array<Chunk>,
             notificationManager: NotificationManager,
-            cancelNotification: Boolean = false
+            cancelNotification: Boolean = false,
+            downloadInterrupted: Boolean
     ) {
         if (cancelNotification) notificationManager.cancel(R.integer.quran_chapter_download_notification_channel_id)
 
         if (!downloadInterrupted) {
             if ((reciter == null) || (chapter == null)) throw IllegalStateException("reciter or chapter parameter must not be null")
 
-            qcDownloadFileStream.close()
+            qcdFileStream.close()
 
             Log.d(
                     TAG,
@@ -609,6 +603,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
 
             sharedPrefsManager.setChapterPath(reciter, chapter)
         } else {
+            require(chunksFile != null) { "chunksFile is null" }
             val hexFormat =
                     HexFormat {
                         bytes {
@@ -617,19 +612,20 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                             bytePrefix = "0x"
                         }
                     }
-            val fileOffsetsJsonFile = File("${chapterFile.absolutePath}.json")
+            val gsonFormatter = GsonBuilder().setPrettyPrinting().create()
             val bytesLeft = chapterAudioFileSize - chapterDownloadedBytes
-            val progressLeft =
-                    (bytesLeft.toFloat() / chapterAudioFileSize.toFloat()) * 100f
-            val chapterFileStream = RandomAccessFile(chapterFile, "rw")
-            val downloadedBytesByJobs = jobOffsets.sumOf { jobOffset ->
-                jobOffset.currentOffset - jobOffset.startOffset
-            }
-            val totalDownloadedBytes = offset + downloadedBytesByJobs
-            var totalParsedBytes = offset
+            val progressLeft = (bytesLeft.toFloat() / chapterAudioFileSize.toFloat()) * 100f
+            val downloadedBytesByJobs =
+                    chunks.sumOf { chunk ->
+                        if (chunk.currentOffset >= chunk.startOffset) chunk.currentOffset - chunk.startOffset
+                        else chunk.currentOffset
+                    }
+            var totalParsedBytes = 0L
+            val fileOffsetsJsonObject = JsonObject()
+            val fileOffsetsJsonArray = JsonArray()
 
-            fileOffsetsJsonFile.writeText("{\n    ")
-            fileOffsetsJsonFile.appendText("\"fileName\": \"${chapterFile.absolutePath}\",\n    ")
+            fileOffsetsJsonObject.addProperty("fileName", qcdFile.absolutePath)
+            fileOffsetsJsonObject.addProperty("totalDownloaded", downloadedBytesByJobs)
 
             Log.d(TAG, "=============================================================================================")
             Log.d(
@@ -639,98 +635,60 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
             )
 
             Log.d(TAG, "=============================================================================================")
-            Log.d(TAG, "[$timestamp] checking for data before offset: ${offset.formatted} in file: ${chapterFile.path}...")
-
-            if (offset > 0) {
-                Log.d(
-                        TAG,
-                        "[$timestamp] reading ${offset.formatted} bytes from the beginning of file: ${chapterFile.path}..."
-                )
-                val preOffsetBuffer = ByteArray(offset.toInt())
-                qcDownloadFileStream.seek(0)
-                qcDownloadFileStream.readFully(preOffsetBuffer, 0, offset.toInt())
-
-                Log.d(TAG, "[$timestamp] writing ${offset.formatted} bytes to offset 0 in file: ${chapterFile.path}...")
-                val preOffsetBufferFirstNSlice =
-                        preOffsetBuffer.slice(0..<5).toByteArray().toHexString(hexFormat)
-                val preOffsetBufferLastNSlice =
-                        preOffsetBuffer.slice(preOffsetBuffer.size - 5..<preOffsetBuffer.size)
-                            .toByteArray().toHexString(hexFormat)
-                fileOffsetsJsonFile.appendText(
-                        "\"offsetData_pre_jobs\": {\n        \"length\": " +
-                        "\"${preOffsetBuffer.size}\",\n        "
-                )
-                fileOffsetsJsonFile.appendText(
-                        "\"${chapterFileStream.filePointer}\": " +
-                        "\"$preOffsetBufferFirstNSlice...$preOffsetBufferLastNSlice\"\n    "
-                )
-                fileOffsetsJsonFile.appendText("},\n")
-
-                chapterFileStream.write(preOffsetBuffer)
-            }
-
-            Log.d(TAG, "=============================================================================================")
             Log.d(TAG, "[$timestamp] downloaded bytes by jobs: ${downloadedBytesByJobs.formatted} bytes")
-            Log.d(TAG, "[$timestamp] total downloaded bytes: ${totalDownloadedBytes.formatted} bytes")
+            Log.d(TAG, "[$timestamp] total downloaded bytes: ${downloadedBytesByJobs.formatted} bytes")
             Log.d(TAG, "=============================================================================================")
 
-            chapterFileStream.seek(offset)
-            jobOffsets.forEachIndexed { index, jobOffset ->
-                val jobDownloadedBytes =
-                        (jobOffset.currentOffset - jobOffset.startOffset).toInt()
-                val buffer = ByteArray(jobDownloadedBytes)
+            for (chunk in chunks) {
+                val buffer = ByteArray((chunk.currentOffset - chunk.startOffset).toInt())
 
-                Log.d(TAG, "[$timestamp] $jobOffset:")
-
+                Log.d(TAG, "[$timestamp] $chunk")
                 Log.d(
                         TAG,
-                        "[$timestamp] reading ${jobDownloadedBytes.formatted} bytes from offset: " +
-                        "${jobOffset.startOffset.formatted} from Job #${jobOffset.jobID.formatted}..."
+                        "[$timestamp] reading ${chunk.downloaded.formatted} bytes from offset: " +
+                        "${chunk.startOffset.formatted} from Chunk #${chunk.id.formatted}..."
                 )
 
-                qcDownloadFileStream.seek(jobOffset.startOffset)
-                qcDownloadFileStream.readFully(buffer, 0, jobDownloadedBytes)
-
-                Log.d(
-                        TAG,
-                        "[$timestamp] writing ${buffer.size.formatted} bytes to offset: " +
-                        "${chapterFileStream.filePointer.formatted} in file: ${chapterFile.path}..."
-                )
+                qcdFileStream.seek(chunk.startOffset)
+                qcdFileStream.readFully(buffer)
                 val bufferFirstNSlice =
                         buffer.slice(0..<5).toByteArray().toHexString(hexFormat)
                 val bufferLastNSlice =
                         buffer.slice(buffer.size - 5..<buffer.size).toByteArray().toHexString(hexFormat)
-                fileOffsetsJsonFile.appendText(
-                        "\"offsetData_job_${jobOffset.jobID}\": {\n        \"length\": " +
-                        "\"${buffer.size}\",\n        "
-                )
-                fileOffsetsJsonFile.appendText(
-                        "\"${chapterFileStream.filePointer}\": " +
-                        "\"$bufferFirstNSlice...$bufferLastNSlice\"\n    "
-                )
-                fileOffsetsJsonFile.appendText(
-                        "}" +
-                        if (index < jobOffsets.size - 1) ",\n    "
-                        else "\n"
-                )
 
-                chapterFileStream.write(buffer)
+                chunk.dataPreview = "$bufferFirstNSlice...$bufferLastNSlice"
+
+                if (chunk.downloaded == chunk.endOffset) {
+                    Log.d(TAG, "[$timestamp] data from chunk #${chunk.id.formatted} is complete, skipping this chunk...")
+                    Log.d(TAG, "[$timestamp] $chunk")
+                    Log.d(
+                            TAG,
+                            "============================================================================================="
+                    )
+                    continue
+                }
+
+                Log.d(TAG, "[$timestamp] $chunk")
+                Log.d(TAG, "[$timestamp] saving ${buffer.size.formatted} bytes to ${chunksFile.name}...")
+
+                fileOffsetsJsonArray.add(chunk.jsonObject)
 
                 Log.d(TAG, "=============================================================================================")
 
                 totalParsedBytes += buffer.size
             }
 
-            fileOffsetsJsonFile.appendText("}")
+            fileOffsetsJsonObject.add("chunks", fileOffsetsJsonArray)
 
-            chapterFileStream.close()
-            qcDownloadFileStream.close()
-
+            chunksFile.writeText(gsonFormatter.toJson(fileOffsetsJsonObject))
+            qcdFileStream.close()
             Log.d(
                     TAG,
-                    "[$timestamp] copied ${totalParsedBytes.formatted} bytes, chapter audio file size: ${chapterAudioFileSize.formatted} " +
-                    "bytes (${DecimalFormat("000.000").format((totalParsedBytes.toFloat() / chapterAudioFileSize.toFloat()) * 100f)}%)!!!"
+                    "[$timestamp] saved ${totalParsedBytes.formatted} bytes, chapter audio file size: ${chapterAudioFileSize.formatted} " +
+                    "bytes (${DecimalFormat("000.000").format((totalParsedBytes.toFloat() / chapterAudioFileSize.toFloat()) * 100f)}%)!!!\n" +
+                    "to ${chunksFile.absolutePath}"
             )
+            Log.d(TAG, "fileOffsetsJsonObject.asString: ${fileOffsetsJsonObject.asJsonString}")
         }
     }
 
@@ -773,20 +731,58 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
         return notificationBuilder to notificationManager
     }
 
-    private infix fun Long.cap(max: Long): Long = if (this > max) max else this
-    private inline val Number.formatted: String
-        get() = numberFormat.format(this)
-
-    private inner class JobOffset(
-            val jobID: Int,
-            val startOffset: Long,
-            val endOffset: Long,
-            var currentOffset: Long,
+    private fun updateDownloadNotification(
+            notificationBuilder: NotificationCompat.Builder,
+            notificationManager: NotificationManager,
+            chapter: Chapter,
+            chapterDownloadedBytes: Long,
+            chapterAudioFileSize: Int,
+            chapterProgress: Float
     ) {
+        notificationBuilder
+            .setContentTitle(
+                    context.getString(R.string.loading_chapter, chapter.nameArabic)
+            )
+            .setContentText(
+                    "${decimalFormat.format(chapterDownloadedBytes.toFloat() / (1024f * 1024f))} مب." +
+                    " \\ ${decimalFormat.format(chapterAudioFileSize.toFloat() / (1024f * 1024f))}" +
+                    " مب. (${decimalFormat.format(chapterProgress)}٪)"
+            )
+            .setProgress(100, chapterProgress.toInt(), false)
 
-        override fun toString(): String = "JobOffset(jobID=${jobID}, " +
-                                          "startOffset=${startOffset.formatted}, " +
-                                          "endOffset=${endOffset.formatted}, " +
-                                          "currentOffset=${currentOffset.formatted})"
+        notificationManager.notify(R.integer.quran_chapter_download_notification_channel_id, notificationBuilder.build())
+    }
+
+    private val JsonObject.asJsonString
+        get() = GsonBuilder().setPrettyPrinting().create().toJson(this)
+
+    private data class Chunk(
+            var id: Int = -1,
+            var startOffset: Long = -1L,
+            var endOffset: Long = -1L,
+            var currentOffset: Long = -1L,
+            var downloaded: Long = -1L,
+            var dataPreview: String = ""
+    ) : Serializable {
+
+        @Transient
+        private val gson = GsonBuilder().setPrettyPrinting().create()
+        private val jsonString: String
+            get() = gson.toJson(this)
+        val jsonObject: JsonObject
+            get() = gson.fromJson(jsonString, JsonObject::class.java)
+
+        override fun toString(): String = "${this.javaClass.simpleName}(" +
+                                          "${::id.name}=${id}, " +
+                                          "${::startOffset.name}=${startOffset.formatted}, " +
+                                          "${::endOffset.name}=${endOffset.formatted}, " +
+                                          "${::currentOffset.name}=${currentOffset.formatted}, " +
+                                          "${::downloaded.name}=${downloaded.formatted}, " +
+                                          "${::dataPreview.name}=$dataPreview" +
+                                          ")"
     }
 }
+
+private val numberFormat = NumberFormat.getNumberInstance(Locale.ENGLISH)
+private inline val Number.formatted: String
+    get() = numberFormat.format(this)

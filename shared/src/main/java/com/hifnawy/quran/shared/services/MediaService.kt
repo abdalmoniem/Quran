@@ -147,34 +147,26 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         val reciter = intent.getTypedSerializable<Reciter>(IntentDataKeys.RECITER.name)
         val chapter = intent.getTypedSerializable<Chapter>(IntentDataKeys.CHAPTER.name)
 
+        startForeground(
+                R.integer.quran_chapter_recitation_notification_channel_id,
+                NotificationCompat
+                    .Builder(this@MediaService, getString(R.string.quran_recitation_notification_name)).build()
+        )
+
         mediaManager.whenReady { _, _ ->
             val chapterPosition =
                     intent.getLongExtra(IntentDataKeys.CHAPTER_POSITION.name, -1L)
 
             when (intent.action) {
-                DOWNLOAD_CHAPTERS.name        -> {
-                    if (reciter == null) return@whenReady
-                    showDownloadForegroundNotification(reciter)
-                    mediaManager.downloadChapters(reciter)
-                }
-
-                CANCEL_DOWNLOADS.name -> {
-                    MediaManager.cancelPendingDownloads()
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                }
-
-                PLAY_MEDIA.name               -> {
-                    if (reciter == null || chapter == null) return@whenReady
-                    showMediaForegroundNotification(reciter, chapter)
-                    prepareMedia(reciter, chapter, chapterPosition)
-                }
-
-                PAUSE_MEDIA.name              -> pauseMedia()
-                TOGGLE_MEDIA.name             -> toggleMedia()
-                STOP_MEDIA.name               -> stopSelf()
-                SKIP_TO_NEXT_MEDIA.name       -> skipToNextChapter()
-                SKIP_TO_PREVIOUS_MEDIA.name   -> skipToPreviousChapter()
-                SEEK_MEDIA.name               -> seekChapterToPosition(chapterPosition)
+                DOWNLOAD_CHAPTERS.name      -> downloadChapters(reciter)
+                CANCEL_DOWNLOADS.name       -> cancelDownloads()
+                PLAY_MEDIA.name             -> startMedia(reciter, chapter, chapterPosition)
+                PAUSE_MEDIA.name            -> pauseMedia()
+                TOGGLE_MEDIA.name           -> toggleMedia()
+                STOP_MEDIA.name             -> stopSelf()
+                SKIP_TO_NEXT_MEDIA.name     -> skipToNextChapter()
+                SKIP_TO_PREVIOUS_MEDIA.name -> skipToPreviousChapter()
+                SEEK_MEDIA.name             -> seekChapterToPosition(chapterPosition)
             }
         }
 
@@ -293,6 +285,24 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                 skipToNextChapter()
             }
         }
+    }
+
+    private fun downloadChapters(reciter: Reciter?) {
+        if (reciter == null) return
+
+        showDownloadForegroundNotification(reciter)
+        mediaManager.downloadChapters(reciter)
+    }
+
+    private fun cancelDownloads() {
+        MediaManager.cancelPendingDownloads()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    private fun startMedia(reciter: Reciter?, chapter: Chapter?, chapterPosition: Long) {
+        if (reciter == null || chapter == null) return
+        showMediaForegroundNotification(reciter, chapter)
+        prepareMedia(reciter, chapter, chapterPosition)
     }
 
     private fun startPlaybackMonitoring() {
