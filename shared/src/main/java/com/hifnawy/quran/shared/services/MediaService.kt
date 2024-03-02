@@ -312,7 +312,7 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
         val timerTask = object : TimerTask() {
             private val widgetUpdatePeriod = 100
             private var widgetUpdateCounter = 0
-            private val widgetUpdateCounterMax = widgetUpdatePeriod  / mediaPlayerUpdatePeriod
+            private val widgetUpdateCounterMax = widgetUpdatePeriod / mediaPlayerUpdatePeriod
 
             override fun run() {
                 mainCoroutineScope.launch {
@@ -516,7 +516,28 @@ class MediaService : MediaBrowserServiceCompat(), Player.Listener {
                     .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs)
                     .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, chapterDrawableBitmap).build()
         )
-
+        // TODO: to be used when online streaming is implemented
+        // CoroutineScope(Dispatchers.IO).launch {
+        //     val chapterAudio = QuranAPI.getChapterAudioFile(reciter.id, chapter.id)
+        //
+        //     withContext(Dispatchers.Main) {
+        //         isMediaReady = true
+        //
+        //         showMediaNotification(chapter)
+        //
+        //         if (exoPlayer.isPlaying || (currentChapterPosition == 0L)) {
+        //             exoPlayer.stop()
+        //         }
+        //         val mediaItem = ExoPlayerMediaItem.fromUri(Uri.parse(chapterAudio?.url))
+        //         exoPlayer.setMediaItem(mediaItem)
+        //         exoPlayer.prepare()
+        //         exoPlayer.playWhenReady = true
+        //         Log.d(TAG, "seeking to $currentChapterPosition...")
+        //         exoPlayer.seekTo(currentChapterPosition)
+        //
+        //         setMediaPlaybackState(MediaSessionState.PLAYING)
+        //     }
+        // }
         if (chapterAudioFile != null) playMedia(chapter, chapterAudioFile)
     }
 

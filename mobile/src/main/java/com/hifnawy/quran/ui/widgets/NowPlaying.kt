@@ -131,6 +131,8 @@ class NowPlaying : AppWidgetProvider() {
             if (!isCurrentChapterInitialized) currentChapter = lastChapter ?: return@apply
         }
 
+        if (!isCurrentReciterInitialized || !isCurrentChapterInitialized) return
+
         currentChapter.let { chapter ->
             @SuppressLint("DiscouragedApi")
             val chapterImageDrawableId = context.resources.getIdentifier(

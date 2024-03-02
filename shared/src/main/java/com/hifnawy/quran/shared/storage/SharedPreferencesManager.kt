@@ -28,22 +28,34 @@ class SharedPreferencesManager(private val context: Context) {
     private val sharedPrefs =
             context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
     var reciters: List<Reciter>?
-        get() = sharedPrefs.getSerializableList(SharedPrefsKeys.RECITERS.name)
+        get() = when {
+            sharedPrefs.contains(SharedPrefsKeys.RECITERS.name) -> sharedPrefs.getSerializableList(SharedPrefsKeys.RECITERS.name)
+            else                                                -> null
+        }
         set(value) = sharedPrefs.edit()
             .putSerializableList(SharedPrefsKeys.RECITERS.name, value!!)
             .apply()
     var chapters: List<Chapter>?
-        get() = sharedPrefs.getSerializableList(SharedPrefsKeys.CHAPTERS.name)
+        get() = when {
+            sharedPrefs.contains(SharedPrefsKeys.CHAPTERS.name) -> sharedPrefs.getSerializableList(SharedPrefsKeys.CHAPTERS.name)
+            else                                                -> null
+        }
         set(value) = sharedPrefs.edit()
             .putSerializableList(SharedPrefsKeys.CHAPTERS.name, value!!)
             .apply()
     var lastReciter: Reciter?
-        get() = sharedPrefs.getSerializable(SharedPrefsKeys.LAST_RECITER.name)
+        get() = when {
+            sharedPrefs.contains(SharedPrefsKeys.LAST_RECITER.name) -> sharedPrefs.getSerializable(SharedPrefsKeys.LAST_RECITER.name)
+            else                                                    -> null
+        }
         set(value) = sharedPrefs.edit()
             .putSerializable(SharedPrefsKeys.LAST_RECITER.name, value!!)
             .apply()
     var lastChapter: Chapter?
-        get() = sharedPrefs.getSerializable(SharedPrefsKeys.LAST_CHAPTER.name)
+        get() = when {
+            sharedPrefs.contains(SharedPrefsKeys.LAST_CHAPTER.name) -> sharedPrefs.getSerializable(SharedPrefsKeys.LAST_CHAPTER.name)
+            else                                                    -> null
+        }
         set(value) = sharedPrefs.edit()
             .putSerializable(SharedPrefsKeys.LAST_CHAPTER.name, value!!)
             .apply()

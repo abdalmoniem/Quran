@@ -688,7 +688,7 @@ class DownloadWorkManager(private val context: Context, workerParams: WorkerPara
                     "bytes (${DecimalFormat("000.000").format((totalParsedBytes.toFloat() / chapterAudioFileSize.toFloat()) * 100f)}%)!!!\n" +
                     "to ${chunksFile.absolutePath}"
             )
-            Log.d(TAG, "fileOffsetsJsonObject.asString: ${fileOffsetsJsonObject.asJsonString}")
+            // Log.d(TAG, "fileOffsetsJsonObject.asString: ${fileOffsetsJsonObject.asJsonString}")
         }
     }
 
